@@ -197,6 +197,7 @@ def main():
     molecule = sys.argv[1]
     loc_proc = sys.argv[2]
     
+
     # init molecule
     mol = gto.Mole()
     mol.build(
@@ -207,9 +208,14 @@ def main():
     symmetry = True,
     )
 
+
     # nuclear repulsion energy
     e_nuc = np.sum(energy_nuc(mol))
+
+    # value of XC functional on grid
+    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
    
+
     # init and run HF calc
     mf_hf = scf.RHF(mol)
     mf_hf.run()
@@ -221,6 +227,7 @@ def main():
     mf_dft.run()
     assert mf_hf.converged, 'DFT not converged'
     
+
     # decompose HF energy by means of canonical orbitals
     mo_coeff = mf_hf.mo_coeff
     e_hf = e_tot(mol, mf_hf, mo_coeff)
@@ -232,15 +239,12 @@ def main():
     # decompose DFT energy by means of canonical orbitals
     mo_coeff = mf_dft.mo_coeff
     e_dft = e_tot(mol, mf_dft, mo_coeff, dft=True)
-    # value of XC functional on grid
-    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
     
     # decompose DFT energy by means of localized MOs
     mo_coeff = loc_orbs(mol, mf_dft, loc_proc)
     e_dft_loc = e_tot(mol, mf_dft, mo_coeff, dft=True)
-    # value of XC functional on grid
-    e_xc_loc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
     
+
     # print results
     print('\n\n results for: {:} with localization procedure: {:}\n\n'.format(molecule, loc_proc))
     print('  MO  |       hf      |     hf-loc    |      dft      |     dft-loc')
@@ -256,12 +260,12 @@ def main():
     print('  nuc | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}'. \
             format(e_nuc, e_nuc, e_nuc, e_nuc))
     print('  xc  |      N/A      |      N/A      | {:>12.5f}  | {:>12.5f}'. \
-            format(e_xc, e_xc_loc))
+            format(e_xc, e_xc))
     print('-------------------------------------------------------------------------')
     print('-------------------------------------------------------------------------')
     print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
             format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc, \
-                   np.sum(e_dft) + e_xc + e_nuc, np.sum(e_dft_loc) + e_xc_loc + e_nuc))
+                   np.sum(e_dft) + e_xc + e_nuc, np.sum(e_dft_loc) + e_xc + e_nuc))
     print('\n *** HF reference energy  = {:.5f}'. \
             format(mf_hf.e_tot))
     print(' *** DFT reference energy = {:.5f}\n\n'. \
