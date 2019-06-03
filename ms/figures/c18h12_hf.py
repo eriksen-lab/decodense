@@ -83,6 +83,7 @@ sns.set(style='darkgrid', font='DejaVu Sans')
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 palette = sns.color_palette('Set2')
+palette = [palette[1]] * len(palette)
 
 c18h12_pm_core_fake = ax1.scatter(n_core_c18h12, \
                              c18h12_hf_pm[n_core_c18h12], \
