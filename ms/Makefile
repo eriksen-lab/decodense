@@ -3,14 +3,14 @@
 all: achemso
 
 achemso:
-	pdflatex notes
-	bibtex notes
-	pdflatex notes
-	pdflatex notes
+	pdflatex ms
+	bibtex ms
+	pdflatex ms
+	pdflatex ms
 
 clean:
-	rm notes.aux
-	rm notes.bbl
-	rm notes.log
-	rm notes.blg
+	rm ms.aux
+	rm ms.bbl
+	rm ms.log
+	rm ms.blg
 
