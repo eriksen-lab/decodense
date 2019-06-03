@@ -7,6 +7,7 @@ import sys
 import numpy as np
 from pyscf import gto, scf, dft, lo, symm
 
+
 def e_elec(h_core, vj, vk, rdm1):
     """
     this function returns a contribution to a mean-field energy from rdm1:
@@ -143,80 +144,131 @@ def loc_orbs(mol, mf, variant):
     return mo_coeff
 
 
-# read in molecule argument
-if len(sys.argv) != 3:
-    sys.exit('\n missing or too many arguments: python orb_decomp.py molecule loc_proc\n')
+def energy_nuc(mol):
+    """
+    this function returns the nuclear repulsion energy for all atoms of the system
 
-# set molecule
-molecule = sys.argv[1]
-loc_proc = sys.argv[2]
+    :param mol: pyscf mol object
+    :return: numpy array of shape (n_atom,)
+    """
+    # number of atoms
+    n_atom = len(mol._atm)
 
-# init molecule
-mol = gto.Mole()
-mol.build(
-verbose = 0,
-output = None,
-atom = open('structures/'+molecule+'.xyz').read(),
-basis = '631g',
-symmetry = True,
-)
-# nuclear repulsion energy
-e_nuc = mol.energy_nuc()
+    # charges
+    charges = mol.atom_charges()
 
-# init and run HF calc
-mf_hf = scf.RHF(mol)
-mf_hf.run()
-assert mf_hf.converged, 'HF not converged'
+    # coordinates
+    coords = mol.atom_coords()
 
-# init and run DFT (B3LYP) calc
-mf_dft = dft.RKS(mol)
-mf_dft.xc = 'b3lyp'
-mf_dft.run()
-assert mf_hf.converged, 'DFT not converged'
+    # init e_nuc
+    e_nuc = np.zeros(n_atom)
 
-# decompose HF energy by means of canonical orbitals
-mo_coeff = mf_hf.mo_coeff
-e_hf = e_tot(mol, mf_hf, mo_coeff)
+    # loop over atoms
+    for j in range(n_atom):
 
-# decompose HF energy by means of localized MOs
-mo_coeff = loc_orbs(mol, mf_hf, loc_proc)
-e_hf_loc = e_tot(mol, mf_hf, mo_coeff)
+        # charge and coordinates of atom_j
+        q_j = charges[j]
+        r_j = coords[j]
 
-# decompose DFT energy by means of canonical orbitals
-mo_coeff = mf_dft.mo_coeff
-e_dft = e_tot(mol, mf_dft, mo_coeff, dft=True)
-# value of XC functional on grid
-e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
+        # loop over atoms < atom_j
+        for i in range(j):
 
-# decompose DFT energy by means of localized MOs
-mo_coeff = loc_orbs(mol, mf_dft, loc_proc)
-e_dft_loc = e_tot(mol, mf_dft, mo_coeff, dft=True)
-# value of XC functional on grid
-e_xc_loc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
+            # charge and coordinates of atom_i
+            q_i = charges[i]
+            r_i = coords[i]
 
-# print results
-print('\n results for: {:} with localization procedure: {:}\n'.format(molecule, loc_proc))
-print('  MO  |       hf      |     hf-loc    |      dft      |     dft-loc')
-print('-------------------------------------------------------------------------')
-for i in range(e_hf.size):
-    print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    | {:>10.3f}    | {:>10.3f}'. \
-            format(i, e_hf[i], e_hf_loc[i], e_dft[i], e_dft_loc[i]))
-print('-------------------------------------------------------------------------')
-print('-------------------------------------------------------------------------')
-print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
-        format(np.sum(e_hf), np.sum(e_hf_loc), np.sum(e_dft), np.sum(e_dft_loc)))
-print('-------------------------------------------------------------------------')
-print('  nuc | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}'. \
-        format(e_nuc, e_nuc, e_nuc, e_nuc))
-print('  xc  |      N/A      |      N/A      | {:>12.5f}  | {:>12.5f}'. \
-        format(e_xc, e_xc_loc))
-print('-------------------------------------------------------------------------')
-print('-------------------------------------------------------------------------')
-print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
-        format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc, \
-               np.sum(e_dft) + e_xc + e_nuc, np.sum(e_dft_loc) + e_xc_loc + e_nuc))
-print('\n *** HF reference energy  = {:.5f}'. \
-        format(mf_hf.e_tot))
-print(' *** DFT reference energy = {:.5f}\n'. \
-        format(mf_dft.e_tot))
+            # distance between atom_j & atom_i
+            r = np.linalg.norm(r_i - r_j)
+
+            # repulsion energy
+            e_nuc[j] += (q_i * q_j) / r
+
+    return e_nuc
+
+
+def main():
+    """ main program """
+
+    # read in molecule argument
+    if len(sys.argv) != 3:
+        sys.exit('\n missing or too many arguments: python orb_decomp.py molecule loc_proc\n')
+    
+    # set molecule
+    molecule = sys.argv[1]
+    loc_proc = sys.argv[2]
+    
+    # init molecule
+    mol = gto.Mole()
+    mol.build(
+    verbose = 0,
+    output = None,
+    atom = open('structures/'+molecule+'.xyz').read(),
+    basis = '631g',
+    symmetry = True,
+    )
+
+    # nuclear repulsion energy
+    e_nuc = np.sum(energy_nuc(mol))
+   
+    # init and run HF calc
+    mf_hf = scf.RHF(mol)
+    mf_hf.run()
+    assert mf_hf.converged, 'HF not converged'
+    
+    # init and run DFT (B3LYP) calc
+    mf_dft = dft.RKS(mol)
+    mf_dft.xc = 'b3lyp'
+    mf_dft.run()
+    assert mf_hf.converged, 'DFT not converged'
+    
+    # decompose HF energy by means of canonical orbitals
+    mo_coeff = mf_hf.mo_coeff
+    e_hf = e_tot(mol, mf_hf, mo_coeff)
+    
+    # decompose HF energy by means of localized MOs
+    mo_coeff = loc_orbs(mol, mf_hf, loc_proc)
+    e_hf_loc = e_tot(mol, mf_hf, mo_coeff)
+    
+    # decompose DFT energy by means of canonical orbitals
+    mo_coeff = mf_dft.mo_coeff
+    e_dft = e_tot(mol, mf_dft, mo_coeff, dft=True)
+    # value of XC functional on grid
+    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
+    
+    # decompose DFT energy by means of localized MOs
+    mo_coeff = loc_orbs(mol, mf_dft, loc_proc)
+    e_dft_loc = e_tot(mol, mf_dft, mo_coeff, dft=True)
+    # value of XC functional on grid
+    e_xc_loc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
+    
+    # print results
+    print('\n\n results for: {:} with localization procedure: {:}\n\n'.format(molecule, loc_proc))
+    print('  MO  |       hf      |     hf-loc    |      dft      |     dft-loc')
+    print('-------------------------------------------------------------------------')
+    for i in range(e_hf.size):
+        print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    | {:>10.3f}    | {:>10.3f}'. \
+                format(i, e_hf[i], e_hf_loc[i], e_dft[i], e_dft_loc[i]))
+    print('-------------------------------------------------------------------------')
+    print('-------------------------------------------------------------------------')
+    print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
+            format(np.sum(e_hf), np.sum(e_hf_loc), np.sum(e_dft), np.sum(e_dft_loc)))
+    print('-------------------------------------------------------------------------')
+    print('  nuc | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}'. \
+            format(e_nuc, e_nuc, e_nuc, e_nuc))
+    print('  xc  |      N/A      |      N/A      | {:>12.5f}  | {:>12.5f}'. \
+            format(e_xc, e_xc_loc))
+    print('-------------------------------------------------------------------------')
+    print('-------------------------------------------------------------------------')
+    print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
+            format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc, \
+                   np.sum(e_dft) + e_xc + e_nuc, np.sum(e_dft_loc) + e_xc_loc + e_nuc))
+    print('\n *** HF reference energy  = {:.5f}'. \
+            format(mf_hf.e_tot))
+    print(' *** DFT reference energy = {:.5f}\n\n'. \
+            format(mf_dft.e_tot))
+
+
+if __name__ == '__main__':
+    main()
+
 
