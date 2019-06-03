@@ -28,32 +28,6 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_orb(mo_coeff, n_occ, h_core, vj, vk):
-    """
-    this function returns a mean-field energy decomposed in terms of individual orbital contributions
-
-    :param mo_coeff: mo coefficients. numpy array of shape (n_orb, n_orb)
-    :param n_occ: number of occupied orbitals. integer
-    :param h_core: core hamiltonian. numpy array of shape (n_orb, n_orb)
-    :param vj: coulumb potential. numpy array of shape (n_orb, n_orb)
-    :param vk: exchange potential. numpy array of shape (n_orb, n_orb)
-    :return: numpy array of shape (n_occ,)
-    """
-    # init orbital energy array
-    e_orb = np.zeros(n_occ)
-
-    # loop over orbitals
-    for orb in range(n_occ):
-
-        # orbital-specific 1rdm
-        rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]])
-
-        # energy from individual orbitals
-        e_orb[orb] = e_elec(h_core, vj, vk, rdm1_orb)
-
-    return e_orb
-
-
 def e_tot(mol, mf, mo_coeff, dft=False):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
@@ -83,7 +57,19 @@ def e_tot(mol, mf, mo_coeff, dft=False):
 
         vj, vk = mf.get_jk(mol, rdm1)
 
-    return np.sort(e_orb(mo_coeff, n_occ, h_core, vj, vk))
+    # init orbital energy array
+    e_orb = np.zeros(n_occ)
+
+    # loop over orbitals
+    for orb in range(n_occ):
+
+        # orbital-specific 1rdm
+        rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]])
+
+        # energy from individual orbitals
+        e_orb[orb] = e_elec(h_core, vj, vk, rdm1_orb)
+
+    return np.sort(e_orb)
 
 
 def loc_orbs(mol, mf, variant):
@@ -212,9 +198,6 @@ def main():
     # nuclear repulsion energy
     e_nuc = np.sum(energy_nuc(mol))
 
-    # value of XC functional on grid
-    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mo_coeff, mf_dft.mo_occ))[1]
-   
 
     # init and run HF calc
     mf_hf = scf.RHF(mol)
@@ -226,6 +209,10 @@ def main():
     mf_dft.xc = 'b3lyp'
     mf_dft.run()
     assert mf_hf.converged, 'DFT not converged'
+
+
+    # value of XC functional on grid
+    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
     
 
     # decompose HF energy by means of canonical orbitals
