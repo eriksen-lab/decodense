@@ -230,7 +230,7 @@ def main():
     # decompose DFT energy by means of localized MOs
     mo_coeff = loc_orbs(mol, mf_dft, loc_proc)
     e_dft_loc = e_tot(mol, mf_dft, mo_coeff, dft=True)
- 
+
 
     # print results
     print('\n\n results for: {:} with localization procedure: {:}\n\n'.format(molecule, loc_proc))
