@@ -119,7 +119,7 @@ def loc_orbs(mol, mf, variant):
 
     else:
 
-        raise RuntimeError('unknown localization procedure') 
+        raise RuntimeError('unknown localization procedure')
 
     # convergence threshold
     loc.conv_tol = 1.0e-10
@@ -178,11 +178,11 @@ def main():
     # read in molecule argument
     if len(sys.argv) != 3:
         sys.exit('\n missing or too many arguments: python orb_decomp.py molecule loc_proc\n')
-    
+
     # set molecule
     molecule = sys.argv[1]
     loc_proc = sys.argv[2]
-    
+
 
     # init molecule
     mol = gto.Mole()
@@ -203,7 +203,7 @@ def main():
     mf_hf = scf.RHF(mol)
     mf_hf.run()
     assert mf_hf.converged, 'HF not converged'
-    
+
     # init and run DFT (B3LYP) calc
     mf_dft = dft.RKS(mol)
     mf_dft.xc = 'b3lyp'
@@ -213,24 +213,24 @@ def main():
 
     # value of XC functional on grid
     e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
-    
+
 
     # decompose HF energy by means of canonical orbitals
     mo_coeff = mf_hf.mo_coeff
     e_hf = e_tot(mol, mf_hf, mo_coeff)
-    
+
     # decompose HF energy by means of localized MOs
     mo_coeff = loc_orbs(mol, mf_hf, loc_proc)
     e_hf_loc = e_tot(mol, mf_hf, mo_coeff)
-    
+
     # decompose DFT energy by means of canonical orbitals
     mo_coeff = mf_dft.mo_coeff
     e_dft = e_tot(mol, mf_dft, mo_coeff, dft=True)
-    
+
     # decompose DFT energy by means of localized MOs
     mo_coeff = loc_orbs(mol, mf_dft, loc_proc)
     e_dft_loc = e_tot(mol, mf_dft, mo_coeff, dft=True)
-    
+ 
 
     # print results
     print('\n\n results for: {:} with localization procedure: {:}\n\n'.format(molecule, loc_proc))
