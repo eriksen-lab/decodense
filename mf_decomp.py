@@ -38,9 +38,6 @@ def e_tot(mol, mf, mo_coeff, dft=False):
     :param dft: dft logical. bool
     :return: numpy array of shape (n_occ,)
     """
-    # number of occupied orbitals
-    n_occ = mf.mo_occ[mf.mo_occ > 0.].size
-
     # compute 1-RDM (in AO representation)
     rdm1 = mf.make_rdm1(mo_coeff, mf.mo_occ)
 
@@ -58,10 +55,10 @@ def e_tot(mol, mf, mo_coeff, dft=False):
         vj, vk = mf.get_jk(mol, rdm1)
 
     # init orbital energy array
-    e_orb = np.zeros(n_occ)
+    e_orb = np.zeros(mol.n_occ)
 
     # loop over orbitals
-    for orb in range(n_occ):
+    for orb in range(mol.n_occ):
 
         # orbital-specific 1rdm
         rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]])
@@ -81,9 +78,6 @@ def loc_orbs(mol, mf, variant):
     :param variant: localization variant. string
     :return: numpy array of shape (n_orb, n_orb)
     """
-    # number of occupied orbitals
-    n_occ = mf.mo_occ[mf.mo_occ > 0.].size
-
     # copy MOs from mean-field object
     mo_coeff = np.copy(mf.mo_coeff)
 
@@ -91,17 +85,17 @@ def loc_orbs(mol, mf, variant):
     if variant == 'boys':
 
         # Foster-Boys procedure
-        loc = lo.Boys(mol, mo_coeff[:, :n_occ])
+        loc = lo.Boys(mol, mo_coeff[:, :mol.n_occ])
 
     elif variant == 'pm':
 
         # Pipek-Mezey procedure
-        loc = lo.PM(mol, mo_coeff[:, :n_occ])
+        loc = lo.PM(mol, mo_coeff[:, :mol.n_occ])
 
     elif variant == 'er':
 
         # Edmiston-Ruedenberg procedure
-        loc = lo.ER(mol, mo_coeff[:, :n_occ])
+        loc = lo.ER(mol, mo_coeff[:, :mol.n_occ])
 
     elif variant == 'ibo':
 
@@ -109,13 +103,13 @@ def loc_orbs(mol, mf, variant):
         s = mol.intor_symmetric('int1e_ovlp')
 
         # compute IAOs
-        a = lo.iao.iao(mol, mo_coeff[:, :n_occ])
+        a = lo.iao.iao(mol, mo_coeff[:, :mol.n_occ])
 
         # orthogonalize IAOs
         a = lo.vec_lowdin(a, s)
 
         # IBOs via Pipek-Mezey procedure
-        loc = lo.ibo.PM(mol, mo_coeff[:, :n_occ], a)
+        loc = lo.ibo.PM(mol, mo_coeff[:, :mol.n_occ], a)
 
     else:
 
@@ -125,9 +119,30 @@ def loc_orbs(mol, mf, variant):
     loc.conv_tol = 1.0e-10
 
     # localize occupied orbitals
-    mo_coeff[:, :n_occ] = loc.kernel()
+    mo_coeff[:, :mol.n_occ] = loc.kernel()
 
     return mo_coeff
+
+
+def set_ncore(mol):
+    """
+    this function return number of core orbitals
+
+    :param mol: pyscf mol object
+    :return: integer
+    """
+    # init ncore
+    ncore = 0
+
+    # loop over atoms
+    for i in range(mol.natm):
+
+        if mol.atom_charge(i) > 2: ncore += 1
+        if mol.atom_charge(i) > 12: ncore += 4
+        if mol.atom_charge(i) > 20: ncore += 4
+        if mol.atom_charge(i) > 30: ncore += 6
+
+    return ncore
 
 
 def energy_nuc(mol):
@@ -137,9 +152,6 @@ def energy_nuc(mol):
     :param mol: pyscf mol object
     :return: numpy array of shape (n_atom,)
     """
-    # number of atoms
-    n_atom = len(mol._atm)
-
     # charges
     charges = mol.atom_charges()
 
@@ -147,10 +159,10 @@ def energy_nuc(mol):
     coords = mol.atom_coords()
 
     # init e_nuc
-    e_nuc = np.zeros(n_atom)
+    e_nuc = np.zeros(mol.n_atom)
 
     # loop over atoms
-    for j in range(n_atom):
+    for j in range(mol.n_atom):
 
         # charge and coordinates of atom_j
         q_j = charges[j]
@@ -193,6 +205,16 @@ def main():
     basis = '631g',
     symmetry = True,
     )
+
+
+    # singlet check
+    assert mol.spin == 0, 'decomposition scheme only implemented for singlet states'
+
+
+    # molecular dimensions
+    mol.n_atom = len(mol._atm)
+    mol.n_core = set_ncore(mol)
+    mol.n_occ = mol.nelectron // 2
 
 
     # nuclear repulsion energy
