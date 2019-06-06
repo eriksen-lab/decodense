@@ -126,7 +126,7 @@ def loc_orbs(mol, mf, variant):
 
 def set_ncore(mol):
     """
-    this function return number of core orbitals
+    this function returns number of core orbitals
 
     :param mol: pyscf mol object
     :return: integer
@@ -223,18 +223,21 @@ def main():
 
     # init and run HF calc
     mf_hf = scf.RHF(mol)
+    mf_hf.conv_tol = 1.0e-12
     mf_hf.run()
     assert mf_hf.converged, 'HF not converged'
 
     # init and run DFT (B3LYP) calc
     mf_dft = dft.RKS(mol)
     mf_dft.xc = 'b3lyp'
+    mf_dft.conv_tol = 1.0e-12
     mf_dft.run()
     assert mf_hf.converged, 'DFT not converged'
 
 
-    # value of XC functional on grid
-    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
+    # energy of XC functional evaluated on a grid
+    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, \
+                                 mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
 
 
     # decompose HF energy by means of canonical orbitals
