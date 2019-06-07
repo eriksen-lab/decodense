@@ -101,45 +101,38 @@ def loc_orbs(mol, mf, s, variant):
     if variant == 'boys':
 
         # Foster-Boys procedure
-        loc_core = lo.Boys(mol, mo_coeff[:, :mol.ncore])
-        loc_val = lo.Boys(mol, mo_coeff[:, mol.ncore:mol.nocc])
+        loc = lo.Boys(mol, mo_coeff[:, :mol.nocc])
 
     elif variant == 'pm':
 
         # Pipek-Mezey procedure
-        loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
-        loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
+        loc = lo.PM(mol, mo_coeff[:, :mol.nocc])
 
     elif variant == 'er':
 
         # Edmiston-Ruedenberg procedure
-        loc_core = lo.ER(mol, mo_coeff[:, :mol.ncore])
-        loc_val = lo.ER(mol, mo_coeff[:, mol.ncore:mol.nocc])
+        loc = lo.ER(mol, mo_coeff[:, :mol.nocc])
 
     elif variant == 'ibo':
 
         # compute IAOs
-        a_core = lo.iao.iao(mol, mo_coeff[:, :mol.ncore])
-        a_val = lo.iao.iao(mol, mo_coeff[:, mol.ncore:mol.nocc])
+        a = lo.iao.iao(mol, mo_coeff[:, :mol.nocc])
 
         # orthogonalize IAOs
-        a_core = lo.vec_lowdin(a_core, s)
-        a_val = lo.vec_lowdin(a_val, s)
+        a = lo.vec_lowdin(a, s)
 
         # IBOs via Pipek-Mezey procedure
-        loc_core = lo.ibo.PM(mol, mo_coeff[:, :mol.ncore], a_core)
-        loc_val = lo.ibo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc], a_val)
+        loc = lo.ibo.PM(mol, mo_coeff[:, :mol.nocc], a)
 
     else:
 
         raise RuntimeError('unknown localization procedure')
 
     # convergence threshold
-    loc_core.conv_tol = loc_val.conv_tol = 1.0e-10
+    loc.conv_tol = 1.0e-10
 
     # localize occupied orbitals
-    mo_coeff[:, :mol.ncore] = loc_core.kernel()
-    mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
+    mo_coeff[:, :mol.nocc] = loc.kernel()
 
     return mo_coeff
 
@@ -227,14 +220,16 @@ def charge_centres(mol, s, rdm1):
     # get sorted indices
     max_idx = np.argsort(charges)[::-1]
 
-    if charges[max_idx[0]] / (charges[max_idx[0]] + charges[max_idx[1]]) > 0.95:
+    if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > 0.95:
 
         # core orbital
+        print('core: charges = {:.3f} / {:.3f}'.format(charges[max_idx[0]], charges[max_idx[1]]))
         return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[0])]
 
     else:
 
         # valence orbitals
+        print('valence: charges = {:.3f} / {:.3f}'.format(charges[max_idx[0]], charges[max_idx[1]]))
         return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[1])]
 
 
