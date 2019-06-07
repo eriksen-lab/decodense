@@ -28,15 +28,16 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, mf, mo_coeff, dft=False):
+def e_tot(mol, mf, s, mo_coeff, dft=False):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
     :param mol: pyscf mol object
     :param mf: pyscf mean-field object
+    :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
     :param mo_coeff: mo coefficients. numpy array of shape (n_orb, n_orb)
     :param dft: dft logical. bool
-    :return: numpy array of shape (n_occ,)
+    :return: numpy array of shape (nocc,)
     """
     # compute 1-RDM (in AO representation)
     rdm1 = mf.make_rdm1(mo_coeff, mf.mo_occ)
@@ -55,26 +56,39 @@ def e_tot(mol, mf, mo_coeff, dft=False):
         vj, vk = mf.get_jk(mol, rdm1)
 
     # init orbital energy array
-    e_orb = np.zeros(mol.n_occ)
+    e_orb = np.zeros(mol.nocc, dtype=np.float64)
+    # init charge_centres list
+    centres = []
 
     # loop over orbitals
-    for orb in range(mol.n_occ):
+    for orb in range(mol.nocc):
 
         # orbital-specific 1rdm
         rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]])
 
+        # charge centres of orbital
+        centres.append(charge_centres(mol, s, rdm1_orb))
+
         # energy from individual orbitals
         e_orb[orb] = e_elec(h_core, vj, vk, rdm1_orb)
 
-    return np.sort(e_orb)
+    # convert centres to array
+    centres = np.array(centres)
+
+    # sort arrays wrt e_orb
+    centres = centres[np.argsort(e_orb)]
+    e_orb = np.sort(e_orb)
+
+    return e_orb, centres
 
 
-def loc_orbs(mol, mf, variant):
+def loc_orbs(mol, mf, s, variant):
     """
     this function returns a set of localized MOs of a specific variant
 
     :param mol: pyscf mol object
     :param mf: pyscf mf object
+    :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
     :param variant: localization variant. string
     :return: numpy array of shape (n_orb, n_orb)
     """
@@ -85,41 +99,45 @@ def loc_orbs(mol, mf, variant):
     if variant == 'boys':
 
         # Foster-Boys procedure
-        loc = lo.Boys(mol, mo_coeff[:, :mol.n_occ])
+        loc_core = lo.Boys(mol, mo_coeff[:, :mol.ncore])
+        loc_val = lo.Boys(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
     elif variant == 'pm':
 
         # Pipek-Mezey procedure
-        loc = lo.PM(mol, mo_coeff[:, :mol.n_occ])
+        loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
+        loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
     elif variant == 'er':
 
         # Edmiston-Ruedenberg procedure
-        loc = lo.ER(mol, mo_coeff[:, :mol.n_occ])
+        loc_core = lo.ER(mol, mo_coeff[:, :mol.ncore])
+        loc_val = lo.ER(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
     elif variant == 'ibo':
 
-        # AO overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
-
         # compute IAOs
-        a = lo.iao.iao(mol, mo_coeff[:, :mol.n_occ])
+        a_core = lo.iao.iao(mol, mo_coeff[:, :mol.ncore])
+        a_val = lo.iao.iao(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
         # orthogonalize IAOs
-        a = lo.vec_lowdin(a, s)
+        a_core = lo.vec_lowdin(a_core, s)
+        a_val = lo.vec_lowdin(a_val, s)
 
         # IBOs via Pipek-Mezey procedure
-        loc = lo.ibo.PM(mol, mo_coeff[:, :mol.n_occ], a)
+        loc_core = lo.ibo.PM(mol, mo_coeff[:, :mol.ncore], a_core)
+        loc_val = lo.ibo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc], a_val)
 
     else:
 
         raise RuntimeError('unknown localization procedure')
 
     # convergence threshold
-    loc.conv_tol = 1.0e-10
+    loc_core.conv_tol = loc_val.conv_tol = 1.0e-10
 
     # localize occupied orbitals
-    mo_coeff[:, :mol.n_occ] = loc.kernel()
+    mo_coeff[:, :mol.ncore] = loc_core.kernel()
+    mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
 
     return mo_coeff
 
@@ -150,7 +168,7 @@ def energy_nuc(mol):
     this function returns the nuclear repulsion energy for all atoms of the system
 
     :param mol: pyscf mol object
-    :return: numpy array of shape (n_atom,)
+    :return: numpy array of shape (natm,)
     """
     # charges
     charges = mol.atom_charges()
@@ -159,10 +177,10 @@ def energy_nuc(mol):
     coords = mol.atom_coords()
 
     # init e_nuc
-    e_nuc = np.zeros(mol.n_atom)
+    e_nuc = np.zeros(mol.natm)
 
     # loop over atoms
-    for j in range(mol.n_atom):
+    for j in range(mol.natm):
 
         # charge and coordinates of atom_j
         q_j = charges[j]
@@ -184,16 +202,51 @@ def energy_nuc(mol):
     return e_nuc
 
 
+def charge_centres(mol, s, rdm1):
+    """
+    this function returns the mulliken charges on the individual atoms
+
+    :param mol: pyscf mol object
+    :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
+    :param rdm1: orbital specific rdm1. numpy array of shape (n_orb, n_orb)
+    :return: numpy array of shape (natm,)
+    """
+    # mulliken population matrix
+    pop = np.einsum('ij,ji->i', rdm1, s).real
+
+    # init charges
+    charges = np.zeros(mol.natm)
+
+    # loop over AOs
+    for i, s in enumerate(mol.ao_labels(fmt=None)):
+
+        charges[s[0]] += pop[i]
+
+    # get sorted indices
+    max_idx = np.argsort(charges)[::-1]
+
+    if charges[max_idx[0]] / (charges[max_idx[0]] + charges[max_idx[1]]) > 0.95:
+
+        # core orbital
+        return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[0])]
+
+    else:
+
+        # valence orbitals
+        return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[1])]
+
+
 def main():
     """ main program """
 
     # read in molecule argument
-    if len(sys.argv) != 3:
-        sys.exit('\n missing or too many arguments: python orb_decomp.py molecule loc_proc\n')
+    if len(sys.argv) != 4:
+        sys.exit('\n missing or too many arguments: python orb_decomp.py molecule xc_functional localization_procedure\n')
 
     # set molecule
     molecule = sys.argv[1]
-    loc_proc = sys.argv[2]
+    xc_func = sys.argv[2]
+    loc_proc = sys.argv[3]
 
 
     # init molecule
@@ -212,13 +265,14 @@ def main():
 
 
     # molecular dimensions
-    mol.n_atom = len(mol._atm)
-    mol.n_core = set_ncore(mol)
-    mol.n_occ = mol.nelectron // 2
+    mol.ncore = set_ncore(mol)
+    mol.nocc = mol.nelectron // 2
 
 
     # nuclear repulsion energy
     e_nuc = np.sum(energy_nuc(mol))
+    # overlap matrix
+    s = mol.intor_symmetric('int1e_ovlp')
 
 
     # init and run HF calc
@@ -229,7 +283,7 @@ def main():
 
     # init and run DFT (B3LYP) calc
     mf_dft = dft.RKS(mol)
-    mf_dft.xc = 'b3lyp'
+    mf_dft.xc = xc_func
     mf_dft.conv_tol = 1.0e-12
     mf_dft.run()
     assert mf_hf.converged, 'DFT not converged'
@@ -242,45 +296,74 @@ def main():
 
     # decompose HF energy by means of canonical orbitals
     mo_coeff = mf_hf.mo_coeff
-    e_hf = e_tot(mol, mf_hf, mo_coeff)
+    e_hf = e_tot(mol, mf_hf, s, mo_coeff)[0]
 
     # decompose HF energy by means of localized MOs
-    mo_coeff = loc_orbs(mol, mf_hf, loc_proc)
-    e_hf_loc = e_tot(mol, mf_hf, mo_coeff)
+    mo_coeff = loc_orbs(mol, mf_hf, s, loc_proc)
+    e_hf_loc, centres_hf = e_tot(mol, mf_hf, s, mo_coeff)
 
     # decompose DFT energy by means of canonical orbitals
     mo_coeff = mf_dft.mo_coeff
-    e_dft = e_tot(mol, mf_dft, mo_coeff, dft=True)
+    e_dft = e_tot(mol, mf_dft, s, mo_coeff, dft=True)[0]
 
     # decompose DFT energy by means of localized MOs
-    mo_coeff = loc_orbs(mol, mf_dft, loc_proc)
-    e_dft_loc = e_tot(mol, mf_dft, mo_coeff, dft=True)
+    mo_coeff = loc_orbs(mol, mf_dft, s, loc_proc)
+    e_dft_loc, centres_dft = e_tot(mol, mf_dft, s, mo_coeff, dft=True)
 
 
     # print results
-    print('\n\n results for: {:} with localization procedure: {:}\n\n'.format(molecule, loc_proc))
-    print('  MO  |       hf      |     hf-loc    |      dft      |     dft-loc')
+    print('\n\n results for: {:} with localization procedure: {:}'.format(molecule, loc_proc))
+
+
+    print('\n\n hartree-fock\n')
+    print('  MO  |   canonical   |   localized   |     atom(s)    |    bond length')
     print('-------------------------------------------------------------------------')
-    for i in range(e_hf.size):
-        print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    | {:>10.3f}    | {:>10.3f}'. \
-                format(i, e_hf[i], e_hf_loc[i], e_dft[i], e_dft_loc[i]))
+    for i in range(mol.nocc):
+        print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |    {:^10s}  | {:>10.3f}'. \
+                format(i, e_hf[i], e_hf_loc[i], \
+                       centres_hf[i, 0] if centres_hf[i, 0] == centres_hf[i, 1] else \
+                       '{:s} & {:s}'.format(*centres_hf[i]), \
+                       0.0))
     print('-------------------------------------------------------------------------')
     print('-------------------------------------------------------------------------')
-    print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
-            format(np.sum(e_hf), np.sum(e_hf_loc), np.sum(e_dft), np.sum(e_dft_loc)))
+    print('  sum | {:>10.3f}    | {:>10.3f}    |'. \
+            format(np.sum(e_hf), np.sum(e_hf_loc)))
     print('-------------------------------------------------------------------------')
-    print('  nuc | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}  | {:>+12.5f}'. \
-            format(e_nuc, e_nuc, e_nuc, e_nuc))
-    print('  xc  |      N/A      |      N/A      | {:>12.5f}  | {:>12.5f}'. \
+    print('  nuc | {:>+10.3f}    | {:>+10.3f}    |'. \
+            format(e_nuc, e_nuc))
+    print('-------------------------------------------------------------------------')
+    print('-------------------------------------------------------------------------')
+    print('  sum | {:>12.5f}  | {:>12.5f}  |'. \
+            format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc))
+
+    print('\n *** HF reference energy  = {:.5f}'. \
+            format(mf_hf.e_tot))
+
+
+    print('\n\n dft ({:s})\n'.format(xc_func))
+    print('  MO  |   canonical   |   localized   |     atom(s)    |    bond length')
+    print('-------------------------------------------------------------------------')
+    for i in range(mol.nocc):
+        print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |    {:^10s}  | {:>10.3f}'. \
+                format(i, e_dft[i], e_dft_loc[i], \
+                       centres_dft[i, 0] if centres_dft[i, 0] == centres_dft[i, 1] else \
+                       '{:s} & {:s}'.format(*centres_dft[i]), \
+                       0.0))
+    print('-------------------------------------------------------------------------')
+    print('-------------------------------------------------------------------------')
+    print('  sum | {:>10.3f}    | {:>10.3f}    |'. \
+            format(np.sum(e_dft), np.sum(e_dft_loc)))
+    print('-------------------------------------------------------------------------')
+    print('  nuc | {:>+10.3f}    | {:>+10.3f}    |'. \
+            format(e_nuc, e_nuc))
+    print('  xc  | {:>+10.3f}    | {:>+10.3f}    |'. \
             format(e_xc, e_xc))
     print('-------------------------------------------------------------------------')
     print('-------------------------------------------------------------------------')
-    print('  sum | {:>12.5f}  | {:>12.5f}  | {:>12.5f}  | {:>12.5f}'. \
-            format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc, \
-                   np.sum(e_dft) + e_xc + e_nuc, np.sum(e_dft_loc) + e_xc + e_nuc))
-    print('\n *** HF reference energy  = {:.5f}'. \
-            format(mf_hf.e_tot))
-    print(' *** DFT reference energy = {:.5f}\n\n'. \
+    print('  sum | {:>12.5f}  | {:>12.5f}  |'. \
+            format(np.sum(e_dft) + e_nuc + e_xc, np.sum(e_dft_loc) + e_nuc + e_xc))
+
+    print('\n *** DFT reference energy = {:.5f}\n\n'. \
             format(mf_dft.e_tot))
 
 
