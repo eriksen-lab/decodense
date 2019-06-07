@@ -3,6 +3,9 @@
 
 """
 main mf_decomp program
+
+usage:
+python main.py `molecule` `xc_functional` `localization_procedure`
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -24,7 +27,7 @@ def main():
 
     # read in molecule argument
     if len(sys.argv) != 4:
-        sys.exit('\n missing or too many arguments: python orb_decomp.py molecule xc_functional localization_procedure\n')
+        raise SyntaxError('\n missing or too many arguments: python main.py `molecule` `xc_functional` `localization_procedure`\n')
 
     # set system info
     system = {}

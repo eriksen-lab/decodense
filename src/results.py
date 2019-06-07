@@ -89,7 +89,3 @@ def results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_d
             format(e_dft_ref))
 
 
-if __name__ == '__main__':
-    main()
-
-
