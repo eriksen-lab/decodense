@@ -30,29 +30,23 @@ def loc_orbs(mol, mf, s, variant):
     # init localizer
     if variant == 'boys':
 
-        # Foster-Boys procedure
+        # foster-boys procedure
         loc = lo.Boys(mol, mo_coeff[:, :mol.nocc])
 
     elif variant == 'pm':
 
-        # Pipek-Mezey procedure
+        # pipek-mezey procedure
         loc = lo.PM(mol, mo_coeff[:, :mol.nocc])
 
     elif variant == 'er':
 
-        # Edmiston-Ruedenberg procedure
+        # edmiston-ruedenberg procedure
         loc = lo.ER(mol, mo_coeff[:, :mol.nocc])
 
     elif variant == 'ibo':
 
-        # compute IAOs
-        a = lo.iao.iao(mol, mo_coeff[:, :mol.nocc])
-
-        # orthogonalize IAOs
-        a = lo.vec_lowdin(a, s)
-
-        # IBOs via Pipek-Mezey procedure
-        loc = lo.ibo.PM(mol, mo_coeff[:, :mol.nocc], a)
+        # IBOs via pipek-mezey procedure
+        loc = lo.ibo.PM(mol, mo_coeff[:, :mol.nocc], s=s)
 
     else:
 
