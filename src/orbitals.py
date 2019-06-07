@@ -114,11 +114,11 @@ def charge_centres(mol, s, rdm1):
     if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > 0.95:
 
         # core orbital
-        return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[0])]
+        return np.array([max_idx[0], max_idx[0]], dtype=np.int)
 
     else:
 
         # valence orbitals
-        return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[1])]
+        return np.array([max_idx[0], max_idx[1]], dtype=np.int)
 
 

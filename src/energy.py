@@ -66,8 +66,8 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
 
     # init orbital energy array
     e_orb = np.zeros(mol.nocc, dtype=np.float64)
-    # init charge_centres list
-    centres = []
+    # init charge_centres array
+    centres = np.zeros([mol.nocc, 2], dtype=np.int)
 
     # loop over orbitals
     for orb in range(mol.nocc):
@@ -76,7 +76,7 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
         rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]])
 
         # charge centres of orbital
-        centres.append(orbitals.charge_centres(mol, s, rdm1_orb))
+        centres[orb] = orbitals.charge_centres(mol, s, rdm1_orb)
 
         # energy from individual orbitals
         e_orb[orb] = e_elec(h_core, vj, vk, rdm1_orb)
@@ -90,9 +90,11 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
 
     return e_orb, centres
 
+
 def energy_nuc(mol):
     """
     this function returns the nuclear repulsion energy for all atoms of the system
+    see: pyscf/gto/mole.py
 
     :param mol: pyscf mol object
     :return: numpy array of shape (natm,)
@@ -104,7 +106,7 @@ def energy_nuc(mol):
     coords = mol.atom_coords()
 
     # init e_nuc
-    e_nuc = np.zeros(mol.natm)
+    e_nuc = np.zeros(mol.natm, dtype=np.float64)
 
     # loop over atoms
     for j in range(mol.natm):
@@ -127,5 +129,25 @@ def energy_nuc(mol):
             e_nuc[j] += (q_i * q_j) / r
 
     return e_nuc
+
+
+def inter_distance(mol):
+    """
+    this function returns the inter-atomc distance array
+    see: pyscf/gto/mole.py
+
+    :param mol: pyscf mol object
+    :return: numpy array of shape (natm, natm)
+    """
+    # coordinates
+    coords = mol.atom_coords()
+
+    # calculate inter-atomic distances
+    rr = numpy.linalg.norm(coords.reshape(-1,1,3) - coords, axis=2)
+
+    # set diagonal to zero
+    rr[numpy.diag_indices_from(rr)] = .0
+
+    return rr
 
 
