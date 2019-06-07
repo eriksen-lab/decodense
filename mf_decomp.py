@@ -23,7 +23,9 @@ def e_elec(h_core, vj, vk, rdm1):
     e_core = np.einsum('ij,ji', h_core, rdm1) * 2.
 
     # contribution from effective potential
-    e_veff = np.einsum('ij,ji', vj - vk * .5, rdm1)
+    e_veff = np.einsum('ij,ji', vj, rdm1)
+    if vk is not None:
+        e_veff -= np.einsum('ij,ji', vk * .5, rdm1)
 
     return e_core + e_veff
 
