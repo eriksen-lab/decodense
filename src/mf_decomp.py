@@ -223,13 +223,11 @@ def charge_centres(mol, s, rdm1):
     if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > 0.95:
 
         # core orbital
-        print('core: charges = {:.3f} / {:.3f}'.format(charges[max_idx[0]], charges[max_idx[1]]))
         return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[0])]
 
     else:
 
         # valence orbitals
-        print('valence: charges = {:.3f} / {:.3f}'.format(charges[max_idx[0]], charges[max_idx[1]]))
         return [mol.atom_symbol(max_idx[0]), mol.atom_symbol(max_idx[1])]
 
 
@@ -251,7 +249,7 @@ def main():
     mol.build(
     verbose = 0,
     output = None,
-    atom = open('structures/'+molecule+'.xyz').read(),
+    atom = open('../structures/'+molecule+'.xyz').read(),
     basis = '631g',
     symmetry = True,
     )
