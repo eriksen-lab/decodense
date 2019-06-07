@@ -87,6 +87,7 @@ def main():
     # decompose HF energy by means of localized MOs
     mo_coeff = orbitals.loc_orbs(mol, mf_hf, s, system['loc_proc'])
     e_hf_loc, centres_hf = energy.e_tot(mol, mf_hf, s, mo_coeff)
+    e_hf_loc, centres_hf = results.sort_results(e_hf_loc, centres_hf)
 
     # decompose DFT energy by means of canonical orbitals
     mo_coeff = mf_dft.mo_coeff
@@ -95,9 +96,10 @@ def main():
     # decompose DFT energy by means of localized MOs
     mo_coeff = orbitals.loc_orbs(mol, mf_dft, s, system['loc_proc'])
     e_dft_loc, centres_dft = energy.e_tot(mol, mf_dft, s, mo_coeff, dft=True)
+    e_dft_loc, centres_dft = results.sort_results(e_dft_loc, centres_dft)
 
-    results.results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
-                    e_nuc, e_xc, mf_hf.e_tot, mf_dft.e_tot)
+    results.print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
+                          e_nuc, e_xc, mf_hf.e_tot, mf_dft.e_tot)
 
 
 if __name__ == '__main__':

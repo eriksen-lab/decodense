@@ -14,7 +14,32 @@ import numpy as np
 from pyscf import gto, lib
 
 
-def results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
+def sort_results(e_orb, centres):
+    """
+    this function returns sorted results for unique bonds only
+
+    :param e_orb: decomposed mean-field energy contributions. numpy array of (nocc,)
+    :param centres: corresponding charge centres. numpy array of shape (nocc, 2)
+    :return: numpy array of shape (nunique,) [e_orb_unique],
+             numpy array of shape (nunique, 2) [centres_unique]
+    """
+    # sort arrays wrt e_orb
+    centres = centres[np.argsort(e_orb)]
+    e_orb = np.sort(e_orb)
+
+    # search for the unique centres
+    centres_unique = np.unique(centres, axis=0)
+
+    # get repetitive centres
+    rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_unique]
+
+    # get e_orb_unique
+    e_orb_unique = np.array([np.sum(e_orb[rep_idx[i]]) for i in range(len(rep_idx))], dtype=np.float64)
+
+    return e_orb_unique, centres_unique
+
+
+def print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
             e_nuc, e_xc, e_hf_ref, e_dft_ref):
     """
     this function prints the results of an mf_decomp calculation
@@ -46,15 +71,22 @@ def results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_d
     print('------------------------------------------------------------------------')
     for i in range(mol.nocc):
 
-        # core or valence orbital(s)
-        core = centres_hf[i, 0] == centres_hf[i, 1]
+        if i < e_hf_loc.size:
 
-        print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}'. \
-                format(i, e_hf[i], e_hf_loc[i], \
-                       mol.atom_symbol(centres_hf[i, 0]) if core else '{:s} & {:s}'. \
-                       format(mol.atom_symbol(centres_hf[i, 0]), mol.atom_symbol(centres_hf[i, 1])), \
-                       '' if core else '{:>.3f}'. \
-                        format(rr[centres_hf[i, 0], centres_hf[i, 1]])))
+           # core or valence orbital(s)
+            core = centres_hf[i, 0] == centres_hf[i, 1]
+
+            print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}'. \
+                    format(i, e_hf[i], e_hf_loc[i], \
+                           mol.atom_symbol(centres_hf[i, 0]) if core else '{:s} & {:s}'. \
+                           format(mol.atom_symbol(centres_hf[i, 0]), mol.atom_symbol(centres_hf[i, 1])), \
+                           '' if core else '{:>.3f}'. \
+                            format(rr[centres_hf[i, 0], centres_hf[i, 1]])))
+
+        else:
+
+            print('  {:>2d}  | {:>10.3f}    |'. \
+                    format(i, e_hf[i]))
 
     print('------------------------------------------------------------------------')
     print('------------------------------------------------------------------------')
@@ -77,15 +109,22 @@ def results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_d
     print('------------------------------------------------------------------------')
     for i in range(mol.nocc):
 
-        # core or valence orbital(s)
-        core = centres_dft[i, 0] == centres_dft[i, 1]
+        if i < e_dft_loc.size:
 
-        print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}'. \
-                format(i, e_dft[i], e_dft_loc[i], \
-                       mol.atom_symbol(centres_dft[i, 0]) if core else '{:s} & {:s}'. \
-                       format(mol.atom_symbol(centres_dft[i, 0]), mol.atom_symbol(centres_dft[i, 1])), \
-                       '' if core else '{:>.3f}'. \
-                        format(rr[centres_dft[i, 0], centres_dft[i, 1]])))
+            # core or valence orbital(s)
+            core = centres_dft[i, 0] == centres_dft[i, 1]
+
+            print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}'. \
+                    format(i, e_dft[i], e_dft_loc[i], \
+                           mol.atom_symbol(centres_dft[i, 0]) if core else '{:s} & {:s}'. \
+                           format(mol.atom_symbol(centres_dft[i, 0]), mol.atom_symbol(centres_dft[i, 1])), \
+                           '' if core else '{:>.3f}'. \
+                            format(rr[centres_dft[i, 0], centres_dft[i, 1]])))
+
+        else:
+
+            print('  {:>2d}  | {:>10.3f}    |'. \
+                    format(i, e_dft[i]))
 
     print('------------------------------------------------------------------------')
     print('------------------------------------------------------------------------')

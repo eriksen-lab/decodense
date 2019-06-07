@@ -81,13 +81,6 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
         # energy from individual orbitals
         e_orb[orb] = e_elec(h_core, vj, vk, rdm1_orb)
 
-    # convert centres to array
-    centres = np.array(centres)
-
-    # sort arrays wrt e_orb
-    centres = centres[np.argsort(e_orb)]
-    e_orb = np.sort(e_orb)
-
     return e_orb, centres
 
 
