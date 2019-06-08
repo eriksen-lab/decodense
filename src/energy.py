@@ -84,46 +84,6 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
     return e_orb, centres
 
 
-def energy_nuc(mol):
-    """
-    this function returns the nuclear repulsion energy for all atoms of the system
-    see: pyscf/gto/mole.py
-
-    :param mol: pyscf mol object
-    :return: numpy array of shape (natm,)
-    """
-    # charges
-    charges = mol.atom_charges()
-
-    # coordinates
-    coords = mol.atom_coords()
-
-    # init e_nuc
-    e_nuc = np.zeros(mol.natm, dtype=np.float64)
-
-    # loop over atoms
-    for j in range(mol.natm):
-
-        # charge and coordinates of atom_j
-        q_j = charges[j]
-        r_j = coords[j]
-
-        # loop over atoms < atom_j
-        for i in range(j):
-
-            # charge and coordinates of atom_i
-            q_i = charges[i]
-            r_i = coords[i]
-
-            # distance between atom_j & atom_i
-            r = np.linalg.norm(r_i - r_j)
-
-            # repulsion energy
-            e_nuc[j] += (q_i * q_j) / r
-
-    return e_nuc
-
-
 def inter_distance(mol):
     """
     this function returns the inter-atomc distance array

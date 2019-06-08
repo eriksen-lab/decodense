@@ -74,7 +74,7 @@ def main():
 
 
     # nuclear repulsion energy
-    e_nuc = np.sum(energy.energy_nuc(mol))
+    e_nuc = mol.energy_nuc()
     # energy of XC functional evaluated on a grid
     e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, \
                                  mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
