@@ -84,23 +84,3 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
     return e_orb, centres
 
 
-def inter_distance(mol):
-    """
-    this function returns the inter-atomc distance array
-    see: pyscf/gto/mole.py
-
-    :param mol: pyscf mol object
-    :return: numpy array of shape (natm, natm)
-    """
-    # coordinates
-    coords = mol.atom_coords()
-
-    # calculate inter-atomic distances
-    rr = numpy.linalg.norm(coords.reshape(-1,1,3) - coords, axis=2)
-
-    # set diagonal to zero
-    rr[numpy.diag_indices_from(rr)] = .0
-
-    return rr
-
-
