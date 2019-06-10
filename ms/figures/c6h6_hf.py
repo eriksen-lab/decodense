@@ -35,32 +35,54 @@ c6h6_hf_can = np.array([
 ])
 
 c6h6_hf_pm = np.array([
+-38.907,
+-38.907,
+-38.907,
+-38.907,
+-38.907,
+-38.907,
+-15.126,
+-15.126,
+-15.126,
+-15.126,
+-15.126,
+-15.126,
+-12.804,
+-12.804,
+-12.804,
+-11.905,
+-11.905,
+-11.905,
+-11.905,
+-11.905,
+-11.905
+])
+
+c6h6_hf_ibo = np.array([
+-38.835,
+-38.835,
+-38.835,
+-38.835,
+-38.835,
 -38.835,
 -15.172,
--27.977,
--11.931,
--38.835,
--27.977,
--11.931,
--38.835,
 -15.172,
--11.931,
--38.835,
--27.977,
--11.931,
--38.835,
 -15.172,
+-15.172,
+-15.172,
+-15.172,
+-12.805,
+-12.805,
+-12.805,
 -11.931,
--38.835,
+-11.931,
+-11.931,
+-11.931,
+-11.931,
 -11.931
 ])
 
-c6h6_hf_pm = np.sort(c6h6_hf_pm)
-
 n_core = 6
-n_c_c_double = 3
-n_c_c_single = 3
-n_c_h = 6
 
 sns.set(style='darkgrid', font='DejaVu Sans')
 
@@ -68,25 +90,17 @@ fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
 palette = sns.color_palette('Set2')
 
-c6h6_can = ax1.scatter(np.arange(n_core, c6h6_hf_can.size), \
+ax1.scatter(np.arange(n_core, c6h6_hf_can.size), \
                     c6h6_hf_can[n_core:], \
-                    s=150, marker='.', color='black')
-c6h6_pm_core_fake = ax1.scatter(n_core, \
-                             c6h6_hf_pm[n_core], \
-                             s=150, marker='.', color=palette[3])
-c6h6_pm_c_c_double = ax1.scatter(np.arange(n_core, (n_core + n_c_c_double)), \
-                              c6h6_hf_pm[n_core:(n_core + n_c_c_double)], \
-                              s=150, marker='.', color=palette[0])
-c6h6_pm_c_c_single = ax1.scatter(np.arange((n_core + n_c_c_double), (n_core + n_c_c_double + n_c_c_single)), \
-                              c6h6_hf_pm[(n_core + n_c_c_double):(n_core + n_c_c_double + n_c_c_single)], \
-                              s=150, marker='.', color=palette[1])
-c6h6_pm_c_h = ax1.scatter(np.arange((n_core + n_c_c_double + n_c_c_single), (n_core + n_c_c_double + n_c_c_single + n_c_h)), \
-                       c6h6_hf_pm[(n_core + n_c_c_double + n_c_c_single):(n_core + n_c_c_double + n_c_c_single + n_c_h)], \
-                       s=150, marker='.', color=palette[2])
+                    s=150, marker='.', color='black', label='Canonical')
+ax1.scatter(np.arange(n_core, c6h6_hf_pm.size), \
+                    c6h6_hf_pm[n_core:], \
+                    s=150, marker='.', color=palette[0], label='Pipek-Mezey')
+ax1.scatter(np.arange(n_core, c6h6_hf_ibo.size), \
+                    c6h6_hf_ibo[n_core:], \
+                    s=150, marker='.', color=palette[1], label='IBOs')
 ax1.xaxis.grid(False)
-ax1.legend([c6h6_can, (c6h6_pm_core_fake, c6h6_pm_c_c_double, c6h6_pm_c_c_single, c6h6_pm_c_h)], \
-           ['Canonical (HF)', 'IBOs (HF)'], loc='upper left', frameon=False, \
-           numpoints=1, handler_map={tuple: HandlerTuple(ndivide=None)})
+ax1.legend(loc='upper left', frameon=False)
 ax1.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
 
 ax2.scatter(np.arange(n_core), \
@@ -94,9 +108,11 @@ ax2.scatter(np.arange(n_core), \
             s=150, marker='.', color='black')
 ax2.scatter(np.arange(n_core), \
             c6h6_hf_pm[:n_core], \
-            s=150, marker='.', color=palette[3])
+            s=150, marker='.', color=palette[0])
+ax2.scatter(np.arange(n_core), \
+            c6h6_hf_ibo[:n_core], \
+            s=150, marker='.', color=palette[1])
 ax2.xaxis.grid(False)
-#ax2.set_ylim([-38.9145, -38.9055])
 ax2.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
 ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 ax2.set_xlabel('MO Index')
