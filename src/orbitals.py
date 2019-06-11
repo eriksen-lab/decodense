@@ -31,32 +31,37 @@ def loc_orbs(mol, mf, s, variant):
     if variant == 'boys':
 
         # foster-boys procedure
-        loc = lo.Boys(mol, mo_coeff[:, :mol.nocc])
+        loc_core = lo.Boys(mol, mo_coeff[:, :mol.ncore])
+        loc_val = lo.Boys(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
     elif variant == 'pm':
 
         # pipek-mezey procedure
-        loc = lo.PM(mol, mo_coeff[:, :mol.nocc])
+        loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
+        loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
     elif variant == 'er':
 
         # edmiston-ruedenberg procedure
-        loc = lo.ER(mol, mo_coeff[:, :mol.nocc])
+        loc_core = lo.ER(mol, mo_coeff[:, :mol.ncore])
+        loc_val = lo.ER(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
     elif variant == 'ibo':
 
         # IBOs via pipek-mezey procedure
-        loc = lo.ibo.PM(mol, mo_coeff[:, :mol.nocc], s=s, exponent=2)
+        loc_core = lo.ibo.PM(mol, mo_coeff[:, :mol.ncore], s=s, exponent=2)
+        loc_val = lo.ibo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc], s=s, exponent=2)
 
     else:
 
         raise RuntimeError('\n unknown localization procedure. valid choices: `boys`, `pm`, `er`, and `ibo`\n')
 
     # convergence threshold
-    loc.conv_tol = 1.0e-10
+    loc_core.conv_tol = loc_val.conv_tol = 1.0e-10
 
     # localize core and valence occupied orbitals
-    mo_coeff[:, :mol.nocc] = loc.kernel()
+    mo_coeff[:, :mol.ncore] = loc_core.kernel()
+    mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
 
     return mo_coeff
 
