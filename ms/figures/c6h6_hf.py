@@ -65,21 +65,21 @@ c6h6_hf_ibo = np.array([
 -38.913,
 -38.913,
 -38.913,
--15.104,
--15.104,
--15.104,
--15.104,
--15.104,
--15.104,
+-15.116,
+-15.116,
+-15.116,
+-15.116,
+-15.116,
+-15.116,
 -12.805,
 -12.805,
 -12.805,
--11.920,
--11.920,
--11.920,
--11.920,
--11.920,
--11.920
+-11.908,
+-11.908,
+-11.908,
+-11.908,
+-11.908,
+-11.908
 ])
 
 n_core = 6
@@ -101,7 +101,7 @@ ax1.scatter(np.arange(n_core, c6h6_hf_ibo.size), \
                     s=150, marker='.', color=palette[1], label='IBOs')
 ax1.xaxis.grid(False)
 ax1.legend(loc='upper left', frameon=False)
-ax1.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+ax1.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
 ax2.scatter(np.arange(n_core), \
             c6h6_hf_can[:n_core], \
@@ -113,11 +113,11 @@ ax2.scatter(np.arange(n_core), \
             c6h6_hf_ibo[:n_core], \
             s=150, marker='.', color=palette[1])
 ax2.xaxis.grid(False)
-ax2.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+ax2.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-ax2.set_xlabel('MO Index')
+ax2.set_xlabel('Orbital')
 
-fig.text(0.0, 0.5, 'MO Contribution (in au)', ha='center', va='center', rotation='vertical')
+fig.text(0.0, 0.5, 'Energy Contribution (in au)', ha='center', va='center', rotation='vertical')
 
 fig.subplots_adjust(hspace=0.05)
 sns.despine()
