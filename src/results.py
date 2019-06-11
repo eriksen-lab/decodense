@@ -65,6 +65,13 @@ def print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
             format(system['molecule'], system['loc_proc']))
 
 
+    # system info
+    print('\n electrons         = {:}'.format(mol.nelectron))
+    print(' occupied orbitals = {:}'.format(mol.nocc))
+    print(' virtual orbitals  = {:}'.format(mol.nvirt))
+    print(' total orbitals    = {:}'.format(mol.norb))
+
+
     # print hf results
     print('\n\n hartree-fock\n')
     print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')

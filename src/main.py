@@ -50,11 +50,6 @@ def main():
     assert mol.spin == 0, 'decomposition scheme only implemented for singlet states'
 
 
-    # molecular dimensions
-    mol.ncore = orbitals.set_ncore(mol)
-    mol.nocc = mol.nelectron // 2
-
-
     # overlap matrix
     s = mol.intor_symmetric('int1e_ovlp')
 
@@ -64,6 +59,14 @@ def main():
     mf_hf.conv_tol = 1.0e-12
     mf_hf.run()
     assert mf_hf.converged, 'HF not converged'
+
+
+    # molecular dimensions
+    mol.ncore = orbitals.set_ncore(mol)
+    mol.nocc = np.where(mf_hf.mo_occ > 0.)[0].size
+    mol.nvirt = np.where(mf_hf.mo_occ == 0.)[0].size
+    mol.norb = mol.nocc + mol.nvirt
+
 
     # init and run DFT (B3LYP) calc
     mf_dft = dft.RKS(mol)
