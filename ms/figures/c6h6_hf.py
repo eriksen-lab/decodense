@@ -35,51 +35,51 @@ c6h6_hf_can = np.array([
 ])
 
 c6h6_hf_pm = np.array([
--38.907,
--38.907,
--38.907,
--38.907,
--38.907,
--38.907,
--15.126,
--15.126,
--15.126,
--15.126,
--15.126,
--15.126,
--12.804,
--12.804,
--12.804,
--11.905,
--11.905,
--11.905,
--11.905,
--11.905,
--11.905
+-38.913,
+-38.913,
+-38.913,
+-38.913,
+-38.913,
+-38.913,
+-15.121,
+-15.121,
+-15.121,
+-15.121,
+-15.121,
+-15.121,
+-12.805,
+-12.805,
+-12.805,
+-11.903,
+-11.903,
+-11.903,
+-11.903,
+-11.903,
+-11.903
 ])
 
 c6h6_hf_ibo = np.array([
--38.835,
--38.835,
--38.835,
--38.835,
--38.835,
--38.835,
--15.172,
--15.172,
--15.172,
--15.172,
--15.172,
--15.172,
+-38.913,
+-38.913,
+-38.913,
+-38.913,
+-38.913,
+-38.913,
+-15.104,
+-15.104,
+-15.104,
+-15.104,
+-15.104,
+-15.104,
 -12.805,
 -12.805,
 -12.805,
--11.931,
--11.931,
--11.931,
--11.931,
--11.931,
--11.931
+-11.920,
+-11.920,
+-11.920,
+-11.920,
+-11.920,
+-11.920
 ])
 
 n_core = 6
@@ -93,9 +93,9 @@ palette = sns.color_palette('Set2')
 ax1.scatter(np.arange(n_core, c6h6_hf_can.size), \
                     c6h6_hf_can[n_core:], \
                     s=150, marker='.', color='black', label='Canonical')
-ax1.scatter(np.arange(n_core, c6h6_hf_pm.size), \
-                    c6h6_hf_pm[n_core:], \
-                    s=150, marker='.', color=palette[0], label='Pipek-Mezey')
+#ax1.scatter(np.arange(n_core, c6h6_hf_pm.size), \
+#                    c6h6_hf_pm[n_core:], \
+#                    s=150, marker='.', color=palette[0], label='Pipek-Mezey')
 ax1.scatter(np.arange(n_core, c6h6_hf_ibo.size), \
                     c6h6_hf_ibo[n_core:], \
                     s=150, marker='.', color=palette[1], label='IBOs')
@@ -106,9 +106,9 @@ ax1.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
 ax2.scatter(np.arange(n_core), \
             c6h6_hf_can[:n_core], \
             s=150, marker='.', color='black')
-ax2.scatter(np.arange(n_core), \
-            c6h6_hf_pm[:n_core], \
-            s=150, marker='.', color=palette[0])
+#ax2.scatter(np.arange(n_core), \
+#            c6h6_hf_pm[:n_core], \
+#            s=150, marker='.', color=palette[0])
 ax2.scatter(np.arange(n_core), \
             c6h6_hf_ibo[:n_core], \
             s=150, marker='.', color=palette[1])
