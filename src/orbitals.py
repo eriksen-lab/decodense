@@ -49,8 +49,8 @@ def loc_orbs(mol, mf, s, variant):
     elif variant == 'ibo':
 
         # IBOs via pipek-mezey procedure
-        loc_core = lo.ibo.PM(mol, mo_coeff[:, :mol.ncore], s=s)
-        loc_val = lo.ibo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc], s=s)
+        loc_core = lo.ibo.PM(mol, mo_coeff[:, :mol.ncore], s=s, exponent=2)
+        loc_val = lo.ibo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc], s=s, exponent=2)
 
     else:
 
