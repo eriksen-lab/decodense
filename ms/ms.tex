@@ -100,7 +100,7 @@ As a first step, we will be concerned with learning Hartree-Fock (HF) energies, 
 Assuming a molecular system composed of $N_{\text{nuc}}$ nuclei and $N_{\text{elec}}$ electrons spanned by an atomic orbital (AO) basis of size $N_{\text{b}}$, the Hartree-Fock functional is defined in terms of a converged 1-electron reduced density matrix (1-RDM), $\bm{D}$, as~\cite{mest}
 %
 \begin{align}
-E_{\text{HF}}(\bm{D}) = 2\tr[\bm{h}_{\text{core}}\bm{D}] + \tr[\bm{V}_{\text{HF}}(\bm{D})\bm{D}] + h_{\text{nuc}} \ . \label{hf_energy_eq}
+E_{\text{HF}}(\bm{D}) = \tr[\bm{h}_{\text{core}}\bm{D}] + \tfrac{1}{2}\tr[\bm{V}_{\text{HF}}(\bm{D})\bm{D}] + h_{\text{nuc}} \ . \label{hf_energy_eq}
 \end{align}
 %
 In Eq. \ref{hf_energy_eq}, $\bm{h}_{\text{core}}$ is the core Hamiltonian representing the kinetic energy of the electrons and their attractive interaction with the stationary nuclei of the system at hand, $h_{\text{nuc}}$ is the corresponding scalar nuclear-repulsion term, while $\bm{V}_{\text{HF}}(\bm{D})$ is the Fock potential with matrix elements
@@ -113,7 +113,7 @@ In Eq. \ref{hf_energy_eq}, $\bm{h}_{\text{core}}$ is the core Hamiltonian repres
 in terms of Coulomb and exchange two-electron repulsion integrals in the AO basis. In KS-DFT, the corresponding energy functional is given on par with Eq. \ref{hf_energy_eq} as
 %
 \begin{align}
-E_{\text{KS-DFT}}(\bm{D}) = 2\tr[\bm{h}_{\text{core}}\bm{D}] + \tr[(\bm{J}(\bm{D}) - \alpha\bm{K}(\bm{D}))\bm{D}] + E_{\text{xc}}(\bm{D}) + h_{\text{nuc}} \ . \label{ks_dft_energy_eq}
+E_{\text{KS-DFT}}(\bm{D}) = \tr[\bm{h}_{\text{core}}\bm{D}] + \tfrac{1}{2}\tr[(\bm{J}(\bm{D}) - \alpha\bm{K}(\bm{D}))\bm{D}] + E_{\text{xc}}(\bm{D}) + h_{\text{nuc}} \ . \label{ks_dft_energy_eq}
 \end{align}
 %
 where $0 < \alpha$ only for hybrid exchange-correlation (xc) functionals and functionals at higher rungs of Jacob's ladder, and $E_{\text{xc}}(\bm{D})$ is the exchange correlation energy. The integrals entering the expression for $E_{\text{xc}}(\bm{D})$ are traditionally evaluated using numerical quadrature over a finite set of grid points.\\
@@ -121,16 +121,16 @@ where $0 < \alpha$ only for hybrid exchange-correlation (xc) functionals and fun
 Given the form of Eq. \ref{hf_energy_eq}, we now note how the total energy may be decomposed into a sum of contributions specific to the individual occupied molecular orbitals (MOs) of the system, of which there is a total of $N_{\text{occ}}$
 %
 \begin{align}
-E_{\text{HF}}(\bm{D}) = \sum^{N_{\text{occ}}}_{i}(2\tr[\bm{h}_{\text{core}}\bm{D}_i] + \tr[\bm{V}_{\text{HF}}(\bm{D})\bm{D}_i]) + h_{\text{nuc}} \ . \label{orb_decomp_mo_eq}
+E_{\text{HF}}(\bm{D}) = \sum^{N_{\text{occ}}}_{i}(\tr[\bm{h}_{\text{core}}\bm{D}_i] + \tfrac{1}{2}\tr[\bm{V}_{\text{HF}}(\bm{D})\bm{D}_i]) + h_{\text{nuc}} \ . \label{orb_decomp_mo_eq}
 \end{align}
 %
 In Eq. \ref{orb_decomp_mo_eq}, the individual orbital-specific 1-RDMs, $\bm{D}_i$, are defined as
 %
 \begin{align}
-\bm{D}_i = \bm{C}_{i}\bm{C}^T_{i} \label{orb_spec_1rdm_eq}
+\bm{D}_i = n_{i}\bm{C}_{i}\bm{C}^T_{i} \label{orb_spec_1rdm_eq}
 \end{align}
 %
-where $\bm{C}_i$ denotes the $i$-th column vector of the MO coefficients matrix, $\bm{C}$, used to construct the total 1-RDM, $\bm{D}$, which is still used in Eq. \ref{orb_decomp_mo_eq} to construct the Fock potential. In the conventional basis of canonical MOs, the orbitals themselves will be completely delocalized over the entire system. Hence, although the linear combinations of AOs that define the individual MOs may be symmetry adapted, one cannot in general expect any degree of systematic grouping of the individual contributions to the decomposition in Eq. \ref{orb_decomp_mo_eq}. In the lack of any repeating patterns among the MO contributions, the hope of addressing the overall problem, that is, the mapping of chemical bonds to total electronic energies, remains intractable.\\
+where $n_i$ is the occupation of MO $i$ and $\bm{C}_i$ denotes the corresponding $i$-th column vector of the MO coefficients matrix, $\bm{C}$, used to construct the total 1-RDM, $\bm{D}$, which is still used in Eq. \ref{orb_decomp_mo_eq} to construct the Fock potential. In the conventional basis of canonical MOs, the orbitals themselves will be completely delocalized over the entire system. Hence, although the linear combinations of AOs that define the individual MOs may be symmetry adapted, one cannot in general expect any degree of systematic grouping of the individual contributions to the decomposition in Eq. \ref{orb_decomp_mo_eq}. In the lack of any repeating patterns among the MO contributions, the hope of addressing the overall problem, that is, the mapping of chemical bonds to total electronic energies, remains intractable.\\
 
 %
 \begin{figure}[ht]
@@ -145,7 +145,7 @@ As an illustration of this point, Figure \ref{c6h6_hf_fig} shows the distributio
 
 %
 \begin{align}
-E_{\text{HF}}(\bm{D}) = \sum^{N_{\text{atoms}}}_{K>L}\sum^{N_{\text{occ}}}_{i \in \{K\}}(2\tr[\bm{h}_{\text{core}}\bm{D}_i] + \tr[\bm{V}_{\text{HF}}(\bm{D})\bm{D}_i]) + h_{\text{nuc}} \ . \label{orb_decomp_bond_eq}
+E_{\text{HF}}(\bm{D}) = \sum^{N_{\text{atoms}}}_{K>L}\sum^{N_{\text{occ}}}_{i \in \{K\}}(\tr[\bm{h}_{\text{core}}\bm{D}_i] + \tfrac{1}{2}\tr[\bm{V}_{\text{HF}}(\bm{D})\bm{D}_i]) + h_{\text{nuc}} \ . \label{orb_decomp_bond_eq}
 \end{align}
 %
 From the Pipek-Mezey results in Figure \ref{c6h6_hf_fig}, we clear see a correlation between what is to be expected on the basis of the Lewis structure representation of benzene and what the decomposition in Eq. \ref{orb_decomp_mo_eq} returns. Given the high symmetry (full point group: $D_{6\text{h}}$, computational subgroup: $D_{2\text{h}}$), the 6 core orbitals of the carbons are indistinguishable, as are the 6 C--C bonds and the 6 C--H bonds. The decomposition even yields contributions from 3 degenerate carbon double bonds, in perfect agreement with the conventional Kekul{\'e} formula in Figure \ref{c6h6_hf_fig}. Neither of these features are present in the decomposition based on canonical MOs, except for the core orbitals; however, not even these are degenerate. In order to further illustrate the potential of the proposed decomposition, Figure \ref{c10h8_hf_fig} shows a comparison between the benzene decomposition in terms of Pipek-Mezey MOs of Figure \ref{c6h6_hf_fig} and the corresponding decomposition for the related naphthalene molecule.\\
