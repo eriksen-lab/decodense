@@ -25,40 +25,36 @@ def loc_orbs(mol, mo_coeff, s, variant):
     :return: numpy array of shape (n_orb, n_orb)
     """
     # init localizer
-    if variant == 'boys':
-
-        # foster-boys procedure
-        loc_core = lo.Boys(mol, mo_coeff[:, :mol.ncore])
-        loc_val = lo.Boys(mol, mo_coeff[:, mol.ncore:mol.nocc])
-
-    elif variant == 'pm':
+    if variant == 'pm':
 
         # pipek-mezey procedure
         loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
         loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
 
-    elif variant == 'er':
+        # convergence threshold
+        loc_core.conv_tol = loc_val.conv_tol = 1.0e-10
 
-        # edmiston-ruedenberg procedure
-        loc_core = lo.ER(mol, mo_coeff[:, :mol.ncore])
-        loc_val = lo.ER(mol, mo_coeff[:, mol.ncore:mol.nocc])
+        # localize core and valence occupied orbitals
+        mo_coeff[:, :mol.ncore] = loc_core.kernel()
+        mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
 
     elif variant == 'ibo':
 
-        # IBOs via pipek-mezey procedure
-        loc_core = lo.ibo.PM(mol, mo_coeff[:, :mol.ncore], s=s, exponent=2)
-        loc_val = lo.ibo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc], s=s, exponent=2)
+        # IAOs
+        iao_core = lo.iao.iao(mol, mo_coeff[:, :mol.ncore])
+        iao_val = lo.iao.iao(mol, mo_coeff[:, mol.ncore:mol.nocc])
+
+        # orthogonalize IAOs
+        iao_core = lo.vec_lowdin(iao_core, s)
+        iao_val = lo.vec_lowdin(iao_val, s)
+
+        # IBOs
+        mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], iao_core, verbose=0)
+        mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], iao_val, verbose=0)
 
     else:
 
-        raise RuntimeError('\n unknown localization procedure. valid choices: `boys`, `pm`, `er`, and `ibo`\n')
-
-    # convergence threshold
-    loc_core.conv_tol = loc_val.conv_tol = 1.0e-10
-
-    # localize core and valence occupied orbitals
-    mo_coeff[:, :mol.ncore] = loc_core.kernel()
-    mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
+        raise RuntimeError('\n invalid localization procedure. valid choices: `pm` and `ibo`\n')
 
     return mo_coeff
 
