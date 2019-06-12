@@ -15,7 +15,7 @@ __status__ = 'Development'
 
 import sys
 import numpy as np
-from pyscf import gto, scf, dft, mp
+from pyscf import gto, scf, dft
 
 import orbitals
 import energy
@@ -85,19 +85,19 @@ def main():
 
     # decompose hf energy by means of canonical orbitals
     mo_coeff = mf_hf.mo_coeff
-    e_hf = energy.e_tot(mol, mf_hf, s, mo_coeff)[0]
+    e_hf = energy.e_tot(mol, s, mo_coeff)[0]
 
     # decompose hf energy by means of localized MOs
-    mo_coeff = orbitals.loc_orbs(mol, mf_hf, s, system['loc_proc'])
-    e_hf_loc, centres_hf = energy.e_tot(mol, mf_hf, s, mo_coeff)
+    mo_coeff = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, system['loc_proc'])
+    e_hf_loc, centres_hf = energy.e_tot(mol, s, mo_coeff)
 
     # decompose dft energy by means of canonical orbitals
     mo_coeff = mf_dft.mo_coeff
-    e_dft = energy.e_tot(mol, mf_dft, s, mo_coeff, dft=True)[0]
+    e_dft = energy.e_tot(mol, s, mo_coeff, alpha=dft.libxc.hybrid_coeff(system['xc_func']))[0]
 
     # decompose dft energy by means of localized MOs
-    mo_coeff = orbitals.loc_orbs(mol, mf_dft, s, system['loc_proc'])
-    e_dft_loc, centres_dft = energy.e_tot(mol, mf_dft, s, mo_coeff, dft=True)
+    mo_coeff = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system['loc_proc'])
+    e_dft_loc, centres_dft = energy.e_tot(mol, s, mo_coeff, alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
 
     # sort results
@@ -105,7 +105,7 @@ def main():
     e_dft_loc, centres_dft = results.sort_results(e_dft_loc, centres_dft)
 
     # print results
-    results.print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
+    results.print_results(mol, system['xc_func'], e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
                           e_nuc, e_xc, mf_hf.e_tot, mf_dft.e_tot)
 
 

@@ -39,13 +39,13 @@ def sort_results(e_orb, centres):
     return e_orb_unique, centres_unique
 
 
-def print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
+def print_results(mol, xc_func, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
             e_nuc, e_xc, e_hf_ref, e_dft_ref):
     """
     this function prints the results of an mf_decomp calculation
 
-    :param system: system info. dict
     :param mol: pyscf mol object
+    :param xc_func: xc functional. string
     :param e_hf: canonical hf decomposed results. numpy array of shape (nocc,)
     :param e_hf_loc: localized hf decomposed results. numpy array of shape (nocc,)
     :param e_hf: canonical dft decomposed results. numpy array of shape (nocc,)
@@ -57,19 +57,21 @@ def print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
     :param e_hf_ref: reference hf energy. scalar
     :param e_dft_ref: reference dft energy. scalar
     """
-    # inter-atomic distance array
-    rr = gto.mole.inter_distance(mol) * lib.param.BOHR
-
     # print header
     print('\n\n results for: {:} with localization procedure: {:}'. \
             format(system['molecule'], system['loc_proc']))
 
 
     # system info
-    print('\n electrons         = {:}'.format(mol.nelectron))
+    print('\n dimensions:')
+    print(' electrons         = {:}'.format(mol.nelectron))
     print(' occupied orbitals = {:}'.format(mol.nocc))
     print(' virtual orbitals  = {:}'.format(mol.nvirt))
     print(' total orbitals    = {:}'.format(mol.norb))
+
+
+    # get inter-atomic distance array
+    rr = gto.mole.inter_distance(mol) * lib.param.BOHR
 
 
     # print hf results
@@ -111,7 +113,7 @@ def print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
 
 
     # print dft results
-    print('\n\n dft ({:s})\n'.format(system['xc_func']))
+    print('\n\n dft ({:s})\n'.format(xc_func))
     print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')
     print('------------------------------------------------------------------------')
     for i in range(mol.nocc):

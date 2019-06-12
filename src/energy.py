@@ -11,6 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
+from pyscf import scf
 
 import orbitals
 
@@ -27,17 +28,15 @@ def e_elec(h_core, vj, vk, rdm1):
     :return: scalar
     """
     # contribution from core hamiltonian
-    e_core = np.einsum('ij,ji', h_core, rdm1) * 2.
+    e_core = np.einsum('ij,ji', h_core, rdm1)
 
     # contribution from effective potential
-    e_veff = np.einsum('ij,ji', vj, rdm1)
-    if vk is not None:
-        e_veff -= np.einsum('ij,ji', vk * .5, rdm1)
+    e_veff = np.einsum('ij,ji', vj - vk * .5, rdm1) * .5
 
     return e_core + e_veff
 
 
-def e_tot(mol, mf, s, mo_coeff, dft=False):
+def e_tot(mol, s, mo_coeff, alpha=1.):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
@@ -45,24 +44,19 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
     :param mf: pyscf mean-field object
     :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
     :param mo_coeff: mo coefficients. numpy array of shape (n_orb, n_orb)
-    :param dft: dft logical. bool
+    :param alpha. exact exchange ratio for hf and hybrid xc functionals. scalar
     :return: numpy array of shape (nocc,)
     """
-    # compute 1-RDM (in AO representation)
-    rdm1 = mf.make_rdm1(mo_coeff, mf.mo_occ)
+    # compute total 1-RDM (AO basis)
+    rdm1 = np.einsum('ip,jp->ij', mo_coeff[:, :mol.nocc], mo_coeff[:, :mol.nocc]) * 2.
 
     # core hamiltonian
     h_core = mol.intor_symmetric('int1e_kin') + mol.intor_symmetric('int1e_nuc')
 
-    # mean-field effective potential
-    if dft:
-
-        v_dft = mf.get_veff(mol, rdm1)
-        vj, vk = v_dft.vj, v_dft.vk
-
-    else:
-
-        vj, vk = mf.get_jk(mol, rdm1)
+    # fock potential
+    vj, vk = scf.hf.get_jk(mol, rdm1)
+    # scale amount of exact exchange for dft
+    vk *= alpha
 
     # init orbital energy array
     e_orb = np.zeros(mol.nocc, dtype=np.float64)
@@ -73,7 +67,7 @@ def e_tot(mol, mf, s, mo_coeff, dft=False):
     for orb in range(mol.nocc):
 
         # orbital-specific 1rdm
-        rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]])
+        rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]]) * 2.
 
         # charge centres of orbital
         centres[orb] = orbitals.charge_centres(mol, s, rdm1_orb)

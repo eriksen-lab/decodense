@@ -14,19 +14,16 @@ import numpy as np
 from pyscf import lo
 
 
-def loc_orbs(mol, mf, s, variant):
+def loc_orbs(mol, mo_coeff, s, variant):
     """
     this function returns a set of localized MOs of a specific variant
 
     :param mol: pyscf mol object
-    :param mf: pyscf mf object
+    :param mo_coeff: initial mo coefficients. numpy array of shape (n_orb, n_orb)
     :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
     :param variant: localization variant. string
     :return: numpy array of shape (n_orb, n_orb)
     """
-    # copy MOs from mean-field object
-    mo_coeff = np.copy(mf.mo_coeff)
-
     # init localizer
     if variant == 'boys':
 
