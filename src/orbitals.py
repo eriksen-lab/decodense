@@ -10,7 +10,6 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
-from functools import reduce
 import numpy as np
 from pyscf import lo
 
@@ -107,17 +106,17 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
 
         # base mulliken charges on NAOs
         c = lo.orth_ao(mf, 'nao')
-        c_inv = np.dot(c.T, s)
-        rdm1 = reduce(np.dot, (c_inv, rdm1, c_inv.T.conj()))
+        c_inv = np.einsum('ki,jk->ij', c, s)
+        rdm1_nao = np.einsum('ik,kl,jl->ij', c_inv, rdm1, c_inv)
 
-        charges = mulliken_charges(mol, rdm1, np.eye(mol.nao_nr()))
+        charges = mulliken_charges(mol, rdm1_nao, np.eye(mol.nao_nr()))
 
     elif pop == 'meta_lowdin':
 
         # base mulliken charges on meta-Lowdin AOs
         c = lo.orth_ao(mf, 'meta_lowdin')
-        c_inv = np.dot(c.T, s)
-        rdm1_meta_lowdin = reduce(np.dot, (c_inv, rdm1, c_inv.T.conj()))
+        c_inv = np.einsum('ki,jk->ij', c, s)
+        rdm1_meta_lowdin = np.einsum('ik,kl,jl->ij', c_inv, rdm1, c_inv)
 
         charges = mulliken_charges(mol, rdm1_meta_lowdin, np.eye(mol.nao_nr()))
 
@@ -126,8 +125,8 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
         # base mulliken charges on IAOs
         iao = lo.iao.iao(mol, orb)
         iao = lo.vec_lowdin(iao, s)
-        orb_iao = reduce(np.dot, (iao.T, s, orb))
-        rdm1_iao = np.dot(orb_iao, orb_iao.T) * 2.
+        orb_iao = np.einsum('ki,kl,lj', iao, s, orb)
+        rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao) * 2.
         pmol = mol.copy()
         pmol.build(False, False, basis='minao')
 
