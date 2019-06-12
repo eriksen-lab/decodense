@@ -27,7 +27,7 @@ def main():
 
     # read in molecule argument
     if len(sys.argv) != 4:
-        raise SyntaxError('\n missing or too many arguments: python main.py `molecule` `xc_functional` `localization_procedure`\n')
+        raise SyntaxError('missing or too many arguments: python main.py `molecule` `xc_functional` `localization_procedure`')
 
     # set system info
     system = {}
