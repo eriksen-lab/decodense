@@ -80,7 +80,34 @@ def set_ncore(mol):
     return ncore
 
 
-def charge_centres(mol, s, rdm1):
+def charge_centres(mol, s, rdm1, pop='mulliken'):
+    """
+    this function returns a single atom/pair of atoms onto which a given MO is assigned
+
+    :param mol: pyscf mol object
+    :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
+    :param rdm1: orbital specific rdm1. numpy array of shape (n_orb, n_orb)
+    :param pop: population scheme. string
+    :return: numpy array of shape (2,)
+    """
+    # mulliken charges
+    charges = mulliken_charges(mol, s, rdm1)
+
+    # get sorted indices
+    max_idx = np.argsort(charges)[::-1]
+
+    if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > 0.95:
+
+        # core orbital
+        return np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
+
+    else:
+
+        # valence orbitals
+        return np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
+
+
+def mulliken_charges(mol, s, rdm1):
     """
     this function returns the mulliken charges on the individual atoms
 
@@ -100,17 +127,6 @@ def charge_centres(mol, s, rdm1):
 
         charges[s[0]] += pop[i]
 
-    # get sorted indices
-    max_idx = np.argsort(charges)[::-1]
-
-    if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > 0.95:
-
-        # core orbital
-        return np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
-
-    else:
-
-        # valence orbitals
-        return np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
+    return charges
 
 
