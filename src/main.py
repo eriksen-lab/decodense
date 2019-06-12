@@ -15,7 +15,7 @@ __status__ = 'Development'
 
 import sys
 import numpy as np
-from pyscf import gto, scf, dft
+from pyscf import gto, scf, dft, mp
 
 import orbitals
 import energy
@@ -54,7 +54,7 @@ def main():
     s = mol.intor_symmetric('int1e_ovlp')
 
 
-    # init and run HF calc
+    # init and run hf calc
     mf_hf = scf.RHF(mol)
     mf_hf.conv_tol = 1.0e-12
     mf_hf.run()
@@ -68,7 +68,7 @@ def main():
     mol.norb = mol.nocc + mol.nvirt
 
 
-    # init and run DFT (B3LYP) calc
+    # init and run dft calc
     mf_dft = dft.RKS(mol)
     mf_dft.xc = system['xc_func']
     mf_dft.conv_tol = 1.0e-12
@@ -78,29 +78,33 @@ def main():
 
     # nuclear repulsion energy
     e_nuc = mol.energy_nuc()
-    # energy of XC functional evaluated on a grid
+    # energy of xc functional evaluated on a grid
     e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, \
                                  mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
 
 
-    # decompose HF energy by means of canonical orbitals
+    # decompose hf energy by means of canonical orbitals
     mo_coeff = mf_hf.mo_coeff
     e_hf = energy.e_tot(mol, mf_hf, s, mo_coeff)[0]
 
-    # decompose HF energy by means of localized MOs
+    # decompose hf energy by means of localized MOs
     mo_coeff = orbitals.loc_orbs(mol, mf_hf, s, system['loc_proc'])
     e_hf_loc, centres_hf = energy.e_tot(mol, mf_hf, s, mo_coeff)
-    e_hf_loc, centres_hf = results.sort_results(e_hf_loc, centres_hf)
 
-    # decompose DFT energy by means of canonical orbitals
+    # decompose dft energy by means of canonical orbitals
     mo_coeff = mf_dft.mo_coeff
     e_dft = energy.e_tot(mol, mf_dft, s, mo_coeff, dft=True)[0]
 
-    # decompose DFT energy by means of localized MOs
+    # decompose dft energy by means of localized MOs
     mo_coeff = orbitals.loc_orbs(mol, mf_dft, s, system['loc_proc'])
     e_dft_loc, centres_dft = energy.e_tot(mol, mf_dft, s, mo_coeff, dft=True)
+
+
+    # sort results
+    e_hf_loc, centres_hf = results.sort_results(e_hf_loc, centres_hf)
     e_dft_loc, centres_dft = results.sort_results(e_dft_loc, centres_dft)
 
+    # print results
     results.print_results(system, mol, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, centres_dft, \
                           e_nuc, e_xc, mf_hf.e_tot, mf_dft.e_tot)
 
