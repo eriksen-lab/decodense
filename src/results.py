@@ -13,6 +13,8 @@ __status__ = 'Development'
 import numpy as np
 from pyscf import gto, lib
 
+import tools
+
 
 def sort_results(e_orb, centres):
     """
@@ -60,6 +62,10 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
     # print header
     print('\n\n results for: {:} with localization procedure: {:}'. \
             format(system['molecule'], system['loc_proc']))
+
+
+    # print git version
+    print('\n git version: {:}'.format(tools.git_version()))
 
 
     # system info
