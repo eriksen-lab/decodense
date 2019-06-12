@@ -63,7 +63,9 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
 
 
     # system info
-    print('\n dimensions:')
+    print('\n system info:')
+    print(' ------------')
+    print(' point group       = {:}'.format(mol.groupname))
     print(' electrons         = {:}'.format(mol.nelectron))
     print(' occupied orbitals = {:}'.format(mol.nocc))
     print(' virtual orbitals  = {:}'.format(mol.nvirt))
