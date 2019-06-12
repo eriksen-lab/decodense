@@ -59,23 +59,24 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
     :param e_hf_ref: reference hf energy. scalar
     :param e_dft_ref: reference dft energy. scalar
     """
-    # print header
-    print('\n\n results for: {:} with localization procedure: {:}'. \
-            format(system['molecule'], system['loc_proc']))
+    # system info
+    print('\n\n system info:')
+    print(' ------------')
+    print(' molecule          = {:}'.format(system['molecule']))
+    print(' point group       = {:}'.format(mol.groupname))
+    print(' basis set         = {:}'.format(system['basis']))
+    print('\n localization      = {:}'.format(system['loc_proc']))
+    print(' assignment        = {:}'.format(system['pop_scheme']))
+    if system['dft']:
+        print(' xc functional     = {:}'.format(system['xc_func']))
+    print('\n electrons         = {:}'.format(mol.nelectron))
+    print(' occupied orbitals = {:}'.format(mol.nocc))
+    print(' virtual orbitals  = {:}'.format(mol.nvirt))
+    print(' total orbitals    = {:}'.format(mol.norb))
 
 
     # print git version
     print('\n git version: {:}'.format(tools.git_version()))
-
-
-    # system info
-    print('\n system info:')
-    print(' ------------')
-    print(' point group       = {:}'.format(mol.groupname))
-    print(' electrons         = {:}'.format(mol.nelectron))
-    print(' occupied orbitals = {:}'.format(mol.nocc))
-    print(' virtual orbitals  = {:}'.format(mol.nvirt))
-    print(' total orbitals    = {:}'.format(mol.norb))
 
 
     # get inter-atomic distance array
@@ -83,7 +84,7 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
 
 
     # print hf results
-    print('\n\n hartree-fock\n')
+    print('\n\n ** hartree-fock\n')
     print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')
     print('------------------------------------------------------------------------')
     for i in range(mol.nocc):
@@ -116,47 +117,49 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
     print('------------------------------------------------------------------------')
     print('  sum | {:>12.5f}  | {:>12.5f}  |'. \
             format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc))
-    print('\n *** HF reference energy  = {:.5f}'. \
+    print('\n *** HF reference energy = {:.5f}\n\n'. \
             format(e_hf_ref))
 
 
     # print dft results
-    print('\n\n dft ({:s})\n'.format(system['xc_func']))
-    print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')
-    print('------------------------------------------------------------------------')
-    for i in range(mol.nocc):
+    if system['dft']:
 
-        if i < e_dft_loc.size:
+        print(' ** dft ({:s})\n'.format(system['xc_func']))
+        print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')
+        print('------------------------------------------------------------------------')
+        for i in range(mol.nocc):
 
-            # core or valence orbital(s)
-            core = centres_dft[i, 0] == centres_dft[i, 1]
+            if i < e_dft_loc.size:
 
-            print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}'. \
-                    format(i, e_dft[i], e_dft_loc[i], \
-                           mol.atom_symbol(centres_dft[i, 0]) if core else '{:s} & {:s}'. \
-                           format(mol.atom_symbol(centres_dft[i, 0]), mol.atom_symbol(centres_dft[i, 1])), \
-                           '' if core else '{:>.3f}'. \
-                            format(rr[centres_dft[i, 0], centres_dft[i, 1]])))
+                # core or valence orbital(s)
+                core = centres_dft[i, 0] == centres_dft[i, 1]
 
-        else:
+                print('  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}'. \
+                        format(i, e_dft[i], e_dft_loc[i], \
+                               mol.atom_symbol(centres_dft[i, 0]) if core else '{:s} & {:s}'. \
+                               format(mol.atom_symbol(centres_dft[i, 0]), mol.atom_symbol(centres_dft[i, 1])), \
+                               '' if core else '{:>.3f}'. \
+                                format(rr[centres_dft[i, 0], centres_dft[i, 1]])))
 
-            print('  {:>2d}  | {:>10.3f}    |'. \
-                    format(i, e_dft[i]))
+            else:
 
-    print('------------------------------------------------------------------------')
-    print('------------------------------------------------------------------------')
-    print('  sum | {:>10.3f}    | {:>10.3f}    |'. \
-            format(np.sum(e_dft), np.sum(e_dft_loc)))
-    print('------------------------------------------------------------------------')
-    print('  nuc | {:>+10.3f}    | {:>+10.3f}    |'. \
-            format(e_nuc, e_nuc))
-    print('  xc  | {:>+10.3f}    | {:>+10.3f}    |'. \
-            format(e_xc, e_xc))
-    print('------------------------------------------------------------------------')
-    print('------------------------------------------------------------------------')
-    print('  sum | {:>12.5f}  | {:>12.5f}  |'. \
-            format(np.sum(e_dft) + e_nuc + e_xc, np.sum(e_dft_loc) + e_nuc + e_xc))
-    print('\n *** DFT reference energy = {:.5f}\n\n'. \
-            format(e_dft_ref))
+                print('  {:>2d}  | {:>10.3f}    |'. \
+                        format(i, e_dft[i]))
+
+        print('------------------------------------------------------------------------')
+        print('------------------------------------------------------------------------')
+        print('  sum | {:>10.3f}    | {:>10.3f}    |'. \
+                format(np.sum(e_dft), np.sum(e_dft_loc)))
+        print('------------------------------------------------------------------------')
+        print('  nuc | {:>+10.3f}    | {:>+10.3f}    |'. \
+                format(e_nuc, e_nuc))
+        print('  xc  | {:>+10.3f}    | {:>+10.3f}    |'. \
+                format(e_xc, e_xc))
+        print('------------------------------------------------------------------------')
+        print('------------------------------------------------------------------------')
+        print('  sum | {:>12.5f}  | {:>12.5f}  |'. \
+                format(np.sum(e_dft) + e_nuc + e_xc, np.sum(e_dft_loc) + e_nuc + e_xc))
+        print('\n *** DFT reference energy = {:.5f}\n\n'. \
+                format(e_dft_ref))
 
 

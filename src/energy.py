@@ -36,7 +36,7 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, s, mo_coeff, alpha=1.):
+def e_tot(mol, mf, s, mo_coeff, pop='mulliken', alpha=1.):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
@@ -44,6 +44,7 @@ def e_tot(mol, s, mo_coeff, alpha=1.):
     :param mf: pyscf mean-field object
     :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
     :param mo_coeff: mo coefficients. numpy array of shape (n_orb, n_orb)
+    :param pop: population scheme. string
     :param alpha. exact exchange ratio for hf and hybrid xc functionals. scalar
     :return: numpy array of shape (nocc,)
     """
@@ -64,16 +65,19 @@ def e_tot(mol, s, mo_coeff, alpha=1.):
     centres = np.zeros([mol.nocc, 2], dtype=np.int)
 
     # loop over orbitals
-    for orb in range(mol.nocc):
+    for i in range(mol.nocc):
+
+        # get orbital
+        orb = mo_coeff[:, i].reshape(mol.norb, 1)
 
         # orbital-specific 1rdm
-        rdm1_orb = np.einsum('ip,jp->ij', mo_coeff[:, [orb]], mo_coeff[:, [orb]]) * 2.
+        rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
 
         # charge centres of orbital
-        centres[orb] = orbitals.charge_centres(mol, s, rdm1_orb)
+        centres[i] = orbitals.charge_centres(mol, mf, s, orb, rdm1_orb, pop)
 
         # energy from individual orbitals
-        e_orb[orb] = e_elec(h_core, vj, vk, rdm1_orb)
+        e_orb[i] = e_elec(h_core, vj, vk, rdm1_orb)
 
     return e_orb, centres
 
