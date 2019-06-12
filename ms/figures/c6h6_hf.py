@@ -7,7 +7,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.legend_handler import HandlerLineCollection, HandlerTuple
-from mpl_toolkits.axes_grid.inset_locator import inset_axes
 import seaborn as sns
 
 c6h6_hf_can = np.array([
@@ -35,51 +34,51 @@ c6h6_hf_can = np.array([
 ])
 
 c6h6_hf_pm = np.array([
--38.913,
--38.913,
--38.913,
--38.913,
--38.913,
--38.913,
--15.121,
--15.121,
--15.121,
--15.121,
--15.121,
--15.121,
--12.805,
--12.805,
--12.805,
--11.903,
--11.903,
--11.903,
--11.903,
--11.903,
--11.903
+-38.907,
+-38.907,
+-38.907,
+-38.907,
+-38.907,
+-38.907,
+-15.126,
+-15.126,
+-15.126,
+-15.126,
+-15.126,
+-15.126,
+-12.804,
+-12.804,
+-12.804,
+-11.905,
+-11.905,
+-11.905,
+-11.905,
+-11.905,
+-11.905
 ])
 
 c6h6_hf_ibo = np.array([
--38.913,
--38.913,
--38.913,
--38.913,
--38.913,
--38.913,
--15.116,
--15.116,
--15.116,
--15.116,
--15.116,
--15.116,
+-38.808,
+-38.808,
+-38.808,
+-38.808,
+-38.808,
+-38.808,
+-15.200,
+-15.200,
+-15.200,
+-15.200,
+-15.200,
+-15.200,
 -12.805,
 -12.805,
 -12.805,
--11.908,
--11.908,
--11.908,
--11.908,
--11.908,
--11.908
+-11.930,
+-11.930,
+-11.930,
+-11.930,
+-11.930,
+-11.930
 ])
 
 n_core = 6
@@ -93,9 +92,9 @@ palette = sns.color_palette('Set2')
 ax1.scatter(np.arange(n_core, c6h6_hf_can.size), \
                     c6h6_hf_can[n_core:], \
                     s=150, marker='.', color='black', label='Canonical')
-#ax1.scatter(np.arange(n_core, c6h6_hf_pm.size), \
-#                    c6h6_hf_pm[n_core:], \
-#                    s=150, marker='.', color=palette[0], label='Pipek-Mezey')
+ax1.scatter(np.arange(n_core, c6h6_hf_pm.size), \
+                    c6h6_hf_pm[n_core:], \
+                    s=150, marker='.', color=palette[0], label='Pipek-Mezey')
 ax1.scatter(np.arange(n_core, c6h6_hf_ibo.size), \
                     c6h6_hf_ibo[n_core:], \
                     s=150, marker='.', color=palette[1], label='IBOs')
@@ -106,9 +105,9 @@ ax1.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 ax2.scatter(np.arange(n_core), \
             c6h6_hf_can[:n_core], \
             s=150, marker='.', color='black')
-#ax2.scatter(np.arange(n_core), \
-#            c6h6_hf_pm[:n_core], \
-#            s=150, marker='.', color=palette[0])
+ax2.scatter(np.arange(n_core), \
+            c6h6_hf_pm[:n_core], \
+            s=150, marker='.', color=palette[0])
 ax2.scatter(np.arange(n_core), \
             c6h6_hf_ibo[:n_core], \
             s=150, marker='.', color=palette[1])

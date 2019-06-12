@@ -7,7 +7,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.legend_handler import HandlerLineCollection, HandlerTuple
-from mpl_toolkits.axes_grid.inset_locator import inset_axes
 import seaborn as sns
 
 c14h10_hf_pm = np.array([
