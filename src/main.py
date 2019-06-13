@@ -26,17 +26,18 @@ def main():
     """ main program """
 
     # read in molecule argument
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         raise SyntaxError('missing or too many arguments:\n'
-                          'python main.py `mol` `basis` `loc_proc` `pop_scheme` `xc_func`')
+                          'python main.py `struc_path` `mol` `basis` `loc_proc` `pop_scheme` `xc_func`')
 
     # set system info
     system = {}
-    system['molecule'] = sys.argv[1]
-    system['basis'] = sys.argv[2]
-    system['loc_proc'] = sys.argv[3]
-    system['pop_scheme'] = sys.argv[4]
-    system['xc_func'] = sys.argv[5]
+    system['struc_path'] = sys.argv[1]
+    system['molecule'] = sys.argv[2]
+    system['basis'] = sys.argv[3]
+    system['loc_proc'] = sys.argv[4]
+    system['pop_scheme'] = sys.argv[5]
+    system['xc_func'] = sys.argv[6]
     if system['xc_func'] in ['none', 'None', 'NONE']:
         system['dft'] = False
     else:
@@ -48,7 +49,7 @@ def main():
     mol.build(
     verbose = 0,
     output = None,
-    atom = open('../structures/'+system['molecule']+'.xyz').read(),
+    atom = open(system['struc_path']+system['molecule']+'.xyz').read(),
     basis = system['basis'],
     symmetry = True,
     )
