@@ -33,6 +33,8 @@ def main():
     # set system info
     system = {}
     system['struc_path'] = sys.argv[1]
+    if system['struc_path'][-1] != '/':
+        system['struc_path'] += '/'
     system['molecule'] = sys.argv[2]
     system['basis'] = sys.argv[3]
     system['loc_proc'] = sys.argv[4]
