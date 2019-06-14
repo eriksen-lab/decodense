@@ -9,63 +9,41 @@ from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.legend_handler import HandlerLineCollection, HandlerTuple
 import seaborn as sns
 
-c_double_c = np.array([6]+list(range(11,15))+list(range(23,27)))
-c_core = np.array(list(range(0,6))+list(range(7,11))+list(range(15,23)))
-c_single_c = np.array(list(range(27,39)))
-c_h = np.array(list(range(39,51)))
+c_double_c = np.array(list(range(10,15)))
+c_core = np.array(list(range(0,10)))
+c_single_c = np.array(list(range(15,21)))
+c_h = np.array(list(range(21,29)))
 
 res = np.array([
--50.605,
--50.605,
--49.601,
--49.601,
--49.601,
--49.601,
--49.338,
--48.875,
--48.875,
--48.875,
--48.875,
--48.179,
--48.179,
--48.136,
--48.136,
--46.660,
--46.660,
--46.660,
--46.660,
--45.307,
--45.307,
--45.307,
--45.307,
--42.268,
--42.268,
--42.061,
--42.061,
--26.683,
--25.721,
--25.721,
--25.721,
--25.669,
--25.669,
--24.078,
--24.078,
--24.078,
--24.078,
--21.426,
--21.426,
--21.338,
--21.338,
--21.338,
--21.338,
--19.349,
--19.349,
--19.349,
--19.349,
--17.702,
--17.702,
--17.702,
--17.702
+-44.686,
+-44.686,
+-42.716,
+-42.716,
+-42.716,
+-42.716,
+-41.885,
+-41.885,
+-41.885,
+-41.885,
+-38.572,
+-34.944,
+-34.944,
+-34.625,
+-34.625,
+-19.715,
+-19.715,
+-19.715,
+-19.715,
+-18.036,
+-18.036,
+-15.490,
+-15.490,
+-15.490,
+-15.490,
+-14.534,
+-14.534,
+-14.534,
+-14.534
 ])
 
 sns.set(style='darkgrid', font='DejaVu Sans')
@@ -91,5 +69,5 @@ ax.set_ylabel('Energy Contribution (in au)')
 ax.legend(loc='lower right', frameon=False)
 
 sns.despine()
-plt.savefig('c18h12_hf.pdf', bbox_inches = 'tight', dpi=1000)
+plt.savefig('c10h8_hf.pdf', bbox_inches = 'tight', dpi=1000)
 

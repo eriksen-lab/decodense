@@ -25,10 +25,6 @@ def sort_results(e_orb, centres):
     :return: numpy array of shape (nunique,) [e_orb_unique],
              numpy array of shape (nunique, 2) [centres_unique]
     """
-    # sort arrays wrt e_orb
-    centres = centres[np.argsort(e_orb)]
-    e_orb = np.sort(e_orb)
-
     # search for the unique centres
     centres_unique = np.unique(centres, axis=0)
 
@@ -37,6 +33,10 @@ def sort_results(e_orb, centres):
 
     # get e_orb_unique
     e_orb_unique = np.array([np.sum(e_orb[rep_idx[i]]) for i in range(len(rep_idx))], dtype=np.float64)
+
+    # sort arrays wrt e_orb_unique
+    centres_unique = centres_unique[np.argsort(e_orb_unique)]
+    e_orb_unique = np.sort(e_orb_unique)
 
     return e_orb_unique, centres_unique
 
@@ -83,6 +83,9 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
     rr = gto.mole.inter_distance(mol) * lib.param.BOHR
 
 
+    # sort canonical results
+    e_hf = np.sort(e_hf)
+
     # print hf results
     print('\n\n ** hartree-fock\n')
     print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')
@@ -123,6 +126,9 @@ def print_results(mol, system, e_hf, e_hf_loc, e_dft, e_dft_loc, centres_hf, cen
 
     # print dft results
     if system['dft']:
+
+        # sort canonical results
+        e_hf = np.sort(e_hf)
 
         print(' ** dft ({:s})\n'.format(system['xc_func']))
         print('  MO  |   canonical   |   localized   |     atom(s)    |   bond length')
