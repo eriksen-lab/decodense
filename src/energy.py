@@ -36,17 +36,20 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, mf, s, mo_coeff, pop='mulliken', alpha=1.):
+def e_tot(mol, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=1.):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
     :param mol: pyscf mol object
     :param mf: pyscf mean-field object
     :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
+    :param ao_dipole: dipole integrals in ao basis. numpy array of shape (3, n_orb, n_orb)
     :param mo_coeff: mo coefficients. numpy array of shape (n_orb, n_orb)
     :param pop: population scheme. string
     :param alpha. exact exchange ratio for hf and hybrid xc functionals. scalar
-    :return: numpy array of shape (nocc,)
+    :return: numpy array of shape (nocc,) [e_orb],
+             numpy array of shape (nocc, 3) [dip_orb],
+             numpy array of shape (nocc, 2) [centres]
     """
     # compute total 1-RDM (AO basis)
     rdm1 = np.einsum('ip,jp->ij', mo_coeff[:, :mol.nocc], mo_coeff[:, :mol.nocc]) * 2.
@@ -59,8 +62,10 @@ def e_tot(mol, mf, s, mo_coeff, pop='mulliken', alpha=1.):
     # scale amount of exact exchange for dft
     vk *= alpha
 
-    # init orbital energy array
+    # init orbital-specific energy array
     e_orb = np.zeros(mol.nocc, dtype=np.float64)
+    # init orbital-specific dipole array
+    dip_orb = np.zeros([mol.nocc, 3], dtype=np.float64)
     # init charge_centres array
     centres = np.zeros([mol.nocc, 2], dtype=np.int)
 
@@ -79,6 +84,9 @@ def e_tot(mol, mf, s, mo_coeff, pop='mulliken', alpha=1.):
         # energy from individual orbitals
         e_orb[i] = e_elec(h_core, vj, vk, rdm1_orb)
 
-    return e_orb, centres
+        # dipole from individual orbitals
+        dip_orb[i] = np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
+
+    return e_orb, dip_orb, centres
 
 
