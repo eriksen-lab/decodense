@@ -10,6 +10,7 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import os
 import numpy as np
 import math
 from pyscf import gto, lib
@@ -17,35 +18,67 @@ from pyscf import gto, lib
 import tools
 
 
-def sort_results(e_orb, dip_orb, centres):
+def sort_results(nocc, e_orb, e_orb_loc, dip_orb, dip_orb_loc, orb_type, system, centres):
     """
     this function returns sorted results for unique bonds only
 
-    :param e_orb: decomposed mean-field energy contributions. numpy array of (nocc,)
-    :param dip_orb: decomposed mean-field dipole moment contributions. numpy array of (nocc, 3)
+    :param nocc: number of occupied orbitals. integer
+    :param e_orb: decomposed mean-field canonical energy contributions. numpy array of (nocc,)
+    :param e_orb_loc: decomposed mean-field local energy contributions. numpy array of (nocc,)
+    :param dip_orb: decomposed mean-field canonical dipole moment contributions. numpy array of (nocc, 3)
+    :param dip_orb_loc: decomposed mean-field local dipole moment contributions. numpy array of (nocc, 3)
+    :param orb_type: type of orbitals. string
+    :param system: system information. dict
     :param centres: corresponding charge centres. numpy array of shape (nocc, 2)
     :return: numpy array of shape (nunique,) [e_orb_unique],
              numpy array of shape (nunique, 3) [dip_orb_unique],
              numpy array of shape (nunique, 2) [centres_unique]
     """
-    # search for the unique centres
-    centres_unique = np.unique(centres, axis=0)
+    # set output paths
+    if system['cube']:
+        if orb_type == 'hf':
+            out_can_path = system['out_hf_can_path']
+            out_loc_path = system['out_hf_loc_path']
+        else:
+            out_can_path = system['out_dft_can_path']
+            out_loc_path = system['out_dft_loc_path']
+
+    # sort canonical results
+    sort_can = np.argsort(e_orb)
+    dip_orb = dip_orb[sort_can]
+    e_orb = np.sort(e_orb)
+
+    # rename canonical cube files
+    if system['cube']:
+        for i, j in enumerate(sort_can):
+            os.rename(out_can_path + '/rdm1_{:}_can_tmp_{:}.cube'.format(orb_type, j), \
+                      out_can_path + '/rdm1_{:}_can_{:}.cube'.format(orb_type, i))
+
+    # search for the unique centres for local results
+    centres_loc_unique = np.unique(centres, axis=0)
 
     # repetitive centres
-    rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_unique]
+    rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_loc_unique]
 
-    # e_orb_unique
-    e_orb_unique = np.array([np.sum(e_orb[rep_idx[i]]) for i in range(len(rep_idx))], dtype=np.float64)
-    # dip_orb_unique
-    dip_orb_unique = np.array([np.sum(dip_orb[np.asarray(rep_idx[i])[None, :]], axis=1).reshape(-1) \
+    # e_orb_loc_unique
+    e_orb_loc_unique = np.array([np.sum(e_orb_loc[rep_idx[i]]) for i in range(len(rep_idx))], dtype=np.float64)
+    # dip_orb_loc_unique
+    dip_orb_loc_unique = np.array([np.sum(dip_orb_loc[np.asarray(rep_idx[i])[None, :]], axis=1).reshape(-1) \
                                 for i in range(len(rep_idx))], dtype=np.float64)
 
     # sort arrays wrt e_orb_unique
-    centres_unique = centres_unique[np.argsort(e_orb_unique)]
-    dip_orb_unique = dip_orb_unique[np.argsort(e_orb_unique)]
-    e_orb_unique = np.sort(e_orb_unique)
+    sort_loc = np.argsort(e_orb_loc_unique)
+    centres_loc_unique = centres_loc_unique[sort_loc]
+    dip_orb_loc_unique = dip_orb_loc_unique[sort_loc]
+    e_orb_loc_unique = np.sort(e_orb_loc_unique)
 
-    return e_orb_unique, dip_orb_unique, centres_unique
+    # rename local cube files
+    if system['cube']:
+        for i, j in enumerate(sort_loc):
+            os.rename(out_loc_path + '/rdm1_{:}_loc_tmp_{:}.cube'.format(orb_type, j), \
+                      out_loc_path + '/rdm1_{:}_loc_{:}.cube'.format(orb_type, i))
+
+    return e_orb, e_orb_loc_unique, dip_orb, dip_orb_loc_unique, centres_loc_unique
 
 
 def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
@@ -97,12 +130,6 @@ def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
 
     # get inter-atomic distance array
     rr = gto.mole.inter_distance(mol) * lib.param.BOHR
-
-
-    # sort canonical results
-    e_hf = np.sort(e_hf)
-    if e_dft is not None:
-        e_dft = np.sort(e_dft)
 
 
     # print hf results

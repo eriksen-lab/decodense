@@ -5,7 +5,7 @@
 main mf_decomp program
 
 usage:
-python main.py `struc_path` `mol` `basis` `loc_proc` `pop_scheme` `xc_func`
+python main.py `struc_path` `mol` `basis` `loc_proc` `pop_scheme` `xc_func` `cube`
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -28,9 +28,9 @@ def main():
     """ main program """
 
     # read in molecule argument
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         raise SyntaxError('missing or too many arguments:\n'
-                          'python main.py `struc_path` `mol` `basis` `loc_proc` `pop_scheme` `xc_func`')
+                          'python main.py `struc_path` `mol` `basis` `loc_proc` `pop_scheme` `xc_func` `cube`')
 
     # set system info
     system = {}
@@ -42,22 +42,39 @@ def main():
     system['loc_proc'] = sys.argv[4]
     system['pop_scheme'] = sys.argv[5]
     system['xc_func'] = sys.argv[6]
-    if system['xc_func'] in ['none', 'None', 'NONE']:
+    if system['xc_func'].lower() == 'none':
         system['dft'] = False
     else:
         system['dft'] = True
+    system['cube'] = sys.argv[7].lower() == 'true'
+
+
+    # output path
+    system['out_path'] = os.getcwd() + '/' + \
+                         system['molecule'] + '_' + \
+                         system['basis'] + '_' + \
+                         system['loc_proc'] + '_' + \
+                         system['pop_scheme'] + '_' + \
+                         system['xc_func']
 
 
     # make out dir
-    OUT = os.getcwd() + '/' + \
-          system['molecule'] + '_' + \
-          system['basis'] + '_' + \
-          system['loc_proc'] + '_' + \
-          system['pop_scheme'] + '_' + \
-          system['xc_func']
-    os.mkdir(OUT)
+    os.mkdir(system['out_path'])
+    # make hf out dirs
+    system['out_hf_can_path'] = system['out_path'] + '/hf_can'
+    os.mkdir(system['out_hf_can_path'])
+    system['out_hf_loc_path'] = system['out_path'] + '/hf_loc'
+    os.mkdir(system['out_hf_loc_path'])
+    # make dft out dirs
+    if system['dft']:
+        system['out_dft_can_path'] = system['out_path'] + '/{:}_can'.format(system['xc_func'])
+        os.mkdir(system['out_dft_can_path'])
+        system['out_dft_loc_path'] = system['out_path'] + '/{:}_loc'.format(system['xc_func'])
+        os.mkdir(system['out_dft_loc_path'])
+
+
     # init logger
-    sys.stdout = tools.Logger(OUT+'/output.out')
+    sys.stdout = tools.Logger(system['out_path']+'/output.out')
 
 
     # init molecule
@@ -122,17 +139,20 @@ def main():
 
     # decompose hf energy by means of canonical orbitals
     mo_coeff = mf_hf.mo_coeff
-    e_hf, dip_hf = energy.e_tot(mol, mf_hf, s, ao_dip, mo_coeff)[:2]
+    e_hf, dip_hf = energy.e_tot(mol, 'hf_can', system, \
+                                mf_hf, s, ao_dip, mo_coeff)[:2]
 
     # decompose hf energy by means of localized MOs
     mo_coeff = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, system['loc_proc'])
-    e_hf_loc, dip_hf_loc, centres_hf = energy.e_tot(mol, mf_hf, s, ao_dip, mo_coeff, pop=system['pop_scheme'])
+    e_hf_loc, dip_hf_loc, centres_hf = energy.e_tot(mol, 'hf_loc', system, \
+                                                    mf_hf, s, ao_dip, mo_coeff, pop=system['pop_scheme'])
 
     # decompose dft energy by means of canonical orbitals
     if system['dft']:
 
         mo_coeff = mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, mf_dft, s, ao_dip, mo_coeff, alpha=dft.libxc.hybrid_coeff(system['xc_func']))[:2]
+        e_dft, dip_dft = energy.e_tot(mol, system['xc_func'] + '_can', system, \
+                                      mf_dft, s, ao_dip, mo_coeff, alpha=dft.libxc.hybrid_coeff(system['xc_func']))[:2]
 
     else:
 
@@ -142,8 +162,9 @@ def main():
     if system['dft']:
 
         mo_coeff = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system['loc_proc'])
-        e_dft_loc, dip_dft_loc, centres_dft = energy.e_tot(mol, mf_dft, s, ao_dip, mo_coeff, pop=system['pop_scheme'], \
-                                              alpha=dft.libxc.hybrid_coeff(system['xc_func']))
+        e_dft_loc, dip_dft_loc, centres_dft = energy.e_tot(mol, system['xc_func'] + '_loc', system, \
+                                                           mf_dft, s, ao_dip, mo_coeff, pop=system['pop_scheme'], \
+                                                           alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
     else:
 
@@ -151,9 +172,12 @@ def main():
 
 
     # sort results
-    e_hf_loc, dip_hf_loc, centres_hf = results.sort_results(e_hf_loc, dip_hf_loc, centres_hf)
+    e_hf, e_hf_loc, dip_hf, dip_hf_loc, centres_hf = results.sort_results(mol.nocc, e_hf, e_hf_loc, dip_hf, dip_hf_loc, \
+                                                                          'hf', system, centres_hf)
     if system['dft']:
-        e_dft_loc, dip_dft_loc, centres_dft = results.sort_results(e_dft_loc, dip_dft_loc, centres_dft)
+        e_dft, e_dft_loc, dip_dft, dip_dft_loc, centres_dft = results.sort_results(mol.nocc, e_dft, e_dft_loc, dip_dft, dip_dft_loc, \
+                                                                                   system['xc_func'], system, centres_dft)
+
 
     # print results
     results.print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
