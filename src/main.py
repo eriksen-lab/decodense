@@ -5,7 +5,7 @@
 main mf_decomp program
 
 usage:
-python main.py `molecule` `xc_functional` `localization_procedure`
+python main.py `struc_path` `mol` `basis` `loc_proc` `pop_scheme` `xc_func`
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -14,12 +14,14 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import sys
+import os
 import numpy as np
 from pyscf import gto, scf, dft
 
 import orbitals
 import energy
 import results
+import tools
 
 
 def main():
@@ -46,6 +48,18 @@ def main():
         system['dft'] = True
 
 
+    # make out dir
+    OUT = os.getcwd() + '/' + \
+          system['molecule'] + '_' + \
+          system['basis'] + '_' + \
+          system['loc_proc'] + '_' + \
+          system['pop_scheme'] + '_' + \
+          system['xc_func']
+    os.mkdir(OUT)
+    # init logger
+    sys.stdout = tools.Logger(OUT+'/output.out')
+
+
     # init molecule
     mol = gto.Mole()
     mol.build(
@@ -58,7 +72,6 @@ def main():
 
     # singlet check
     assert mol.spin == 0, 'decomposition scheme only implemented for singlet states'
-
 
     # overlap matrix
     s = mol.intor_symmetric('int1e_ovlp')

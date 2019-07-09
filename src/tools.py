@@ -15,6 +15,33 @@ import os
 import subprocess
 
 
+class Logger(object):
+        """
+        this class pipes all write statements to both stdout and output_file
+        """
+        def __init__(self, output_file, both=True):
+            """
+            init Logger
+            """
+            self.terminal = sys.stdout
+            self.log = open(output_file, 'a')
+            self.both = both
+
+        def write(self, message):
+            """
+            define write
+            """
+            self.log.write(message)
+            if self.both:
+                self.terminal.write(message)
+
+        def flush(self):
+            """
+            define flush
+            """
+            pass
+
+
 def git_version():
         """
         this function returns the git revision as a string

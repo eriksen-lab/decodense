@@ -39,12 +39,10 @@ def sort_results(e_orb, dip_orb, centres):
     # dip_orb_unique
     dip_orb_unique = np.array([np.sum(dip_orb[np.asarray(rep_idx[i])[None, :]], axis=1).reshape(-1) \
                                 for i in range(len(rep_idx))], dtype=np.float64)
-    print('\nSHAPE={:}\n'.format(dip_orb_unique.shape))
 
     # sort arrays wrt e_orb_unique
     centres_unique = centres_unique[np.argsort(e_orb_unique)]
     dip_orb_unique = dip_orb_unique[np.argsort(e_orb_unique)]
-    print('\nSHAPE={:}\n'.format(dip_orb_unique.shape))
     e_orb_unique = np.sort(e_orb_unique)
 
     return e_orb_unique, dip_orb_unique, centres_unique
