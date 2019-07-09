@@ -138,21 +138,19 @@ def main():
 
 
     # decompose hf energy by means of canonical orbitals
-    mo_coeff = mf_hf.mo_coeff
-    e_hf, dip_hf = energy.e_tot(mol, 'hf_can', system, \
-                                mf_hf, s, ao_dip, mo_coeff)[:2]
+    mo_hf_can = mf_hf.mo_coeff
+    e_hf, dip_hf = energy.e_tot(mol, mf_hf, s, ao_dip, mo_hf_can)[:2]
 
     # decompose hf energy by means of localized MOs
-    mo_coeff = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, system['loc_proc'])
-    e_hf_loc, dip_hf_loc, centres_hf = energy.e_tot(mol, 'hf_loc', system, \
-                                                    mf_hf, s, ao_dip, mo_coeff, pop=system['pop_scheme'])
+    mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, system['loc_proc'])
+    e_hf_loc, dip_hf_loc, centres_hf = energy.e_tot(mol, mf_hf, s, ao_dip, mo_hf_loc, pop=system['pop_scheme'])
 
     # decompose dft energy by means of canonical orbitals
     if system['dft']:
 
-        mo_coeff = mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, system['xc_func'] + '_can', system, \
-                                      mf_dft, s, ao_dip, mo_coeff, alpha=dft.libxc.hybrid_coeff(system['xc_func']))[:2]
+        mo_dft_can = mf_dft.mo_coeff
+        e_dft, dip_dft = energy.e_tot(mol, mf_dft, s, ao_dip, mo_dft_can, \
+                                      alpha=dft.libxc.hybrid_coeff(system['xc_func']))[:2]
 
     else:
 
@@ -161,9 +159,8 @@ def main():
     # decompose dft energy by means of localized MOs
     if system['dft']:
 
-        mo_coeff = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system['loc_proc'])
-        e_dft_loc, dip_dft_loc, centres_dft = energy.e_tot(mol, system['xc_func'] + '_loc', system, \
-                                                           mf_dft, s, ao_dip, mo_coeff, pop=system['pop_scheme'], \
+        mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system['loc_proc'])
+        e_dft_loc, dip_dft_loc, centres_dft = energy.e_tot(mol, mf_dft, s, ao_dip, mo_dft_loc, pop=system['pop_scheme'], \
                                                            alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
     else:
@@ -172,10 +169,12 @@ def main():
 
 
     # sort results
-    e_hf, e_hf_loc, dip_hf, dip_hf_loc, centres_hf = results.sort_results(mol.nocc, e_hf, e_hf_loc, dip_hf, dip_hf_loc, \
+    e_hf, e_hf_loc, dip_hf, dip_hf_loc, centres_hf = results.sort_results(mol, mo_hf_can, mo_hf_loc, \
+                                                                          e_hf, e_hf_loc, dip_hf, dip_hf_loc, \
                                                                           'hf', system, centres_hf)
     if system['dft']:
-        e_dft, e_dft_loc, dip_dft, dip_dft_loc, centres_dft = results.sort_results(mol.nocc, e_dft, e_dft_loc, dip_dft, dip_dft_loc, \
+        e_dft, e_dft_loc, dip_dft, dip_dft_loc, centres_dft = results.sort_results(mol, mo_dft_can, mo_dft_loc, \
+                                                                                   e_dft, e_dft_loc, dip_dft, dip_dft_loc, \
                                                                                    system['xc_func'], system, centres_dft)
 
 

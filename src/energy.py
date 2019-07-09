@@ -12,7 +12,6 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import scf
-from pyscf import tools as pyscf_tools
 
 import orbitals
 
@@ -37,13 +36,11 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, orb_type, system, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=1.):
+def e_tot(mol, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=1.):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
     :param mol: pyscf mol object
-    :param orb_type: type of orbitals. string
-    :param system: system information. dict
     :param mf: pyscf mean-field object
     :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
     :param ao_dipole: dipole integrals in ao basis. numpy array of shape (3, n_orb, n_orb)
@@ -54,19 +51,6 @@ def e_tot(mol, orb_type, system, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=
              numpy array of shape (nocc, 3) [dip_orb],
              numpy array of shape (nocc, 2) [centres]
     """
-    # set output path
-    if system['cube']:
-        if orb_type[:3] == 'hf_':
-            if orb_type[-3:] == 'can':
-                out_path = system['out_hf_can_path']
-            else:
-                out_path = system['out_hf_loc_path']
-        else:
-            if orb_type[-3:] == 'can':
-                out_path = system['out_dft_can_path']
-            else:
-                out_path = system['out_dft_loc_path']
-
     # compute total 1-RDM (AO basis)
     rdm1 = np.einsum('ip,jp->ij', mo_coeff[:, :mol.nocc], mo_coeff[:, :mol.nocc]) * 2.
 
@@ -93,10 +77,6 @@ def e_tot(mol, orb_type, system, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=
 
         # orbital-specific rdm1
         rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
-
-        # write rdm1 cube file
-        if system['cube']:
-            pyscf_tools.cubegen.density(mol, out_path + '/rdm1_{:}_tmp_{:}.cube'.format(orb_type, i), rdm1_orb)
 
         # charge centres of orbital
         centres[i] = orbitals.charge_centres(mol, mf, s, orb, rdm1_orb, pop)

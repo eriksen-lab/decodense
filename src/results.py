@@ -14,22 +14,25 @@ import os
 import numpy as np
 import math
 from pyscf import gto, lib
+from pyscf import tools as pyscf_tools
 
 import tools
 
 
-def sort_results(nocc, e_orb, e_orb_loc, dip_orb, dip_orb_loc, orb_type, system, centres):
+def sort_results(mol, mo_can, mo_loc, e_can, e_loc, dip_can, dip_loc, orb_type, system, centres_loc):
     """
     this function returns sorted results for unique bonds only
 
-    :param nocc: number of occupied orbitals. integer
-    :param e_orb: decomposed mean-field canonical energy contributions. numpy array of (nocc,)
-    :param e_orb_loc: decomposed mean-field local energy contributions. numpy array of (nocc,)
-    :param dip_orb: decomposed mean-field canonical dipole moment contributions. numpy array of (nocc, 3)
-    :param dip_orb_loc: decomposed mean-field local dipole moment contributions. numpy array of (nocc, 3)
+    :param mol: pyscf mol object
+    :param mo_can: canonical mo coefficients. numpy array of shape (n_orb, n_orb)
+    :param mo_loc: localized mo coefficients. numpy array of shape (n_orb, n_orb)
+    :param e_can: decomposed mean-field canonical energy contributions. numpy array of (nocc,)
+    :param e_loc: decomposed mean-field local energy contributions. numpy array of (nocc,)
+    :param dip_can: decomposed mean-field canonical dipole moment contributions. numpy array of (nocc, 3)
+    :param dip_loc: decomposed mean-field local dipole moment contributions. numpy array of (nocc, 3)
     :param orb_type: type of orbitals. string
     :param system: system information. dict
-    :param centres: corresponding charge centres. numpy array of shape (nocc, 2)
+    :param centres_loc: corresponding charge centres. numpy array of shape (nocc, 2)
     :return: numpy array of shape (nunique,) [e_orb_unique],
              numpy array of shape (nunique, 3) [dip_orb_unique],
              numpy array of shape (nunique, 2) [centres_unique]
@@ -44,41 +47,65 @@ def sort_results(nocc, e_orb, e_orb_loc, dip_orb, dip_orb_loc, orb_type, system,
             out_loc_path = system['out_dft_loc_path']
 
     # sort canonical results
-    sort_can = np.argsort(e_orb)
-    dip_orb = dip_orb[sort_can]
-    e_orb = np.sort(e_orb)
+    sort_can = np.argsort(e_can)
+    dip_can = dip_can[sort_can]
+    e_can = np.sort(e_can)
 
-    # rename canonical cube files
+    # rdm1 canonical cube files
     if system['cube']:
+        for i in range(mol.nocc):
+
+            # get orbital
+            orb = mo_can[:, i].reshape(mol.norb, 1)
+
+            # orbital-specific rdm1
+            rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
+
+            # write cube file
+            pyscf_tools.cubegen.density(mol, out_can_path + '/rdm1_{:}_can_{:}_tmp.cube'.format(orb_type, i), rdm1_orb)
+
+        # sort canonical cube files
         for i, j in enumerate(sort_can):
-            os.rename(out_can_path + '/rdm1_{:}_can_tmp_{:}.cube'.format(orb_type, j), \
+            os.rename(out_can_path + '/rdm1_{:}_can_{:}_tmp.cube'.format(orb_type, j), \
                       out_can_path + '/rdm1_{:}_can_{:}.cube'.format(orb_type, i))
 
     # search for the unique centres for local results
-    centres_loc_unique = np.unique(centres, axis=0)
+    centres_loc_unique = np.unique(centres_loc, axis=0)
 
     # repetitive centres
-    rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_loc_unique]
+    rep_idx = [np.where((centres_loc == i).all(axis=1))[0] for i in centres_loc_unique]
 
-    # e_orb_loc_unique
-    e_orb_loc_unique = np.array([np.sum(e_orb_loc[rep_idx[i]]) for i in range(len(rep_idx))], dtype=np.float64)
-    # dip_orb_loc_unique
-    dip_orb_loc_unique = np.array([np.sum(dip_orb_loc[np.asarray(rep_idx[i])[None, :]], axis=1).reshape(-1) \
+    # e_loc_unique
+    e_loc_unique = np.array([np.sum(e_loc[rep_idx[i]]) for i in range(len(rep_idx))], dtype=np.float64)
+    # dip_loc_unique
+    dip_loc_unique = np.array([np.sum(dip_loc[np.asarray(rep_idx[i])[None, :]], axis=1).reshape(-1) \
                                 for i in range(len(rep_idx))], dtype=np.float64)
 
     # sort arrays wrt e_orb_unique
-    sort_loc = np.argsort(e_orb_loc_unique)
+    sort_loc = np.argsort(e_loc_unique)
     centres_loc_unique = centres_loc_unique[sort_loc]
-    dip_orb_loc_unique = dip_orb_loc_unique[sort_loc]
-    e_orb_loc_unique = np.sort(e_orb_loc_unique)
+    dip_loc_unique = dip_loc_unique[sort_loc]
+    e_loc_unique = np.sort(e_loc_unique)
 
-    # rename local cube files
+    # rdm1 local cube files
     if system['cube']:
+        for i, j in enumerate(rep_idx):
+
+            # get orbital
+            orb = mo_loc[:, j].reshape(mol.norb, -1)
+
+            # orbital-specific rdm1
+            rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
+
+            # write cube file
+            pyscf_tools.cubegen.density(mol, out_loc_path + '/rdm1_{:}_loc_{:}_tmp.cube'.format(orb_type, i), rdm1_orb)
+
+        # sort local cube files
         for i, j in enumerate(sort_loc):
-            os.rename(out_loc_path + '/rdm1_{:}_loc_tmp_{:}.cube'.format(orb_type, j), \
+            os.rename(out_loc_path + '/rdm1_{:}_loc_{:}_tmp.cube'.format(orb_type, j), \
                       out_loc_path + '/rdm1_{:}_loc_{:}.cube'.format(orb_type, i))
 
-    return e_orb, e_orb_loc_unique, dip_orb, dip_orb_loc_unique, centres_loc_unique
+    return e_can, e_loc_unique, dip_can, dip_loc_unique, centres_loc_unique
 
 
 def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
