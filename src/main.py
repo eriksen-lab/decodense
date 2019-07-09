@@ -67,9 +67,9 @@ def main():
     os.mkdir(system['out_hf_loc_path'])
     # make dft out dirs
     if system['dft']:
-        system['out_dft_can_path'] = system['out_path'] + '/{:}_can'.format(system['xc_func'])
+        system['out_dft_can_path'] = system['out_path'] + '/dft_can'
         os.mkdir(system['out_dft_can_path'])
-        system['out_dft_loc_path'] = system['out_path'] + '/{:}_loc'.format(system['xc_func'])
+        system['out_dft_loc_path'] = system['out_path'] + '/dft_loc'
         os.mkdir(system['out_dft_loc_path'])
 
 
@@ -138,19 +138,20 @@ def main():
 
 
     # decompose hf energy by means of canonical orbitals
-    mo_hf_can = mf_hf.mo_coeff
-    e_hf, dip_hf = energy.e_tot(mol, mf_hf, s, ao_dip, mo_hf_can)[:2]
+    rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
+    e_hf, dip_hf = energy.e_tot(mol, system, 'hf_can', ao_dip, mo_hf_can[:, :mol.nocc], rep_idx)
 
     # decompose hf energy by means of localized MOs
     mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, system['loc_proc'])
-    e_hf_loc, dip_hf_loc, centres_hf = energy.e_tot(mol, mf_hf, s, ao_dip, mo_hf_loc, pop=system['pop_scheme'])
+    rep_idx, centres_hf = orbitals.reorder(mol, mf_hf, s, mo_hf_loc, pop=system['pop_scheme'])
+    e_hf_loc, dip_hf_loc = energy.e_tot(mol, system, 'hf_loc', ao_dip, mo_hf_loc[:, :mol.nocc], rep_idx)
 
     # decompose dft energy by means of canonical orbitals
     if system['dft']:
 
-        mo_dft_can = mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, mf_dft, s, ao_dip, mo_dft_can, \
-                                      alpha=dft.libxc.hybrid_coeff(system['xc_func']))[:2]
+        rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
+        e_dft, dip_dft = energy.e_tot(mol, system, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], \
+                                      alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
     else:
 
@@ -160,8 +161,9 @@ def main():
     if system['dft']:
 
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system['loc_proc'])
-        e_dft_loc, dip_dft_loc, centres_dft = energy.e_tot(mol, mf_dft, s, ao_dip, mo_dft_loc, pop=system['pop_scheme'], \
-                                                           alpha=dft.libxc.hybrid_coeff(system['xc_func']))
+        rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=system['pop_scheme'])
+        e_dft_loc, dip_dft_loc = energy.e_tot(mol, system, 'dft_loc', mf_dft, s, ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, \
+                                              alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
     else:
 
@@ -169,13 +171,13 @@ def main():
 
 
     # sort results
-    e_hf, e_hf_loc, dip_hf, dip_hf_loc, centres_hf = results.sort_results(mol, mo_hf_can, mo_hf_loc, \
-                                                                          e_hf, e_hf_loc, dip_hf, dip_hf_loc, \
-                                                                          'hf', system, centres_hf)
+    e_hf, dip_hf = results.sort_results(mol, system, 'hf_can', e_hf, dip_hf)[:2]
+    e_hf_loc, dip_hf_loc, centres_hf = results.sort_results(mol, system, 'hf_loc', \
+                                                            e_hf_loc, dip_hf_loc, centres=centres_hf)
     if system['dft']:
-        e_dft, e_dft_loc, dip_dft, dip_dft_loc, centres_dft = results.sort_results(mol, mo_dft_can, mo_dft_loc, \
-                                                                                   e_dft, e_dft_loc, dip_dft, dip_dft_loc, \
-                                                                                   system['xc_func'], system, centres_dft)
+        e_dft, dip_dft = results.sort_results(mol, system, 'dft_can', e_dft, dip_dft)[:2]
+        e_dft_loc, dip_dft_loc, centres_dft = results.sort_results(mol, system, 'dft_loc', \
+                                                                   e_dft_loc, dip_dft_loc, centres=centres_dft)
 
 
     # print results

@@ -12,6 +12,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import scf
+from pyscf import tools as pyscf_tools
 
 import orbitals
 
@@ -36,23 +37,23 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=1.):
+def e_tot(mol, system, orb_type, ao_dip, mo_coeff, rep_idx, alpha=1.):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
     :param mol: pyscf mol object
-    :param mf: pyscf mean-field object
-    :param s: overlap matrix. numpy array of shape (n_orb, n_orb)
-    :param ao_dipole: dipole integrals in ao basis. numpy array of shape (3, n_orb, n_orb)
-    :param mo_coeff: mo coefficients. numpy array of shape (n_orb, n_orb)
-    :param pop: population scheme. string
+    :param system: system information. dict
+    :param orb_type: type of decomposition. string
+    :param ao_dipole: dipole integrals in ao basis. numpy array of shape (3, n_basis, n_basis)
+    :param mo_coeff: mo coefficients. numpy array of shape (n_basis, n_unique)
+    :param rep_idx: list of repetitive indices. list of numpy arrays of various shapes
     :param alpha. exact exchange ratio for hf and hybrid xc functionals. scalar
-    :return: numpy array of shape (nocc,) [e_orb],
-             numpy array of shape (nocc, 3) [dip_orb],
-             numpy array of shape (nocc, 2) [centres]
+    :return: numpy array of shape (n_unique,) [e_orb],
+             numpy array of shape (n_unique, 3) [dip_orb],
+             numpy array of shape (n_unique, 2) [centres]
     """
     # compute total 1-RDM (AO basis)
-    rdm1 = np.einsum('ip,jp->ij', mo_coeff[:, :mol.nocc], mo_coeff[:, :mol.nocc]) * 2.
+    rdm1 = np.einsum('ip,jp->ij', mo_coeff, mo_coeff) * 2.
 
     # core hamiltonian
     h_core = mol.intor_symmetric('int1e_kin') + mol.intor_symmetric('int1e_nuc')
@@ -63,23 +64,23 @@ def e_tot(mol, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=1.):
     vk *= alpha
 
     # init orbital-specific energy array
-    e_orb = np.zeros(mol.nocc, dtype=np.float64)
+    e_orb = np.zeros(len(rep_idx), dtype=np.float64)
     # init orbital-specific dipole array
-    dip_orb = np.zeros([mol.nocc, 3], dtype=np.float64)
-    # init charge_centres array
-    centres = np.zeros([mol.nocc, 2], dtype=np.int)
+    dip_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
 
     # loop over orbitals
-    for i in range(mol.nocc):
+    for i, j in enumerate(rep_idx):
 
         # get orbital
-        orb = mo_coeff[:, i].reshape(mol.norb, 1)
+        orb = mo_coeff[:, j].reshape(mo_coeff.shape[0], -1)
 
         # orbital-specific rdm1
         rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
 
-        # charge centres of orbital
-        centres[i] = orbitals.charge_centres(mol, mf, s, orb, rdm1_orb, pop)
+        # write cube file
+        if system['cube']:
+            out_path = system['out_{:}_path'.format(orb_type)]
+            pyscf_tools.cubegen.density(mol, out_path + '/rdm1_{:}_{:}_tmp.cube'.format(orb_type, i), rdm1_orb)
 
         # energy from individual orbitals
         e_orb[i] = e_elec(h_core, vj, vk, rdm1_orb)
@@ -87,6 +88,6 @@ def e_tot(mol, mf, s, ao_dip, mo_coeff, pop='mulliken', alpha=1.):
         # dipole from individual orbitals
         dip_orb[i] = np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
 
-    return e_orb, dip_orb, centres
+    return e_orb, dip_orb
 
 

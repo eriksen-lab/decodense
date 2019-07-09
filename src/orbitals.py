@@ -85,7 +85,43 @@ def loc_orbs(mol, mo_coeff, s, variant):
     return mo_coeff
 
 
-def charge_centres(mol, mf, s, orb, rdm1, pop):
+def reorder(mol, mf, s, mo_coeff, pop='mulliken'):
+    """
+    this function returns a list of repetitive center indices and an array of unique charge centres
+
+    :param mol: pyscf mol object
+    :param mf: pyscf mean-field object
+    :param s: overlap matrix. numpy array of shape (n_basis, n_basis)
+    :param mo_coeff: mo coefficients. numpy array of shape (n_basis, n_basis)
+    :param pop: population scheme. string
+    :return: list of numpy arrays of various shapes [rep_idx];
+             numpy array of shape (n_unique,) [centres_loc_unique]
+    """
+    # init charge_centres array
+    centres = np.zeros([mol.nocc, 2], dtype=np.int)
+
+    # compute charge centres
+    for i in range(mol.nocc):
+
+        # get orbital
+        orb = mo_coeff[:, i].reshape(mol.norb, 1)
+
+        # orbital-specific rdm1
+        rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
+
+        # charge centres of orbital
+        centres[i] = _charge_centres(mol, mf, s, orb, rdm1_orb, pop)
+
+    # search for the unique centres for local results
+    centres_unique = np.unique(centres, axis=0)
+
+    # repetitive centres
+    rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_unique]
+
+    return rep_idx, centres_unique
+
+
+def _charge_centres(mol, mf, s, orb, rdm1, pop):
     """
     this function returns a single atom/pair of atoms onto which a given MO is assigned
 
@@ -100,7 +136,7 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
     if pop == 'mulliken':
 
         # traditional mulliken charges
-        charges = mulliken_charges(mol, s, rdm1)
+        charges = _mulliken_charges(mol, s, rdm1)
 
     elif pop == 'nao':
 
@@ -109,7 +145,7 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
         c_inv = np.einsum('ki,jk->ij', c, s)
         rdm1_nao = np.einsum('ik,kl,jl->ij', c_inv, rdm1, c_inv)
 
-        charges = mulliken_charges(mol, rdm1_nao, np.eye(mol.nao_nr()))
+        charges = _mulliken_charges(mol, rdm1_nao, np.eye(mol.nao_nr()))
 
     elif pop == 'meta_lowdin':
 
@@ -118,7 +154,7 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
         c_inv = np.einsum('ki,jk->ij', c, s)
         rdm1_meta_lowdin = np.einsum('ik,kl,jl->ij', c_inv, rdm1, c_inv)
 
-        charges = mulliken_charges(mol, rdm1_meta_lowdin, np.eye(mol.nao_nr()))
+        charges = _mulliken_charges(mol, rdm1_meta_lowdin, np.eye(mol.nao_nr()))
 
     elif pop == 'iao':
 
@@ -130,7 +166,7 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
         pmol = mol.copy()
         pmol.build(False, False, basis='minao')
 
-        charges = mulliken_charges(pmol, rdm1_iao, np.eye(pmol.nao_nr()))
+        charges = _mulliken_charges(pmol, rdm1_iao, np.eye(pmol.nao_nr()))
 
     else:
 
@@ -151,7 +187,7 @@ def charge_centres(mol, mf, s, orb, rdm1, pop):
         return np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
 
 
-def mulliken_charges(mol, s, rdm1):
+def _mulliken_charges(mol, s, rdm1):
     """
     this function returns the mulliken charges on the individual atoms
 
