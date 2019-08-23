@@ -91,7 +91,7 @@ opt, r_2 = fit(func, atoms_shift, shift)
 print('\nf[shift]   = {:.2f} * N  {:+.2f} / N  {:+.2f} --- r_2 = {:.5f}\n\n'.format(*opt, r_2))
 
 ax.xaxis.grid(False)
-ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 ax.set_xlabel('Number of Carbon Atoms')
 ax.set_ylabel('Energy Contribution (in au)')
 ax.legend(loc='lower left', frameon=False)
