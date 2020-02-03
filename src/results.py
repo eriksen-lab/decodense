@@ -14,19 +14,25 @@ import os
 import numpy as np
 import math
 from pyscf import gto, lib
+from typing import Tuple, Any
 
 import tools
 
+# output folder and files
+OUT = os.getcwd()+'/output'
+RES_FILE = OUT+'/mf_decomp.results'
+DIVIDER = '{:^143}'.format('-'*137)
 
-def sort_results(mol, system, orb_type, e_orb, dip_orb, centres=None):
+
+def sort(mol, orb_type, e_orb, dip_orb, cube, centres=None):
     """
     this function returns sorted results for unique bonds only
 
     :param mol: pyscf mol object
-    :param system: system information. dict
     :param orb_type: type of decomposition. string
     :param e_orb: decomposed mean-field energy contributions. numpy array of (n_unique,)
     :param dip_orb: decomposed mean-field dipole moment contributions. numpy array of (n_unique, 3)
+    :param cube: cube file logical. bool
     :param centres: corresponding charge centres. numpy array of shape (n_unique, 2)
     :return: numpy array of shape (n_unique,) [e_orb_unique],
              numpy array of shape (n_unique, 3) [dip_orb_unique],
@@ -42,19 +48,19 @@ def sort_results(mol, system, orb_type, e_orb, dip_orb, centres=None):
         centres = centres[sorter]
 
     # sort cube files
-    if system['cube']:
-        out_path = system['out_{:}_path'.format(orb_type)]
+    if cube:
+        out_path = OUT + orb_type
         for i, j in enumerate(sorter):
-            os.rename(out_path + '/rdm1_{:}_{:}_tmp.cube'.format(orb_type, j), \
-                      out_path + '/rdm1_{:}_{:}.cube'.format(orb_type, i))
+            os.rename(out_path + '/rdm1_{:}_tmp.cube'.format(j), \
+                      out_path + '/rdm1_{:}.cube'.format(i))
 
     return e_orb, dip_orb, centres
 
 
-def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
-                  e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
-                  centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
-                  e_hf_ref, dip_hf_ref, e_dft_ref, dip_dft_ref):
+def main(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
+         e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
+         centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
+         e_hf_ref, dip_hf_ref, e_dft_ref, dip_dft_ref):
     """
     this function prints the results of an mf_decomp calculation
 
@@ -78,16 +84,28 @@ def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
     :param e_dft_ref: reference dft energy. scalar
     :param dip_dft_ref: reference dft dipole moment. numpy array of shape (3,)
     """
+
+    # print geometry
+    print('\n\n   ------------------------------------')
+    print('{:^43}'.format('geometry'))
+    print('   ------------------------------------')
+    molecule = mol.atom.split('\n') # type: ignore
+    for i in range(len(molecule)-1):
+        atom = molecule[i].split()
+        for j in range(1, 4):
+            atom[j] = float(atom[j]) # type: ignore
+        print('   {:<3s} {:>10.5f} {:>10.5f} {:>10.5f}'.format(*atom))
+    print('   ------------------------------------')
+
     # system info
     print('\n\n system info:')
     print(' ------------')
-    print(' molecule          = {:}'.format(system['molecule']))
     print(' point group       = {:}'.format(mol.groupname))
-    print(' basis set         = {:}'.format(system['basis']))
-    print('\n localization      = {:}'.format(system['loc_proc']))
-    print(' assignment        = {:}'.format(system['pop_scheme']))
-    if system['dft']:
-        print(' xc functional     = {:}'.format(system['xc_func']))
+    print(' basis set         = {:}'.format(system.param['basis']))
+    print('\n localization      = {:}'.format(system.param['loc_proc']))
+    print(' assignment        = {:}'.format(system.param['pop_scheme']))
+    if system.param['dft']:
+        print(' xc functional     = {:}'.format(system.param['xc_func']))
     print('\n electrons         = {:}'.format(mol.nelectron))
     print(' occupied orbitals = {:}'.format(mol.nocc))
     print(' virtual orbitals  = {:}'.format(mol.nvirt))
@@ -143,6 +161,7 @@ def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
     print('------------------------------------------------------------------------')
     print('  tot | {:>12.5f}  | {:>12.5f}  |'. \
             format(np.sum(e_hf) + e_nuc, np.sum(e_hf_loc) + e_nuc))
+    print('------------------------------------------------------------------------')
     print('\n *** HF reference energy = {:.5f}\n\n'. \
             format(e_hf_ref))
 
@@ -187,12 +206,13 @@ def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
     print('  tot | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |'. \
             format(*(dip_nuc - np.fromiter(map(math.fsum, dip_hf.T), dtype=dip_hf.dtype, count=dip_hf.shape[1])) + 1.0e-10, \
                    *(dip_nuc - np.fromiter(map(math.fsum, dip_hf_loc.T), dtype=dip_hf_loc.dtype, count=dip_hf_loc.shape[1])) + 1.0e-10))
+    print('----------------------------------------------------------------------------------------------------------------')
     print('\n *** HF reference dipole moment = {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n\n'. \
             format(*dip_hf_ref + 1.0e-10))
 
 
     # print dft results
-    if system['dft']:
+    if system.param['dft']:
 
         # dipole moment
         print('\n\n ** dft')
@@ -235,6 +255,7 @@ def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
         print('------------------------------------------------------------------------')
         print('  tot | {:>12.5f}  | {:>12.5f}  |'. \
                 format(np.sum(e_dft) + e_nuc + e_xc, np.sum(e_dft_loc) + e_nuc + e_xc))
+        print('------------------------------------------------------------------------')
         print('\n *** DFT reference energy = {:.5f}\n\n'. \
                 format(e_dft_ref))
 
@@ -279,6 +300,7 @@ def print_results(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
         print('  tot | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |'. \
                 format(*(dip_nuc - np.fromiter(map(math.fsum, dip_dft.T), dtype=dip_dft.dtype, count=dip_dft.shape[1])) + 1.0e-10, \
                        *(dip_nuc - np.fromiter(map(math.fsum, dip_dft_loc.T), dtype=dip_dft_loc.dtype, count=dip_dft_loc.shape[1])) + 1.0e-10))
+        print('----------------------------------------------------------------------------------------------------------------')
         print('\n *** DFT reference dipole moment = {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n\n'. \
                 format(*dip_dft_ref + 1.0e-10))
 

@@ -15,6 +15,7 @@ from pyscf import scf
 from pyscf import tools as pyscf_tools
 
 import orbitals
+import results
 
 
 def e_elec(h_core, vj, vk, rdm1):
@@ -37,16 +38,16 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, system, orb_type, ao_dip, mo_coeff, rep_idx, alpha=1.):
+def e_tot(mol, orb_type, ao_dip, mo_coeff, rep_idx, cube, alpha=1.):
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
 
     :param mol: pyscf mol object
-    :param system: system information. dict
     :param orb_type: type of decomposition. string
     :param ao_dipole: dipole integrals in ao basis. numpy array of shape (3, n_basis, n_basis)
     :param mo_coeff: mo coefficients. numpy array of shape (n_basis, n_unique)
     :param rep_idx: list of repetitive indices. list of numpy arrays of various shapes
+    :param cube. cube file logical. bool
     :param alpha. exact exchange ratio for hf and hybrid xc functionals. scalar
     :return: numpy array of shape (n_unique,) [e_orb],
              numpy array of shape (n_unique, 3) [dip_orb],
@@ -78,9 +79,9 @@ def e_tot(mol, system, orb_type, ao_dip, mo_coeff, rep_idx, alpha=1.):
         rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
 
         # write cube file
-        if system['cube']:
-            out_path = system['out_{:}_path'.format(orb_type)]
-            pyscf_tools.cubegen.density(mol, out_path + '/rdm1_{:}_{:}_tmp.cube'.format(orb_type, i), rdm1_orb)
+        if cube:
+            out_path = results.OUT + orb_type
+            pyscf_tools.cubegen.density(mol, out_path + '/rdm1_{:}_tmp.cube'.format(i), rdm1_orb)
 
         # energy from individual orbitals
         e_orb[i] = e_elec(h_core, vj, vk, rdm1_orb)
