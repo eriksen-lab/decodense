@@ -74,8 +74,8 @@ def loc_orbs(mol, mo_coeff, s, variant):
         iao_val = lo.vec_lowdin(iao_val, s)
 
         # IBOs
-        mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], iao_core, verbose=0)
-        mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], iao_val, verbose=0)
+        mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], iao_core, exponent=2, verbose=0)
+        mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], iao_val, exponent=2, verbose=0)
 
     else:
 

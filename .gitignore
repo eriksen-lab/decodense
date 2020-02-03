@@ -1,5 +1,6 @@
 *pyc
 *swp
+.mypy_cache
 ms.aux
 acs-ms.bib
 ms.bbl

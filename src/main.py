@@ -104,7 +104,7 @@ def main():
     # init and run hf calc
     mf_hf = scf.RHF(mol)
     mf_hf.conv_tol = 1.0e-12
-    mf_hf.run()
+    mf_hf.kernel()
     assert mf_hf.converged, 'HF not converged'
     e_hf_tot = mf_hf.e_tot
     dip_hf_tot = scf.hf.dip_moment(mol, mf_hf.make_rdm1(), unit='au', verbose=0)
@@ -123,8 +123,8 @@ def main():
         mf_dft = dft.RKS(mol)
         mf_dft.xc = system['xc_func']
         mf_dft.conv_tol = 1.0e-12
-        mf_dft.run()
-        assert mf_hf.converged, 'DFT not converged'
+        mf_dft.kernel()
+        assert mf_dft.converged, 'DFT not converged'
         e_dft_tot = mf_dft.e_tot
         dip_dft_tot = scf.hf.dip_moment(mol, mf_dft.make_rdm1(), unit='au', verbose=0)
 
@@ -150,7 +150,7 @@ def main():
     if system['dft']:
 
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, system, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], \
+        e_dft, dip_dft = energy.e_tot(mol, system, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, \
                                       alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
     else:
@@ -162,7 +162,7 @@ def main():
 
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system['loc_proc'])
         rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=system['pop_scheme'])
-        e_dft_loc, dip_dft_loc = energy.e_tot(mol, system, 'dft_loc', mf_dft, s, ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, \
+        e_dft_loc, dip_dft_loc = energy.e_tot(mol, system, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, \
                                               alpha=dft.libxc.hybrid_coeff(system['xc_func']))
 
     else:
