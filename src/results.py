@@ -57,7 +57,7 @@ def sort(mol, orb_type, e_orb, dip_orb, cube, centres=None):
     return e_orb, dip_orb, centres
 
 
-def main(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
+def main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
          e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
          centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
          e_hf_ref, dip_hf_ref, e_dft_ref, dip_dft_ref):
@@ -65,7 +65,7 @@ def main(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
     this function prints the results of an mf_decomp calculation
 
     :param mol: pyscf mol object
-    :param system: system information. dict
+    :param decomp: system information. dict
     :param e_hf: canonical hf decomposed energy results. numpy array of shape (nocc,)
     :param dip_hf: canonical hf decomposed dipole results. numpy array of shape (nocc, 3)
     :param e_hf_loc: localized hf decomposed energy results. numpy array of shape (nocc,)
@@ -101,11 +101,11 @@ def main(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
     print('\n\n system info:')
     print(' ------------')
     print(' point group       = {:}'.format(mol.groupname))
-    print(' basis set         = {:}'.format(system.param['basis']))
-    print('\n localization      = {:}'.format(system.param['loc_proc']))
-    print(' assignment        = {:}'.format(system.param['pop_scheme']))
-    if system.param['dft']:
-        print(' xc functional     = {:}'.format(system.param['xc_func']))
+    print(' basis set         = {:}'.format(decomp.param['basis']))
+    print('\n localization      = {:}'.format(decomp.param['loc']))
+    print(' assignment        = {:}'.format(decomp.param['pop']))
+    if decomp.param['dft']:
+        print(' xc functional     = {:}'.format(decomp.param['xc_func']))
     print('\n electrons         = {:}'.format(mol.nelectron))
     print(' occupied orbitals = {:}'.format(mol.nocc))
     print(' virtual orbitals  = {:}'.format(mol.nvirt))
@@ -212,7 +212,7 @@ def main(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
 
 
     # print dft results
-    if system.param['dft']:
+    if decomp.param['dft']:
 
         # dipole moment
         print('\n\n ** dft')

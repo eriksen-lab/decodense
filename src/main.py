@@ -13,13 +13,12 @@ __status__ = 'Development'
 import sys
 import os
 import os.path
-import re
 import shutil
-import ast
 import numpy as np
 from pyscf import gto, scf, dft
 from typing import List, Dict, Union, Any
 
+import system
 import orbitals
 import energy
 import results
@@ -28,13 +27,13 @@ import tools
 
 def main():
     """ main program """
-    # set system info
-    system = SystemCls()
-    system.atom, system.param = _set_param(system.param)
-    if 'xc_func' not in system.param.keys():
-        system.param['dft'] = False
-    if 'cube' not in system.param.keys():
-        system.param['cube'] = False
+    # set decomp info
+    decomp = system.SystemCls()
+    decomp.atom, decomp.param = system.set_param(decomp.param)
+    if 'xc_func' not in decomp.param.keys():
+        decomp.param['dft'] = False
+    if 'cube' not in decomp.param.keys():
+        decomp.param['cube'] = False
 
     # rm out dir if present
     if os.path.isdir(results.OUT):
@@ -42,12 +41,12 @@ def main():
 
     # make main out dir
     os.mkdir(results.OUT)
-    if system.param['cube']:
+    if decomp.param['cube']:
         # make hf out dirs
         os.mkdir(results.OUT + '/hf_can')
         os.mkdir(results.OUT + '/hf_loc')
         # make dft out dirs
-        if system['dft']:
+        if decomp['dft']:
             os.mkdir(results.OUT + '/dft_can')
             os.mkdir(results.OUT + '/dft_loc')
 
@@ -56,7 +55,7 @@ def main():
 
     # init molecule
     mol = gto.Mole()
-    mol.build(verbose = 0, output = None, atom = system.atom, basis = system.param['basis'], symmetry = True)
+    mol.build(verbose = 0, output = None, atom = decomp.atom, basis = decomp.param['basis'], symmetry = True)
 
     # singlet check
     assert mol.spin == 0, 'decomposition scheme only implemented for singlet states'
@@ -86,10 +85,10 @@ def main():
     mol.norb = mol.nocc + mol.nvirt
 
     # init and run dft calc
-    if system.param['dft']:
+    if decomp.param['dft']:
 
         mf_dft = dft.RKS(mol)
-        mf_dft.xc = system.param['xc_func']
+        mf_dft.xc = decomp.param['xc_func']
         mf_dft.conv_tol = 1.0e-12
         mf_dft.kernel()
         assert mf_dft.converged, 'DFT not converged'
@@ -107,31 +106,31 @@ def main():
 
     # decompose hf energy by means of canonical orbitals
     rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
-    e_hf, dip_hf = energy.e_tot(mol, 'hf_can', ao_dip, mo_hf_can[:, :mol.nocc], rep_idx, system.param['cube'])
+    e_hf, dip_hf = energy.e_tot(mol, 'hf_can', ao_dip, mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     # decompose hf energy by means of localized MOs
-    mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, system.param['loc_proc'])
-    rep_idx, centres_hf = orbitals.reorder(mol, mf_hf, s, mo_hf_loc, pop=system.param['pop_scheme'])
-    e_hf_loc, dip_hf_loc = energy.e_tot(mol, 'hf_loc', ao_dip, mo_hf_loc[:, :mol.nocc], rep_idx, system.param['cube'])
+    mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, decomp.param['loc'])
+    rep_idx, centres_hf = orbitals.reorder(mol, mf_hf, s, mo_hf_loc, pop=decomp.param['pop'])
+    e_hf_loc, dip_hf_loc = energy.e_tot(mol, 'hf_loc', ao_dip, mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     # decompose dft energy by means of canonical orbitals
-    if system.param['dft']:
+    if decomp.param['dft']:
 
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, system.param['cube'], \
-                                      alpha=dft.libxc.hybrid_coeff(system.param['xc_func']))
+        e_dft, dip_dft = energy.e_tot(mol, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'], \
+                                      alpha=dft.libxc.hybrid_coeff(decomp.param['xc_func']))
 
     else:
 
         e_dft = dip_dft = None
 
     # decompose dft energy by means of localized MOs
-    if system.param['dft']:
+    if decomp.param['dft']:
 
-        mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, system.param['loc_proc'])
-        rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=system.param['pop_scheme'])
-        e_dft_loc, dip_dft_loc = energy.e_tot(mol, system, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, system.param['cube'], \
-                                              alpha=dft.libxc.hybrid_coeff(system.param['xc_func']))
+        mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
+        rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=decomp.param['pop'])
+        e_dft_loc, dip_dft_loc = energy.e_tot(mol, decomp, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'], \
+                                              alpha=dft.libxc.hybrid_coeff(decomp.param['xc_func']))
 
     else:
 
@@ -139,65 +138,22 @@ def main():
 
 
     # sort results
-    e_hf, dip_hf = results.sort(mol, 'hf_can', e_hf, dip_hf, system.param['cube'])[:2]
+    e_hf, dip_hf = results.sort(mol, 'hf_can', e_hf, dip_hf, decomp.param['cube'])[:2]
     e_hf_loc, dip_hf_loc, centres_hf = results.sort(mol, 'hf_loc', e_hf_loc, dip_hf_loc, \
-                                                    system.param['cube'], centres=centres_hf)
-    if system.param['dft']:
-        e_dft, dip_dft = results.sort(mol, 'dft_can', e_dft, dip_dft, system.param['cube'])[:2]
+                                                    decomp.param['cube'], centres=centres_hf)
+    if decomp.param['dft']:
+        e_dft, dip_dft = results.sort(mol, 'dft_can', e_dft, dip_dft, decomp.param['cube'])[:2]
         e_dft_loc, dip_dft_loc, centres_dft = results.sort(mol, 'dft_loc', e_dft_loc, dip_dft_loc, \
-                                                           system.param['cube'], centres=centres_dft)
+                                                           decomp.param['cube'], centres=centres_dft)
 
 
     # print results
-    results.main(mol, system, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
+    results.main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
                  e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
                  centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
                  e_hf_tot, dip_hf_tot, e_dft_tot, dip_dft_tot)
 
 
-class SystemCls(object):
-        """
-        this class contains all system attributes
-        """
-        def __init__(self) -> None:
-                """
-                init molecule attributes
-                """
-                # set defaults
-                self.atom: Union[List[str], str] = ''
-                self.param: Dict[str, Any] = {'basis': 'sto-3g', 'loc_proc': 'pm', 'pop_scheme': 'mulliken'}
-
-
-def _set_param(param):
-        """
-        this function sets system parameter attributes from input file
-        """
-        # read input file
-        try:
-            with open(os.getcwd()+'/input') as f:
-                content = f.readlines()
-                for i in range(len(content)):
-                    if content[i].strip():
-                        if content[i].split()[0][0] == '#':
-                            continue
-                        elif re.split('=',content[i])[0].strip() == 'atom':
-                            atom = ''
-                            for j in range(i+1, len(content)):
-                                if content[j][:3] == "'''" or content[j][:3] == '"""':
-                                    break
-                                else:
-                                    atom += content[j]
-                        elif re.split('=',content[i])[0].strip() == 'param':
-                            try:
-                                inp = ast.literal_eval(re.split('=',content[i])[1].strip())
-                            except ValueError:
-                                raise ValueError('wrong input -- error in reading in param dictionary')
-                            # update system
-                            param = {**param, **inp}
-        except IOError:
-            sys.stderr.write('\nIOError : input file not found\n\n')
-            raise
-        return atom, param
 
 
 if __name__ == '__main__':
