@@ -30,10 +30,8 @@ def main():
     # set decomp info
     decomp = system.SystemCls()
     decomp.atom, decomp.param = system.set_param(decomp.param)
-    if 'xc_func' not in decomp.param.keys():
-        decomp.param['dft'] = False
-    if 'cube' not in decomp.param.keys():
-        decomp.param['cube'] = False
+    if 'xc' in decomp.param.keys():
+        decomp.param['dft'] = True
 
     # rm out dir if present
     if os.path.isdir(results.OUT):
@@ -88,7 +86,7 @@ def main():
     if decomp.param['dft']:
 
         mf_dft = dft.RKS(mol)
-        mf_dft.xc = decomp.param['xc_func']
+        mf_dft.xc = decomp.param['xc']
         mf_dft.conv_tol = 1.0e-12
         mf_dft.kernel()
         assert mf_dft.converged, 'DFT not converged'
@@ -118,7 +116,7 @@ def main():
 
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
         e_dft, dip_dft = energy.e_tot(mol, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'], \
-                                      alpha=dft.libxc.hybrid_coeff(decomp.param['xc_func']))
+                                      alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
 
     else:
 
@@ -129,8 +127,8 @@ def main():
 
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
         rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=decomp.param['pop'])
-        e_dft_loc, dip_dft_loc = energy.e_tot(mol, decomp, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'], \
-                                              alpha=dft.libxc.hybrid_coeff(decomp.param['xc_func']))
+        e_dft_loc, dip_dft_loc = energy.e_tot(mol, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'], \
+                                              alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
 
     else:
 

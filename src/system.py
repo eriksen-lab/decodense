@@ -29,7 +29,7 @@ class SystemCls(object):
                 """
                 # set defaults
                 self.atom: Union[List[str], str] = ''
-                self.param: Dict[str, Any] = {'basis': 'sto-3g', 'loc': 'pm', 'pop': 'mulliken'}
+                self.param: Dict[str, Any] = {'basis': 'sto-3g', 'loc': 'pm', 'pop': 'mulliken', 'dft': False, 'cube': False}
 
 
 def set_param(param):
