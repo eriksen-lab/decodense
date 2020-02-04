@@ -11,23 +11,17 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import scf
+from pyscf import gto, scf, dft
 from pyscf import tools as pyscf_tools
+from typing import List, Union
 
 import orbitals
 import results
 
 
-def e_elec(h_core, vj, vk, rdm1):
+def e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray) -> float:
     """
-    this function returns a contribution to a mean-field energy from rdm1:
-    E(rdm1) = 2. * Tr[h * rdm1] + Tr[v_eff(rdm1_tot) * rdm1]
-
-    :param h_core: core hamiltonian. numpy array of shape (n_orb, n_orb)
-    :param vj: coulumb potential. numpy array of shape (n_orb, n_orb)
-    :param vk: exchange potential. numpy array of shape (n_orb, n_orb)
-    :param rdm1: orbital specific rdm1. numpy array of shape (n_orb, n_orb)
-    :return: scalar
+    this function returns a contribution to a mean-field energy from given rdm1
     """
     # contribution from core hamiltonian
     e_core = np.einsum('ij,ji', h_core, rdm1)
@@ -38,20 +32,10 @@ def e_elec(h_core, vj, vk, rdm1):
     return e_core + e_veff
 
 
-def e_tot(mol, orb_type, ao_dip, mo_coeff, rep_idx, cube, alpha=1.):
+def e_tot(mol: gto.Mole, orb_type: str, ao_dip: np.ndarray, mo_coeff: np.ndarray, \
+            rep_idx: List[np.ndarray], cube: bool, alpha: float = 1.) -> Union[np.ndarray, np.ndarray]:
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
-
-    :param mol: pyscf mol object
-    :param orb_type: type of decomposition. string
-    :param ao_dipole: dipole integrals in ao basis. numpy array of shape (3, n_basis, n_basis)
-    :param mo_coeff: mo coefficients. numpy array of shape (n_basis, n_unique)
-    :param rep_idx: list of repetitive indices. list of numpy arrays of various shapes
-    :param cube. cube file logical. bool
-    :param alpha. exact exchange ratio for hf and hybrid xc functionals. scalar
-    :return: numpy array of shape (n_unique,) [e_orb],
-             numpy array of shape (n_unique, 3) [dip_orb],
-             numpy array of shape (n_unique, 2) [centres]
     """
     # compute total 1-RDM (AO basis)
     rdm1 = np.einsum('ip,jp->ij', mo_coeff, mo_coeff) * 2.
@@ -72,7 +56,7 @@ def e_tot(mol, orb_type, ao_dip, mo_coeff, rep_idx, cube, alpha=1.):
     # loop over orbitals
     for i, j in enumerate(rep_idx):
 
-        # get orbital
+        # get orbital(s)
         orb = mo_coeff[:, j].reshape(mo_coeff.shape[0], -1)
 
         # orbital-specific rdm1
@@ -91,4 +75,26 @@ def e_tot(mol, orb_type, ao_dip, mo_coeff, rep_idx, cube, alpha=1.):
 
     return e_orb, dip_orb
 
+
+def e_test(mol: gto.Mole, mo_coeff: np.ndarray, rep_idx: List[np.ndarray], mf_dft: dft.RKS) -> float:
+    """
+    this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
+    """
+    # compute total 1-RDM (AO basis)
+    rdm1 = np.einsum('ip,jp->ij', mo_coeff, mo_coeff) * 2.
+    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, rdm1)
+    print('e_xc full = {:}'.format(e_xc))
+
+    # loop over orbitals
+    for i, j in enumerate(rep_idx):
+
+        # get orbital(s)
+        orb = mo_coeff[:, j].reshape(mo_coeff.shape[0], -1)
+
+        # orbital-specific rdm1
+        rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
+
+        print('e_xc from j = {:} = {:}'.format(j, mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, rdm1_orb)))
+
+    return e_xc
 

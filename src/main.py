@@ -53,7 +53,8 @@ def main():
 
     # init molecule
     mol = gto.Mole()
-    mol.build(verbose = 0, output = None, atom = decomp.atom, basis = decomp.param['basis'], symmetry = True)
+    mol.build(verbose = 0, output = None, atom = decomp.atom, \
+                basis = decomp.param['basis'], symmetry = True)
 
     # singlet check
     assert mol.spin == 0, 'decomposition scheme only implemented for singlet states'
@@ -150,8 +151,6 @@ def main():
                  e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
                  centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
                  e_hf_tot, dip_hf_tot, e_dft_tot, dip_dft_tot)
-
-
 
 
 if __name__ == '__main__':
