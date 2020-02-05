@@ -118,6 +118,8 @@ def main():
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
         e_dft, dip_dft = energy.e_tot(mol, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'], \
                                       alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
+        e_dft_test = energy.e_test(mol, mo_dft_can[:, :mol.nocc], rep_idx, mf_dft)
+        print('e_dft_test = {:}'.format(e_dft_test))
 
     else:
 
@@ -130,6 +132,8 @@ def main():
         rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=decomp.param['pop'])
         e_dft_loc, dip_dft_loc = energy.e_tot(mol, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'], \
                                               alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
+        e_dft_loc_test = energy.e_test(mol, mo_dft_loc[:, :mol.nocc], rep_idx, mf_dft)
+        print('e_dft_loc_test = {:}'.format(e_dft_loc_test))
 
     else:
 

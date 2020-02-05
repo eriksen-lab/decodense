@@ -12,6 +12,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto, scf, dft
+from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Union
 
@@ -80,10 +81,36 @@ def e_test(mol: gto.Mole, mo_coeff: np.ndarray, rep_idx: List[np.ndarray], mf_df
     """
     this function returns a sorted orbital-decomposed mean-field energy for a given orbital variant
     """
+    # xc-type and ao_deriv
+    xc_type = dft.libxc.xc_type(mf_dft.xc)
+    if xc_type == 'LDA':
+        ao_deriv = 0
+    elif xc_type in ['GGA', 'NLC']:
+        ao_deriv = 1
+    elif xc_type == 'MGGA':
+        ao_deriv = 2
+
+    # default mesh grids and weights
+    coords = mf_dft.grids.coords
+    weights = mf_dft.grids.weights
+    ao_value = numint.eval_ao(mol, coords, deriv=ao_deriv)
+
     # compute total 1-RDM (AO basis)
     rdm1 = np.einsum('ip,jp->ij', mo_coeff, mo_coeff) * 2.
-    e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, rdm1)
+
+    # rho corresponding to total 1-RDM
+    rho = numint.eval_rho(mol, ao_value, rdm1, xctype=xc_type)
+
+    # evaluate eps_xc
+    eps_xc = dft.libxc.eval_xc(mf_dft.xc, rho)[0]
+
+    if rho.ndim == 1:
+        e_xc = np.einsum('i,i,i->', eps_xc, rho, weights)
+    else:
+        e_xc = np.einsum('i,i,i->', eps_xc, rho[0], weights)
     print('e_xc full = {:}'.format(e_xc))
+
+    e_xc_sum = 0.
 
     # loop over orbitals
     for i, j in enumerate(rep_idx):
@@ -94,7 +121,16 @@ def e_test(mol: gto.Mole, mo_coeff: np.ndarray, rep_idx: List[np.ndarray], mf_df
         # orbital-specific rdm1
         rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
 
-        print('e_xc from j = {:} = {:}'.format(j, mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, rdm1_orb)))
+        # orbital-specific rho
+        rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
 
-    return e_xc
+        if rho_orb.ndim == 1:
+            e_xc_orb = np.einsum('i,i,i->', eps_xc, rho_orb, weights)
+        else:
+            e_xc_orb = np.einsum('i,i,i->', eps_xc, rho_orb[0], weights)
+        print('e_xc = {:} from orbs = {:}'.format(e_xc_orb, j))
+        e_xc_sum += e_xc_orb
+
+    return e_xc_sum
+
 
