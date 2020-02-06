@@ -43,7 +43,7 @@ def e_tot(mol: gto.Mole, \
         ao_value = _ao_val(mol, mf, ao_deriv)
         # rho corresponding to total 1-RDM
         rho = numint.eval_rho(mol, ao_value, rdm1, xctype=xc_type)
-        # evaluate eps_xc
+        # evaluate eps_xc (xc energy density)
         eps_xc = dft.libxc.eval_xc(mf.xc, rho)[0]
 
     # init orbital-specific energy array
