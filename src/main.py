@@ -101,19 +101,21 @@ def main():
 
     # decompose hf energy by means of canonical orbitals
     rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
-    e_hf, dip_hf = energy.e_tot(mol, mf_hf, 'hf_can', ao_dip, mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
+    e_hf, dip_hf = energy.e_tot(mol, mf_hf, 'hf_can', ao_dip, \
+                                    mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     # decompose hf energy by means of localized MOs
     mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, decomp.param['loc'])
     rep_idx, centres_hf = orbitals.reorder(mol, mf_hf, s, mo_hf_loc, pop=decomp.param['pop'])
-    e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
+    e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, \
+                                            mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     # decompose dft energy by means of canonical orbitals
     if decomp.param['dft']:
 
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, mf_dft, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, \
-                                      decomp.param['cube'], alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
+        e_dft, dip_dft = energy.e_tot(mol, mf_dft, 'dft_can', ao_dip, \
+                                        mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     else:
 
@@ -124,8 +126,8 @@ def main():
 
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
         rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=decomp.param['pop'])
-        e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, \
-                                              decomp.param['cube'], alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
+        e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, \
+                                                mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     else:
 
