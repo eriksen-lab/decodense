@@ -106,7 +106,7 @@ def main():
 
     # decompose hf energy by means of localized MOs
     mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, decomp.param['loc'])
-    rep_idx, centres_hf = orbitals.reorder(mol, mf_hf, s, mo_hf_loc, pop=decomp.param['pop'])
+    rep_idx, centres_hf = orbitals.reorder(mol, s, mo_hf_loc, pop=decomp.param['pop'])
     e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, \
                                             mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
@@ -125,7 +125,7 @@ def main():
     if decomp.param['dft']:
 
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
-        rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=decomp.param['pop'])
+        rep_idx, centres_dft = orbitals.reorder(mol, s, mo_dft_loc, pop=decomp.param['pop'])
         e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, \
                                                 mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
