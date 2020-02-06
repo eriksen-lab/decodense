@@ -59,7 +59,7 @@ def sort(mol, orb_type, e_orb, dip_orb, cube, centres=None):
 
 def main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
          e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
-         centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
+         centres_hf, centres_dft, e_nuc, dip_nuc, \
          e_hf_ref, dip_hf_ref, e_dft_ref, dip_dft_ref):
     """
     this function prints the results of an mf_decomp calculation
@@ -78,7 +78,6 @@ def main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
     :param centres_dft: centre assignments for localized dft results. numpy array of shape (nocc, 2) [*strings]
     :param e_nuc: nuclear repulsion energy. scalar
     :param dip_nuc: nuclear dipole moment. numpy array of shape (3,)
-    :param e_xc: exchange-correlation energy. scalar
     :param e_hf_ref: reference hf energy. scalar
     :param dip_hf_ref: reference hf dipole moment. numpy array of shape (3,)
     :param e_dft_ref: reference dft energy. scalar
@@ -249,12 +248,10 @@ def main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
         print('---------------------------------------')
         print('  nuc | {:>+10.3f}    | {:>+10.3f}    |'. \
                 format(e_nuc, e_nuc))
-        print('  xc  | {:>+10.3f}    | {:>+10.3f}    |'. \
-                format(e_xc, e_xc))
         print('---------------------------------------')
         print('---------------------------------------')
         print('  tot | {:>12.5f}  | {:>12.5f}  |'. \
-                format(np.sum(e_dft) + e_nuc + e_xc, np.sum(e_dft_loc) + e_nuc + e_xc))
+                format(np.sum(e_dft) + e_nuc, np.sum(e_dft_loc) + e_nuc))
         print('---------------------------------------')
         print('\n *** DFT reference energy = {:.5f}\n\n'. \
                 format(e_dft_ref))

@@ -94,32 +94,26 @@ def main():
         e_dft_tot = mf_dft.e_tot
         dip_dft_tot = scf.hf.dip_moment(mol, mf_dft.make_rdm1(), unit='au', verbose=0)
 
-        # energy of xc functional evaluated on a grid
-        e_xc = mf_dft._numint.nr_rks(mol, mf_dft.grids, mf_dft.xc, \
-                                     mf_dft.make_rdm1(mf_dft.mo_coeff, mf_dft.mo_occ))[1]
-
     else:
 
-        e_dft_tot = dip_dft_tot = e_xc = None
+        e_dft_tot = dip_dft_tot = None
 
 
     # decompose hf energy by means of canonical orbitals
     rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
-    e_hf, dip_hf = energy.e_tot(mol, 'hf_can', ao_dip, mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
+    e_hf, dip_hf = energy.e_tot(mol, mf_hf, 'hf_can', ao_dip, mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     # decompose hf energy by means of localized MOs
     mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, decomp.param['loc'])
     rep_idx, centres_hf = orbitals.reorder(mol, mf_hf, s, mo_hf_loc, pop=decomp.param['pop'])
-    e_hf_loc, dip_hf_loc = energy.e_tot(mol, 'hf_loc', ao_dip, mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
+    e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
     # decompose dft energy by means of canonical orbitals
     if decomp.param['dft']:
 
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
-        e_dft, dip_dft = energy.e_tot(mol, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'], \
-                                      alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
-        e_dft_test = energy.e_test(mol, mo_dft_can[:, :mol.nocc], rep_idx, mf_dft)
-        print('e_dft_test = {:}'.format(e_dft_test))
+        e_dft, dip_dft = energy.e_tot(mol, mf_dft, 'dft_can', ao_dip, mo_dft_can[:, :mol.nocc], rep_idx, \
+                                      decomp.param['cube'], alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
 
     else:
 
@@ -130,10 +124,8 @@ def main():
 
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
         rep_idx, centres_dft = orbitals.reorder(mol, mf_dft, s, mo_dft_loc, pop=decomp.param['pop'])
-        e_dft_loc, dip_dft_loc = energy.e_tot(mol, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'], \
-                                              alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
-        e_dft_loc_test = energy.e_test(mol, mo_dft_loc[:, :mol.nocc], rep_idx, mf_dft)
-        print('e_dft_loc_test = {:}'.format(e_dft_loc_test))
+        e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, mo_dft_loc[:, :mol.nocc], rep_idx, \
+                                              decomp.param['cube'], alpha=dft.libxc.hybrid_coeff(decomp.param['xc']))
 
     else:
 
@@ -153,7 +145,7 @@ def main():
     # print results
     results.main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
                  e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
-                 centres_hf, centres_dft, e_nuc, dip_nuc, e_xc, \
+                 centres_hf, centres_dft, e_nuc, dip_nuc, \
                  e_hf_tot, dip_hf_tot, e_dft_tot, dip_dft_tot)
 
 
