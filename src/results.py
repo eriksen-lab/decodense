@@ -87,7 +87,9 @@ def main(mol: gto.Mole, decomp: system.DecompCls) -> str:
     string += ' basis set         = {:}\n'
     string += '\n localization      = {:}\n'
     string += ' assignment        = {:}\n'
-    form += (mol.groupname, decomp.param['basis'], decomp.param['loc'], decomp.param['pop'],)
+    string += ' threshold         = {:}\n'
+    form += (mol.groupname, decomp.param['basis'], decomp.param['loc'], \
+                decomp.param['pop'], decomp.param['thres'],)
     if decomp.param['dft']:
         string += ' xc functional     = {:}\n'
         form += (decomp.param['xc'],)

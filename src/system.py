@@ -30,7 +30,7 @@ class DecompCls(object):
                 # set defaults
                 self.atom: Union[List[str], str] = ''
                 self.param: Dict[str, Union[str, bool, float]] = {'basis': 'sto-3g', 'loc': 'pm', 'pop': 'mulliken', \
-                                                                  'dft': False, 'cube': False, 'thres': .95}
+                                                                  'dft': False, 'cube': False, 'thres': .98}
 
 
 def set_param(param: Dict[str, Union[str, bool, float]]) -> Tuple[str, Dict[str, Union[str, bool, float]]]:

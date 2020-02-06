@@ -16,6 +16,7 @@ import os.path
 import shutil
 import numpy as np
 from pyscf import gto, scf, dft, lib
+from mpi4py import MPI
 
 import system
 import orbitals
@@ -52,6 +53,7 @@ def main():
     rr = gto.mole.inter_distance(mol) * lib.param.BOHR
 
     # hf calc
+    time = MPI.Wtime()
     mf_hf = scf.RHF(mol)
     mf_hf.conv_tol = 1.0e-12
     mf_hf.kernel()
@@ -82,6 +84,7 @@ def main():
 
     # print hf results
     print('\n\n ** hartree-fock')
+    print(' done in: {:}'.format(tools.time_str(MPI.Wtime() - time)))
     print(' ---------------\n')
     print(results.energy(mol, e_hf, e_hf_loc, e_nuc, mf_hf.e_tot, centres_hf, rr))
     print(results.dipole(mol, dip_hf, dip_hf_loc, dip_nuc, \
@@ -93,6 +96,7 @@ def main():
     if decomp.param['dft']:
 
         # dft calc
+        time = MPI.Wtime()
         mf_dft = dft.RKS(mol)
         mf_dft.xc = decomp.param['xc']
         mf_dft.conv_tol = 1.0e-12
@@ -115,6 +119,7 @@ def main():
 
         # print dft results
         print('\n\n ** dft')
+        print(' done in: {:}'.format(tools.time_str(MPI.Wtime() - time)))
         print(' ------\n')
         print(results.energy(mol, e_dft, e_dft_loc, e_nuc, mf_dft.e_tot, centres_dft, rr))
         print(results.dipole(mol, dip_dft, dip_dft_loc, dip_nuc, \
