@@ -33,7 +33,7 @@ class DecompCls(object):
                                                                   'dft': False, 'cube': False, 'thres': .95}
 
 
-def set_param(param: Dict[str, Union[str, bool]]) -> Tuple[str, Dict[str, Union[str, bool]]]:
+def set_param(param: Dict[str, Union[str, bool, float]]) -> Tuple[str, Dict[str, Union[str, bool, float]]]:
         """
         this function sets system parameter attributes from input file
         """

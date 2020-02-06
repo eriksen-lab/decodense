@@ -53,23 +53,19 @@ def e_tot(mol: gto.Mole, \
 
     # loop over orbitals
     for i, j in enumerate(rep_idx):
-
         # get orbital(s)
         orb = mo_coeff[:, j].reshape(mo_coeff.shape[0], -1)
         # orbital-specific rdm1
         rdm1_orb = _rdm1(orb)
-
         # energy from individual orbitals
         e_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
         # dipole from individual orbitals
         dip_orb[i] = np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
-
         if isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
             # orbital-specific rho
             rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
             # energy from individual orbitals
             e_orb[i] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
-
         # write cube file
         if cube:
             pyscf_tools.cubegen.density(mol, results.OUT + orb_type + '/rdm1_{:}_tmp.cube'.format(i), rdm1_orb)
