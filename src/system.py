@@ -19,7 +19,7 @@ import ast
 from typing import List, Tuple, Dict, Union
 
 
-class SystemCls(object):
+class DecompCls(object):
         """
         this class contains all system attributes
         """

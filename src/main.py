@@ -15,7 +15,7 @@ import os
 import os.path
 import shutil
 import numpy as np
-from pyscf import gto, scf, dft
+from pyscf import gto, scf, dft, lib
 from typing import List, Dict, Union, Any
 
 import system
@@ -27,29 +27,8 @@ import tools
 
 def main():
     """ main program """
-    # set decomp info
-    decomp = system.SystemCls()
-    decomp.atom, decomp.param = system.set_param(decomp.param)
-    if 'xc' in decomp.param.keys():
-        decomp.param['dft'] = True
-
-    # rm out dir if present
-    if os.path.isdir(results.OUT):
-        shutil.rmtree(results.OUT, ignore_errors=True)
-
-    # make main out dir
-    os.mkdir(results.OUT)
-    if decomp.param['cube']:
-        # make hf out dirs
-        os.mkdir(results.OUT + '/hf_can')
-        os.mkdir(results.OUT + '/hf_loc')
-        # make dft out dirs
-        if decomp['dft']:
-            os.mkdir(results.OUT + '/dft_can')
-            os.mkdir(results.OUT + '/dft_loc')
-
-    # init logger
-    sys.stdout = tools.Logger(results.RES_FILE)
+    # setup calculation
+    decomp = _setup()
 
     # init molecule
     mol = gto.Mole()
@@ -94,11 +73,6 @@ def main():
         e_dft_tot = mf_dft.e_tot
         dip_dft_tot = scf.hf.dip_moment(mol, mf_dft.make_rdm1(), unit='au', verbose=0)
 
-    else:
-
-        e_dft_tot = dip_dft_tot = None
-
-
     # decompose hf energy by means of canonical orbitals
     rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
     e_hf, dip_hf = energy.e_tot(mol, mf_hf, 'hf_can', ao_dip, \
@@ -117,10 +91,6 @@ def main():
         e_dft, dip_dft = energy.e_tot(mol, mf_dft, 'dft_can', ao_dip, \
                                         mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
-    else:
-
-        e_dft = dip_dft = None
-
     # decompose dft energy by means of localized MOs
     if decomp.param['dft']:
 
@@ -128,11 +98,6 @@ def main():
         rep_idx, centres_dft = orbitals.reorder(mol, s, mo_dft_loc, pop=decomp.param['pop'])
         e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, \
                                                 mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
-
-    else:
-
-        e_dft_loc = dip_dft_loc = centres_dft = None
-
 
     # sort results
     e_hf, dip_hf = results.sort(mol, 'hf_can', e_hf, dip_hf, decomp.param['cube'])[:2]
@@ -143,12 +108,55 @@ def main():
         e_dft_loc, dip_dft_loc, centres_dft = results.sort(mol, 'dft_loc', e_dft_loc, dip_dft_loc, \
                                                            decomp.param['cube'], centres=centres_dft)
 
+    # get inter-atomic distance array
+    rr = gto.mole.inter_distance(mol) * lib.param.BOHR
 
     # print results
-    results.main(mol, decomp, e_hf, dip_hf, e_hf_loc, dip_hf_loc, \
-                 e_dft, dip_dft, e_dft_loc, dip_dft_loc, \
-                 centres_hf, centres_dft, e_nuc, dip_nuc, \
-                 e_hf_tot, dip_hf_tot, e_dft_tot, dip_dft_tot)
+    print(results.main(mol, decomp))
+    # hf results
+    print('\n\n ** hartree-fock')
+    print(' ---------------\n')
+    # energy
+    print(results.energy(mol, e_hf, e_hf_loc, e_nuc, e_hf_tot, centres_hf, rr))
+    # dipole moment
+    print(results.dipole(mol, dip_hf, dip_hf_loc, dip_nuc, dip_hf_tot, centres_hf, rr))
+    # dft results
+    if decomp.param['dft']:
+        # dipole moment
+        print('\n\n ** dft')
+        print(' ------\n')
+        # energy
+        print(results.energy(mol, e_dft, e_dft_loc, e_nuc, e_dft_tot, centres_dft, rr))
+        # dipole moment
+        print(results.dipole(mol, dip_dft, dip_dft_loc, dip_nuc, dip_dft_tot, centres_dft, rr))
+
+
+def _setup() -> system.DecompCls:
+    # set decomp info
+    decomp = system.DecompCls()
+    decomp.atom, decomp.param = system.set_param(decomp.param)
+    if 'xc' in decomp.param.keys():
+        decomp.param['dft'] = True
+
+    # rm out dir if present
+    if os.path.isdir(results.OUT):
+        shutil.rmtree(results.OUT, ignore_errors=True)
+
+    # make main out dir
+    os.mkdir(results.OUT)
+    if decomp.param['cube']:
+        # make hf out dirs
+        os.mkdir(results.OUT + '/hf_can')
+        os.mkdir(results.OUT + '/hf_loc')
+        # make dft out dirs
+        if decomp.param['dft']:
+            os.mkdir(results.OUT + '/dft_can')
+            os.mkdir(results.OUT + '/dft_loc')
+
+    # init logger
+    sys.stdout = tools.Logger(results.RES_FILE) # type: ignore
+
+    return decomp
 
 
 if __name__ == '__main__':
