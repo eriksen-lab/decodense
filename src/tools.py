@@ -42,12 +42,9 @@ class Logger(object):
             pass
 
 
-def git_version():
+def git_version() -> str:
         """
         this function returns the git revision as a string
-        see: https://github.com/numpy/numpy/blob/master/setup.py#L70-L92
-
-        :return: string
         """
         def _minimal_ext_cmd(cmd):
             env = {}
