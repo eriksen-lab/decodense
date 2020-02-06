@@ -29,8 +29,8 @@ class DecompCls(object):
                 """
                 # set defaults
                 self.atom: Union[List[str], str] = ''
-                self.param: Dict[str, Union[str, bool]] = {'basis': 'sto-3g', 'loc': 'pm', \
-                                                           'pop': 'mulliken', 'dft': False, 'cube': False}
+                self.param: Dict[str, Union[str, bool, float]] = {'basis': 'sto-3g', 'loc': 'pm', 'pop': 'mulliken', \
+                                                                  'dft': False, 'cube': False, 'thres': .95}
 
 
 def set_param(param: Dict[str, Union[str, bool]]) -> Tuple[str, Dict[str, Union[str, bool]]]:

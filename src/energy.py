@@ -109,6 +109,7 @@ def _vk_dft(mol: gto.Mole, mf: Union[dft.rks.RKS, dft.rks_symm.RKS], rdm1: np.nd
     """
     this function returns the appropriate dft exchange operator
     """
+    # range-separated and exact exchange parameters
     omega, alpha, hyb = mf._numint.rsh_and_hybrid_coeff(mf.xc)
     # scale amount of exact exchange
     vk *= hyb
@@ -147,6 +148,5 @@ def _e_xc(eps_xc: np.ndarray, weights: np.ndarray, rho: np.ndarray) -> float:
     else:
         e_xc = np.einsum('i,i,i->', eps_xc, rho[0], weights)
     return e_xc
-
 
 

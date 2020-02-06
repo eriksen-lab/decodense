@@ -25,7 +25,9 @@ import tools
 
 
 def main():
-    """ main program """
+    """
+    main program
+    """
     # setup calculation
     decomp = _setup()
 
@@ -74,7 +76,7 @@ def main():
                                     mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
     # decompose hf energy by means of localized MOs
     mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, decomp.param['loc'])
-    rep_idx, centres_hf = orbitals.reorder(mol, s, mo_hf_loc, pop=decomp.param['pop'])
+    rep_idx, centres_hf = orbitals.reorder(mol, s, mo_hf_loc, decomp.param['pop'], decomp.param['thres'])
     e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, \
                                             mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
     if decomp.param['dft']:
@@ -84,7 +86,7 @@ def main():
                                         mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
         # decompose dft energy by means of localized MOs
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
-        rep_idx, centres_dft = orbitals.reorder(mol, s, mo_dft_loc, pop=decomp.param['pop'])
+        rep_idx, centres_dft = orbitals.reorder(mol, s, mo_dft_loc, decomp.param['pop'], decomp.param['thres'])
         e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, \
                                                 mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
 
@@ -116,7 +118,10 @@ def main():
 
 
 def _setup() -> system.DecompCls:
-    # set decomp info
+    """
+    set decomp info
+    """
+    # decomp object
     decomp = system.DecompCls()
     decomp.atom, decomp.param = system.set_param(decomp.param)
     if 'xc' in decomp.param.keys():

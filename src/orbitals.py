@@ -40,7 +40,6 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
     """
     # init localizer
     if variant == 'pm':
-
         # pipek-mezey procedure
         loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
         loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
@@ -49,9 +48,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
         # localize core and valence occupied orbitals
         mo_coeff[:, :mol.ncore] = loc_core.kernel()
         mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
-
-    elif variant == 'ibo':
-
+    elif 'ibo' in variant:
         # IAOs
         iao_core = lo.iao.iao(mol, mo_coeff[:, :mol.ncore])
         iao_val = lo.iao.iao(mol, mo_coeff[:, mol.ncore:mol.nocc])
@@ -59,19 +56,28 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
         iao_core = lo.vec_lowdin(iao_core, s)
         iao_val = lo.vec_lowdin(iao_val, s)
         # IBOs
-        mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], iaos=iao_core, exponent=2, verbose=0)
-        mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], iaos=iao_val, exponent=2, verbose=0)
-
+        if variant == 'ibo-2':
+            mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], \
+                                                    iaos=iao_core, exponent=2, verbose=0)
+            mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
+                                                            iaos=iao_val, exponent=2, verbose=0)
+        elif variant == 'ibo-4':
+            mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], \
+                                                    iaos=iao_core, exponent=4, verbose=0)
+            mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
+                                                            iaos=iao_val, exponent=4, verbose=0)
+        else:
+            raise RuntimeError('\n invalid localization procedure. '
+                               'valid choices: `pm`, `ibo-2`, and `ibo-4`\n')
     else:
-
         raise RuntimeError('\n invalid localization procedure. '
-                           'valid choices: `pm` and `ibo`\n')
+                           'valid choices: `pm`, `ibo-2`, and `ibo-4`\n')
 
     return mo_coeff
 
 
 def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
-                pop: str = 'mulliken') -> Tuple[List[np.ndarray], np.ndarray]:
+                pop: str, thres: float) -> Tuple[List[np.ndarray], np.ndarray]:
     """
     this function returns a list of repetitive center indices and an array of unique charge centres
     """
@@ -84,7 +90,7 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         # orbital-specific rdm1
         rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
         # charge centres of orbital
-        centres[i] = _charge_centres(mol, s, orb, rdm1_orb, pop)
+        centres[i] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
 
     # search for the unique centres for local results
     centres_unique = np.unique(centres, axis=0)
@@ -94,7 +100,8 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
     return rep_idx, centres_unique
 
 
-def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, rdm1: np.ndarray, pop: str) -> np.ndarray:
+def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
+                        rdm1: np.ndarray, pop: str, thres: float) -> np.ndarray:
     """
     this function returns a single atom/pair of atoms onto which a given MO is assigned
     """
@@ -123,7 +130,7 @@ def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, rdm1: np.ndar
     # get sorted indices
     max_idx = np.argsort(charges)[::-1]
 
-    if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > 0.95:
+    if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > thres:
         # core orbital
         return np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
     else:
