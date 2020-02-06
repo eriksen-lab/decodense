@@ -16,7 +16,6 @@ import os.path
 import shutil
 import numpy as np
 from pyscf import gto, scf, dft, lib
-from typing import List, Dict, Union, Any
 
 import system
 import orbitals
@@ -47,14 +46,21 @@ def main():
     e_nuc = mol.energy_nuc()
     # nuclear dipole moment
     dip_nuc = np.einsum('i,ix->x', mol.atom_charges(), mol.atom_coords())
+    # inter-atomic distance array
+    rr = gto.mole.inter_distance(mol) * lib.param.BOHR
 
-    # init and run hf calc
+    # hf calc
     mf_hf = scf.RHF(mol)
     mf_hf.conv_tol = 1.0e-12
     mf_hf.kernel()
     assert mf_hf.converged, 'HF not converged'
-    e_hf_tot = mf_hf.e_tot
-    dip_hf_tot = scf.hf.dip_moment(mol, mf_hf.make_rdm1(), unit='au', verbose=0)
+    if decomp.param['dft']:
+        # dft calc
+        mf_dft = dft.RKS(mol)
+        mf_dft.xc = decomp.param['xc']
+        mf_dft.conv_tol = 1.0e-12
+        mf_dft.kernel()
+        assert mf_dft.converged, 'DFT not converged'
 
     # molecular dimensions
     mol.ncore = orbitals.set_ncore(mol)
@@ -62,38 +68,21 @@ def main():
     mol.nvirt = np.where(mf_hf.mo_occ == 0.)[0].size
     mol.norb = mol.nocc + mol.nvirt
 
-    # init and run dft calc
-    if decomp.param['dft']:
-
-        mf_dft = dft.RKS(mol)
-        mf_dft.xc = decomp.param['xc']
-        mf_dft.conv_tol = 1.0e-12
-        mf_dft.kernel()
-        assert mf_dft.converged, 'DFT not converged'
-        e_dft_tot = mf_dft.e_tot
-        dip_dft_tot = scf.hf.dip_moment(mol, mf_dft.make_rdm1(), unit='au', verbose=0)
-
     # decompose hf energy by means of canonical orbitals
     rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
     e_hf, dip_hf = energy.e_tot(mol, mf_hf, 'hf_can', ao_dip, \
                                     mo_hf_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
-
     # decompose hf energy by means of localized MOs
     mo_hf_loc = orbitals.loc_orbs(mol, mf_hf.mo_coeff, s, decomp.param['loc'])
     rep_idx, centres_hf = orbitals.reorder(mol, s, mo_hf_loc, pop=decomp.param['pop'])
     e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, \
                                             mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
-
-    # decompose dft energy by means of canonical orbitals
     if decomp.param['dft']:
-
+        # decompose dft energy by means of canonical orbitals
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
         e_dft, dip_dft = energy.e_tot(mol, mf_dft, 'dft_can', ao_dip, \
                                         mo_dft_can[:, :mol.nocc], rep_idx, decomp.param['cube'])
-
-    # decompose dft energy by means of localized MOs
-    if decomp.param['dft']:
-
+        # decompose dft energy by means of localized MOs
         mo_dft_loc = orbitals.loc_orbs(mol, mf_dft.mo_coeff, s, decomp.param['loc'])
         rep_idx, centres_dft = orbitals.reorder(mol, s, mo_dft_loc, pop=decomp.param['pop'])
         e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, \
@@ -108,27 +97,22 @@ def main():
         e_dft_loc, dip_dft_loc, centres_dft = results.sort(mol, 'dft_loc', e_dft_loc, dip_dft_loc, \
                                                            decomp.param['cube'], centres=centres_dft)
 
-    # get inter-atomic distance array
-    rr = gto.mole.inter_distance(mol) * lib.param.BOHR
-
     # print results
     print(results.main(mol, decomp))
     # hf results
     print('\n\n ** hartree-fock')
     print(' ---------------\n')
-    # energy
-    print(results.energy(mol, e_hf, e_hf_loc, e_nuc, e_hf_tot, centres_hf, rr))
-    # dipole moment
-    print(results.dipole(mol, dip_hf, dip_hf_loc, dip_nuc, dip_hf_tot, centres_hf, rr))
-    # dft results
+    print(results.energy(mol, e_hf, e_hf_loc, e_nuc, \
+                            mf_hf.e_tot, centres_hf, rr))
+    print(results.dipole(mol, dip_hf, dip_hf_loc, dip_nuc, \
+                            scf.hf.dip_moment(mol, mf_hf.make_rdm1(), unit='au', verbose=0), centres_hf, rr))
     if decomp.param['dft']:
-        # dipole moment
+        # dft results
         print('\n\n ** dft')
         print(' ------\n')
-        # energy
-        print(results.energy(mol, e_dft, e_dft_loc, e_nuc, e_dft_tot, centres_dft, rr))
-        # dipole moment
-        print(results.dipole(mol, dip_dft, dip_dft_loc, dip_nuc, dip_dft_tot, centres_dft, rr))
+        print(results.energy(mol, e_dft, e_dft_loc, e_nuc, mf_dft.e_tot, centres_dft, rr))
+        print(results.dipole(mol, dip_dft, dip_dft_loc, dip_nuc, \
+                                scf.hf.dip_moment(mol, mf_dft.make_rdm1(), unit='au', verbose=0), centres_dft, rr))
 
 
 def _setup() -> system.DecompCls:
