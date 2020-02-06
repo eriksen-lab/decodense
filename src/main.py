@@ -56,19 +56,15 @@ def main():
     mf_hf.conv_tol = 1.0e-12
     mf_hf.kernel()
     assert mf_hf.converged, 'HF not converged'
-    if decomp.param['dft']:
-        # dft calc
-        mf_dft = dft.RKS(mol)
-        mf_dft.xc = decomp.param['xc']
-        mf_dft.conv_tol = 1.0e-12
-        mf_dft.kernel()
-        assert mf_dft.converged, 'DFT not converged'
 
     # molecular dimensions
     mol.ncore = orbitals.set_ncore(mol)
     mol.nocc = np.where(mf_hf.mo_occ > 0.)[0].size
     mol.nvirt = np.where(mf_hf.mo_occ == 0.)[0].size
     mol.norb = mol.nocc + mol.nvirt
+
+    # print result header
+    print(results.main(mol, decomp))
 
     # decompose hf energy by means of canonical orbitals
     rep_idx, mo_hf_can = np.arange(mol.nocc), mf_hf.mo_coeff
@@ -79,7 +75,30 @@ def main():
     rep_idx, centres_hf = orbitals.reorder(mol, s, mo_hf_loc, decomp.param['pop'], decomp.param['thres'])
     e_hf_loc, dip_hf_loc = energy.e_tot(mol, mf_hf, 'hf_loc', ao_dip, \
                                             mo_hf_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
+    # sort results
+    e_hf, dip_hf = results.sort(mol, 'hf_can', e_hf, dip_hf, decomp.param['cube'])[:2]
+    e_hf_loc, dip_hf_loc, centres_hf = results.sort(mol, 'hf_loc', e_hf_loc, dip_hf_loc, \
+                                                    decomp.param['cube'], centres=centres_hf)
+
+    # print hf results
+    print('\n\n ** hartree-fock')
+    print(' ---------------\n')
+    print(results.energy(mol, e_hf, e_hf_loc, e_nuc, mf_hf.e_tot, centres_hf, rr))
+    print(results.dipole(mol, dip_hf, dip_hf_loc, dip_nuc, \
+                            scf.hf.dip_moment(mol, mf_hf.make_rdm1(), unit='au', verbose=0), centres_hf, rr))
+
+    # delete mf_hf
+    del mf_hf
+
     if decomp.param['dft']:
+
+        # dft calc
+        mf_dft = dft.RKS(mol)
+        mf_dft.xc = decomp.param['xc']
+        mf_dft.conv_tol = 1.0e-12
+        mf_dft.kernel()
+        assert mf_dft.converged, 'DFT not converged'
+
         # decompose dft energy by means of canonical orbitals
         rep_idx, mo_dft_can = np.arange(mol.nocc), mf_dft.mo_coeff
         e_dft, dip_dft = energy.e_tot(mol, mf_dft, 'dft_can', ao_dip, \
@@ -89,32 +108,20 @@ def main():
         rep_idx, centres_dft = orbitals.reorder(mol, s, mo_dft_loc, decomp.param['pop'], decomp.param['thres'])
         e_dft_loc, dip_dft_loc = energy.e_tot(mol, mf_dft, 'dft_loc', ao_dip, \
                                                 mo_dft_loc[:, :mol.nocc], rep_idx, decomp.param['cube'])
-
-    # sort results
-    e_hf, dip_hf = results.sort(mol, 'hf_can', e_hf, dip_hf, decomp.param['cube'])[:2]
-    e_hf_loc, dip_hf_loc, centres_hf = results.sort(mol, 'hf_loc', e_hf_loc, dip_hf_loc, \
-                                                    decomp.param['cube'], centres=centres_hf)
-    if decomp.param['dft']:
+        # sort results
         e_dft, dip_dft = results.sort(mol, 'dft_can', e_dft, dip_dft, decomp.param['cube'])[:2]
         e_dft_loc, dip_dft_loc, centres_dft = results.sort(mol, 'dft_loc', e_dft_loc, dip_dft_loc, \
                                                            decomp.param['cube'], centres=centres_dft)
 
-    # print results
-    print(results.main(mol, decomp))
-    # hf results
-    print('\n\n ** hartree-fock')
-    print(' ---------------\n')
-    print(results.energy(mol, e_hf, e_hf_loc, e_nuc, \
-                            mf_hf.e_tot, centres_hf, rr))
-    print(results.dipole(mol, dip_hf, dip_hf_loc, dip_nuc, \
-                            scf.hf.dip_moment(mol, mf_hf.make_rdm1(), unit='au', verbose=0), centres_hf, rr))
-    if decomp.param['dft']:
-        # dft results
+        # print dft results
         print('\n\n ** dft')
         print(' ------\n')
         print(results.energy(mol, e_dft, e_dft_loc, e_nuc, mf_dft.e_tot, centres_dft, rr))
         print(results.dipole(mol, dip_dft, dip_dft_loc, dip_nuc, \
                                 scf.hf.dip_moment(mol, mf_dft.make_rdm1(), unit='au', verbose=0), centres_dft, rr))
+
+        # delete mf_dft
+        del mf_dft
 
 
 def _setup() -> system.DecompCls:
