@@ -16,7 +16,7 @@ import re
 import sys
 import os
 import ast
-from typing import List, Dict, Union, Any
+from typing import List, Tuple, Dict, Union
 
 
 class SystemCls(object):
@@ -29,10 +29,11 @@ class SystemCls(object):
                 """
                 # set defaults
                 self.atom: Union[List[str], str] = ''
-                self.param: Dict[str, Any] = {'basis': 'sto-3g', 'loc': 'pm', 'pop': 'mulliken', 'dft': False, 'cube': False}
+                self.param: Dict[str, Union[str, bool]] = {'basis': 'sto-3g', 'loc': 'pm', \
+                                                           'pop': 'mulliken', 'dft': False, 'cube': False}
 
 
-def set_param(param):
+def set_param(param: Dict[str, Union[str, bool]]) -> Tuple[str, Dict[str, Union[str, bool]]]:
         """
         this function sets system parameter attributes from input file
         """
@@ -61,6 +62,7 @@ def set_param(param):
         except IOError:
             sys.stderr.write('\nIOError : input file not found\n\n')
             raise
+
         return atom, param
 
 
