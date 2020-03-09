@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 """
-results module containing all functions related to printing the results of an mf_decomp calculation
+results module
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -24,37 +24,21 @@ OUT = os.getcwd()+'/output'
 RES_FILE = OUT+'/mf_decomp.results'
 
 
-def sort(mol, orb_type, e_orb, dip_orb, cube, centres=None):
+def sort(mol: gto.Mole, res_can_old: np.ndarray, res_loc_old: np.ndarray, \
+         centres_old: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     this function returns sorted results for unique bonds only
-
-    :param mol: pyscf mol object
-    :param orb_type: type of decomposition. string
-    :param e_orb: decomposed mean-field energy contributions. numpy array of (n_unique,)
-    :param dip_orb: decomposed mean-field dipole moment contributions. numpy array of (n_unique, 3)
-    :param cube: cube file logical. bool
-    :param centres: corresponding charge centres. numpy array of shape (n_unique, 2)
-    :return: numpy array of shape (n_unique,) [e_orb_unique],
-             numpy array of shape (n_unique, 3) [dip_orb_unique],
-             numpy array of shape (n_unique, 2) [centres_unique]
     """
-    # sort results wrt energy contributions
-    sorter = np.argsort(e_orb)
-    e_orb = e_orb[sorter]
-    dip_orb = dip_orb[sorter]
+    # sort results wrt canonical contributions
+    sorter_can = np.argsort(res_can_old)
+    res_can_new = res_can_old[sorter_can]
+    # sort results wrt localized contributions
+    sorter_loc = np.argsort(res_loc_old)
+    res_loc_new = res_loc_old[sorter_loc]
+    # sort localized centres
+    centres_new = centres_old[sorter_loc]
 
-    # sort centres
-    if centres is not None:
-        centres = centres[sorter]
-
-    # sort cube files
-    if cube:
-        out_path = OUT + orb_type
-        for i, j in enumerate(sorter):
-            os.rename(out_path + '/rdm1_{:}_tmp.cube'.format(j), \
-                      out_path + '/rdm1_{:}.cube'.format(i))
-
-    return e_orb, dip_orb, centres
+    return res_can_new, res_loc_new, centres_new
 
 
 def main(mol: gto.Mole, decomp: system.DecompCls) -> str:
@@ -83,20 +67,19 @@ def main(mol: gto.Mole, decomp: system.DecompCls) -> str:
     # system info
     string += '\n\n system info:\n'
     string += ' ------------\n'
-    string += ' point group       = {:}\n'
-    string += ' basis set         = {:}\n'
-    string += '\n localization      = {:}\n'
-    string += ' assignment        = {:}\n'
-    string += ' threshold         = {:}\n'
-    form += (mol.groupname, decomp.param['basis'], decomp.param['loc'], \
-                decomp.param['pop'], decomp.param['thres'],)
-    if decomp.param['dft']:
-        string += ' xc functional     = {:}\n'
-        form += (decomp.param['xc'],)
-    string += '\n electrons         = {:}\n'
-    string += ' occupied orbitals = {:}\n'
-    string += ' virtual orbitals  = {:}\n'
-    string += ' total orbitals    = {:}\n'
+    string += ' point group        = {:}\n'
+    string += ' basis set          = {:}\n'
+    string += '\n localization       = {:}\n'
+    string += ' assignment         = {:}\n'
+    string += ' threshold          = {:}\n'
+    form += (mol.groupname, decomp.basis, decomp.loc, decomp.pop, decomp.thres,)
+    if decomp.dft:
+        string += ' xc functional      = {:}\n'
+        form += (decomp.xc,)
+    string += '\n electrons          = {:}\n'
+    string += ' occupied orbitals  = {:}\n'
+    string += ' virtual orbitals   = {:}\n'
+    string += ' total orbitals     = {:}\n'
     form += (mol.nelectron, mol.nocc, mol.nvirt, mol.norb,)
 
     # git version
@@ -124,21 +107,15 @@ def energy(mol: gto.Mole, e_can: np.ndarray, e_loc: np.ndarray, \
     form += ('ground-state energy',)
 
     for i in range(mol.nocc):
-
         if i < e_loc.size:
-
-            # core or valence orbital(s)
             core = centres[i, 0] == centres[i, 1]
-
             string += '  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}\n'
             form += (i, e_can[i], e_loc[i], \
                         mol.atom_symbol(centres[i, 0]) if core else '{:s} & {:s}'. \
                         format(mol.atom_symbol(centres[i, 0]), mol.atom_symbol(centres[i, 1])), \
                         '' if core else '{:>.3f}'. \
                         format(rr[centres[i, 0], centres[i, 1]]),)
-
         else:
-
             string += '  {:>2d}  | {:>10.3f}    |\n'
             form += (i, e_can[i],)
 
@@ -183,21 +160,15 @@ def dipole(mol: gto.Mole, dip_can: np.ndarray, dip_loc: np.ndarray, \
     form += ('ground-state dipole moment',)
 
     for i in range(mol.nocc):
-
         if i < dip_loc.shape[0]:
-
-            # core or valence orbital(s)
             core = centres[i, 0] == centres[i, 1]
-
             string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |{:^15s}| {:>10s}\n'
             form += (i, *dip_can[i] + 1.0e-10, *dip_loc[i] + 1.0e-10, \
                         mol.atom_symbol(centres[i, 0]) if core else '{:s} & {:s}'. \
                         format(mol.atom_symbol(centres[i, 0]), mol.atom_symbol(centres[i, 1])), \
                         '' if core else '{:>.3f}'. \
                         format(rr[centres[i, 0], centres[i, 1]]),)
-
         else:
-
             string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
             form += (i, *dip_can[i] + 1.0e-10,)
 

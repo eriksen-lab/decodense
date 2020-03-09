@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 """
-tools module containing all miscellaneous functions in mf_decomp
+tools module
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -13,7 +13,9 @@ __status__ = 'Development'
 import sys
 import os
 import subprocess
-from typing import Tuple
+import numpy as np
+from pyscf import gto, scf, dft
+from typing import Tuple, Union
 
 
 class Logger(object):
@@ -94,5 +96,35 @@ def time_str(time: float) -> str:
         form += (seconds,)
 
         return string.format(*form)
+
+
+def _ncore(mol: gto.Mole) -> int:
+        """
+        this function returns number of core orbitals
+        """
+        # init ncore
+        ncore = 0
+        # loop over atoms
+        for i in range(mol.natm):
+            if mol.atom_charge(i) > 2:
+                ncore += 1
+            if mol.atom_charge(i) > 12:
+                ncore += 4
+            if mol.atom_charge(i) > 20:
+                ncore += 4
+            if mol.atom_charge(i) > 30:
+                ncore += 6
+        return ncore
+
+
+def dim(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS]) -> Tuple[int, int, int, int]:
+        """
+        determine molecular dimensions
+        """
+        ncore = _ncore(mol)
+        nocc = np.where(mf.mo_occ > 0.)[0].size
+        nvirt = np.where(mf.mo_occ == 0.)[0].size
+        norb = nocc + nvirt
+        return ncore, nocc, nvirt, norb
 
 

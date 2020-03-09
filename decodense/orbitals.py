@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 """
-orbitals module containing all functions related to orbital transformations and assignments in mf_decomp
+orbitals module
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -13,25 +13,6 @@ __status__ = 'Development'
 import numpy as np
 from pyscf import gto, scf, dft, lo
 from typing import List, Tuple, Union
-
-
-def set_ncore(mol: gto.Mole) -> int:
-    """
-    this function returns number of core orbitals
-    """
-    # init ncore
-    ncore = 0
-    # loop over atoms
-    for i in range(mol.natm):
-        if mol.atom_charge(i) > 2:
-            ncore += 1
-        if mol.atom_charge(i) > 12:
-            ncore += 4
-        if mol.atom_charge(i) > 20:
-            ncore += 4
-        if mol.atom_charge(i) > 30:
-            ncore += 6
-    return ncore
 
 
 def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -> np.ndarray:

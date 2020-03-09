@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 """
-energy module containing all functions related to energy calculations in mf_decomp
+energy module
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -19,13 +19,16 @@ from typing import List, Tuple, Union
 import results
 
 
-def e_tot(mol: gto.Mole, \
-            mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
-            orb_type: str, ao_dip: np.ndarray, mo_coeff: np.ndarray, \
-            rep_idx: List[np.ndarray], cube: bool) -> Union[np.ndarray, np.ndarray]:
+def e_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
+            orb_type: str, mo_coeff: np.ndarray, rep_idx: List[np.ndarray]) -> np.ndarray:
     """
     this function returns sorted an orbital-decomposed mean-field energy and dipole moment for a given orbital variant
     """
+    # ao dipole integrals with gauge origin at (0.0, 0.0, 0.0)
+    if orb_type == 'dipole':
+        with mol.with_common_origin([0.0, 0.0, 0.0]):
+            ao_dip = mol.intor_symmetric('int1e_r', comp=3)
+
     # compute total 1-RDM (AO basis)
     rdm1 = _rdm1(mo_coeff)
 
@@ -46,10 +49,11 @@ def e_tot(mol: gto.Mole, \
         # evaluate eps_xc (xc energy density)
         eps_xc = dft.libxc.eval_xc(mf.xc, rho)[0]
 
-    # init orbital-specific energy array
-    e_orb = np.zeros(len(rep_idx), dtype=np.float64)
-    # init orbital-specific dipole array
-    dip_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
+    # init orbital-specific energy or dipole array
+    if orb_type == 'energy':
+        res_orb = np.zeros(len(rep_idx), dtype=np.float64)
+    elif orb_type == 'dipole':
+        res_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
 
     # loop over orbitals
     for i, j in enumerate(rep_idx):
@@ -57,20 +61,18 @@ def e_tot(mol: gto.Mole, \
         orb = mo_coeff[:, j].reshape(mo_coeff.shape[0], -1)
         # orbital-specific rdm1
         rdm1_orb = _rdm1(orb)
-        # energy from individual orbitals
-        e_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
-        # dipole from individual orbitals
-        dip_orb[i] = np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
-        if isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
+        # energy or dipole from individual orbitals
+        if orb_type == 'energy':
+            res_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
+        elif orb_type == 'dipole':
+            res_orb[i] = np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
+        if orb_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
             # orbital-specific rho
             rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
             # energy from individual orbitals
-            e_orb[i] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
-        # write cube file
-        if cube:
-            pyscf_tools.cubegen.density(mol, results.OUT + orb_type + '/rdm1_{:}_tmp.cube'.format(i), rdm1_orb)
+            res_orb[i] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
 
-    return e_orb, dip_orb
+    return res_orb
 
 
 def _h_core(mol: gto.Mole) -> np.ndarray:
