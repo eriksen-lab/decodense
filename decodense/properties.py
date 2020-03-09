@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 """
-energy module
+properties module
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -16,13 +16,11 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Union
 
-import results
 
-
-def e_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
+def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
             orb_type: str, mo_coeff: np.ndarray, rep_idx: List[np.ndarray]) -> np.ndarray:
     """
-    this function returns sorted an orbital-decomposed mean-field energy and dipole moment for a given orbital variant
+    this function returns sorted orbital-decomposed mean-field properties for a given orbital type
     """
     # ao dipole integrals with gauge origin at (0.0, 0.0, 0.0)
     if orb_type == 'dipole':

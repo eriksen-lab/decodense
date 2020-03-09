@@ -12,8 +12,8 @@ __status__ = 'Development'
 
 import sys
 import os
-import subprocess
 import numpy as np
+from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft
 from typing import Tuple, Union
 
@@ -59,8 +59,8 @@ def git_version() -> str:
             env['LANGUAGE'] = 'C'
             env['LANG'] = 'C'
             env['LC_ALL'] = 'C'
-            out = subprocess.Popen(cmd, stdout=subprocess.PIPE, env=env, \
-                                   cwd=os.path.dirname(os.path.realpath(sys.argv[0]))).communicate()[0]
+            out = Popen(cmd, stdout=PIPE, env=env, \
+                        cwd=os.path.dirname(__file__)).communicate()[0]
             return out
 
         try:
@@ -117,13 +117,13 @@ def _ncore(mol: gto.Mole) -> int:
         return ncore
 
 
-def dim(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS]) -> Tuple[int, int, int, int]:
+def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int, int, int]:
         """
         determine molecular dimensions
         """
         ncore = _ncore(mol)
-        nocc = np.where(mf.mo_occ > 0.)[0].size
-        nvirt = np.where(mf.mo_occ == 0.)[0].size
+        nocc = np.where(mo_occ > 0.)[0].size
+        nvirt = np.where(mo_occ == 0.)[0].size
         norb = nocc + nvirt
         return ncore, nocc, nvirt, norb
 

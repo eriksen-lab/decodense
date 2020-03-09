@@ -1,6 +1,7 @@
 *pyc
 *swp
 .mypy_cache
+decodense.egg-info/
 ms.aux
 acs-ms.bib
 ms.bbl
