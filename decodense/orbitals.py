@@ -64,7 +64,7 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         orb = mo_coeff[:, i].reshape(mol.norb, 1)
         # orbital-specific rdm1
         rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
-        # charge centres of orbital
+        # charge centres of rdm1_orb
         centres[i] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
 
     # search for the unique centres for local results

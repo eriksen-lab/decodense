@@ -38,7 +38,10 @@ def sanity_check(decomp: DecompCls) -> None:
         """
         # singlet check
         assert decomp.spin == 0, \
-            'decomposition scheme only implemented for singlet states'
+            'invalid spin. decodense is currently only implemented for singlet ground states'
+        # property
+        assert decomp.prop in ['energy', 'dipole'], \
+            'invalid property. valid choices: `energy` and `dipole`'
         # localization procedure
         assert decomp.loc in ['pm', 'ibo-2', 'ibo-4'], \
             'invalid localization procedure. valid choices: `pm`, `ibo-2`, and `ibo-4`'

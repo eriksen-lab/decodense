@@ -63,7 +63,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
         if orb_type == 'energy':
             res_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
         elif orb_type == 'dipole':
-            res_orb[i] = np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
+            res_orb[i] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
         if orb_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
             # orbital-specific rho
             rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)

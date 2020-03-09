@@ -30,10 +30,18 @@ def sort(mol: gto.Mole, res_can_old: np.ndarray, res_loc_old: np.ndarray, \
     this function returns sorted results for unique bonds only
     """
     # sort results wrt canonical contributions
-    sorter_can = np.argsort(res_can_old)
+    if res_can_old.ndim == 1:
+        sorter_can = np.argsort(np.abs(res_can_old))[::-1]
+    else:
+        sorter_can = np.argsort(np.fromiter(map(np.linalg.norm, res_can_old), \
+                                            dtype=np.float64, count=res_can_old.shape[0]))[::-1]
     res_can_new = res_can_old[sorter_can]
     # sort results wrt localized contributions
-    sorter_loc = np.argsort(res_loc_old)
+    if res_loc_old.ndim == 1:
+        sorter_loc = np.argsort(np.abs(res_loc_old))[::-1]
+    else:
+        sorter_loc = np.argsort(np.fromiter(map(np.linalg.norm, res_loc_old), \
+                                            dtype=np.float64, count=res_loc_old.shape[0]))[::-1]
     res_loc_new = res_loc_old[sorter_loc]
     # sort localized centres
     centres_new = centres_old[sorter_loc]
@@ -188,8 +196,8 @@ def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.n
         string += '-------------------------------------------------------------------------------\n'
 
         string += '  tot | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
-        form += (*(prop_nuc - np.fromiter(map(math.fsum, prop_can.T), dtype=prop_can.dtype, count=prop_can.shape[1])) + 1.0e-10, \
-                    *(prop_nuc - np.fromiter(map(math.fsum, prop_loc.T), dtype=prop_loc.dtype, count=prop_loc.shape[1])) + 1.0e-10,)
+        form += (*(prop_nuc + np.fromiter(map(math.fsum, prop_can.T), dtype=prop_can.dtype, count=prop_can.shape[1])) + 1.0e-10, \
+                    *(prop_nuc + np.fromiter(map(math.fsum, prop_loc.T), dtype=prop_loc.dtype, count=prop_loc.shape[1])) + 1.0e-10,)
 
         string += '-------------------------------------------------------------------------------\n\n'
         string += ' *** reference dipole moment = {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n\n'
