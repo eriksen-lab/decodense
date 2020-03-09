@@ -27,9 +27,11 @@ class DecompCls(object):
                 self.loc: str = 'pm'
                 self.pop: str = 'mulliken'
                 self.xc: str = ''
+                self.time: float = 0.
                 # set calculation defaults
                 self.prop: str = 'energy'
                 self.thres: float = .98
+                self.verbose: bool = False
 
 
 def sanity_check(decomp: DecompCls) -> None:

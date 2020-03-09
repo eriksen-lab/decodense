@@ -19,7 +19,7 @@ from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, reorder
 from .properties import prop_tot
 from .results import sort, info, table
-from .tools import dim, time_str
+from .tools import dim
 
 
 def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -51,11 +51,18 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
             mf.kernel()
             assert mf.converged, 'DFT not converged'
 
+        # reference property
+        if decomp.prop == 'energy':
+            decomp.prop_ref = mf.e_tot
+        elif decomp.prop == 'dipole':
+            decomp.prop_ref = scf.hf.dip_moment(mol, mf.make_rdm1(), unit='au', verbose=0)
+
         # molecular dimensions
         mol.ncore, mol.nocc, mol.nvirt, mol.norb = dim(mol, mf.mo_occ)
 
         # print result header
-        print(info(mol, decomp))
+        if decomp.verbose:
+            print(info(mol, decomp))
 
         # decompose property by means of canonical orbitals
         rep_idx, mo_can = np.arange(mol.nocc), mf.mo_coeff
@@ -69,10 +76,12 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
         # sort results
         res_can, res_loc, centres = sort(mol, res_can, res_loc, centres)
 
+        # collect time
+        decomp.time = MPI.Wtime() - time
+
         # print results
-        print(' done in: {:}'.format(time_str(MPI.Wtime() - time)))
-        print(' ---------------\n')
-        print(table(mol, decomp, res_can, res_loc, mf, centres, dist))
+        if decomp.verbose:
+            print(table(mol, decomp, res_can, res_loc, mf, centres, dist))
 
         return res_can, res_loc, centres, dist
 

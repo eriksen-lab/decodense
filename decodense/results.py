@@ -17,7 +17,7 @@ from pyscf import gto, scf, dft
 from typing import Tuple, List, Union, Any
 
 from .decomp import DecompCls
-from .tools import git_version
+from .tools import git_version, time_str
 
 # output folder and files
 OUT = os.getcwd()+'/output'
@@ -90,6 +90,15 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
     string += ' total orbitals     = {:}\n'
     form += (mol.nelectron, mol.nocc, mol.nvirt, mol.norb,)
 
+    # calculation info
+    string += '\n total time         = {:}\n'
+    if decomp.prop == 'energy':
+        string += ' reference result   = {:.5f}\n'
+        form += (time_str(decomp.time), decomp.prop_ref)
+    elif decomp.prop == 'dipole':
+        string += ' reference result   = {:.3f}  / {:.3f}  / {:.3f}\n'
+        form += (time_str(decomp.time), *decomp.prop_ref)
+
     # git version
     string += '\n git version: {:}\n\n'
     form += (git_version(),)
@@ -106,10 +115,8 @@ def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.n
     # nuclear repulsion energy and dipole moment
     if decomp.prop == 'energy':
         prop_nuc = mol.energy_nuc()
-        prop_ref = mf.e_tot
     elif decomp.prop == 'dipole':
         prop_nuc = np.einsum('i,ix->x', mol.atom_charges(), mol.atom_coords())
-        prop_ref = scf.hf.dip_moment(mol, mf.make_rdm1(), unit='au', verbose=0)
 
     # init string & form
     string: str = ''
@@ -128,33 +135,30 @@ def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.n
         for i in range(mol.nocc):
             if i < prop_loc.size:
                 core = centres[i, 0] == centres[i, 1]
-                string += '  {:>2d}  | {:>10.3f}    | {:>10.3f}    |{:^15s}| {:>10s}\n'
+                string += '  {:>2d}  | {:>12.5f}  | {:>12.5f}  |{:^15s}| {:>10s}\n'
                 form += (i, prop_can[i], prop_loc[i], \
                          mol.atom_symbol(centres[i, 0]) if core else '{:s} & {:s}'. \
                          format(mol.atom_symbol(centres[i, 0]), mol.atom_symbol(centres[i, 1])), \
                          '' if core else '{:>.3f}'. \
                          format(dist[centres[i, 0], centres[i, 1]]),)
             else:
-                string += '  {:>2d}  | {:>10.3f}    |\n'
+                string += '  {:>2d}  | {:>12.5f}  |\n'
                 form += (i, prop_can[i],)
 
         string += '------------------------------------------------------------------------\n'
         string += '------------------------------------------------------------------------\n'
-        string += '  sum | {:>10.3f}    | {:>10.3f}    |\n'
+        string += '  sum | {:>12.5f}  | {:>12.5f}  |\n'
         form += (np.sum(prop_can), np.sum(prop_loc),)
 
         string += '---------------------------------------\n'
-        string += '  nuc | {:>+10.3f}    | {:>+10.3f}    |\n'
+        string += '  nuc | {:>+12.5f}  | {:>+12.5f}  |\n'
         form += (prop_nuc, prop_nuc,)
 
         string += '---------------------------------------\n'
         string += '---------------------------------------\n'
         string += '  tot | {:>12.5f}  | {:>12.5f}  |\n'
-        form += (np.sum(prop_can) + prop_nuc, np.sum(prop_loc) + prop_nuc,)
-
         string += '---------------------------------------\n\n'
-        string += ' *** reference energy = {:.5f}\n\n'
-        form += (prop_ref,)
+        form += (np.sum(prop_can) + prop_nuc, np.sum(prop_loc) + prop_nuc,)
 
     elif decomp.prop == 'dipole':
 
@@ -196,12 +200,9 @@ def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.n
         string += '-------------------------------------------------------------------------------\n'
 
         string += '  tot | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
+        string += '-------------------------------------------------------------------------------\n\n'
         form += (*(prop_nuc + np.fromiter(map(math.fsum, prop_can.T), dtype=prop_can.dtype, count=prop_can.shape[1])) + 1.0e-10, \
                     *(prop_nuc + np.fromiter(map(math.fsum, prop_loc.T), dtype=prop_loc.dtype, count=prop_loc.shape[1])) + 1.0e-10,)
-
-        string += '-------------------------------------------------------------------------------\n\n'
-        string += ' *** reference dipole moment = {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n\n'
-        form += (*prop_ref + 1.0e-10,)
 
     return string.format(*form)
 
