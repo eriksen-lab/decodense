@@ -47,12 +47,6 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
                                                     iaos=iao_core, exponent=4, verbose=0)
             mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
                                                             iaos=iao_val, exponent=4, verbose=0)
-        else:
-            raise RuntimeError('\n invalid localization procedure. '
-                               'valid choices: `pm`, `ibo-2`, and `ibo-4`\n')
-    else:
-        raise RuntimeError('\n invalid localization procedure. '
-                           'valid choices: `pm`, `ibo-2`, and `ibo-4`\n')
 
     return mo_coeff
 
@@ -87,12 +81,9 @@ def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
     this function returns a single atom/pair of atoms onto which a given MO is assigned
     """
     if pop == 'mulliken':
-
         # traditional mulliken charges
         charges = _mulliken_charges(mol, s, rdm1)
-
     elif pop == 'iao':
-
         # base mulliken charges on IAOs
         iao = lo.iao.iao(mol, orb)
         iao = lo.vec_lowdin(iao, s)
@@ -100,13 +91,8 @@ def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
         rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao) * 2.
         pmol = mol.copy()
         pmol.build(False, False, basis='minao')
-
+        # charges
         charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
-
-    else:
-
-        raise RuntimeError('\n invalid population scheme. '
-                           'valid choices: `mulliken` and `iao`\n')
 
     # get sorted indices
     max_idx = np.argsort(charges)[::-1]

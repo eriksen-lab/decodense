@@ -1,2 +1,2 @@
 from .decodense import main
-from .system import DecompCls, sanity_check
+from .decomp import DecompCls, sanity_check

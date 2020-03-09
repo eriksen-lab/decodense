@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*
 
 """
-system module
+decomp module
 """
 
 __author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
@@ -15,7 +15,7 @@ __status__ = 'Development'
 
 class DecompCls(object):
         """
-        this class contains all system attributes
+        this class contains all decomp attributes
         """
         def __init__(self) -> None:
                 """
@@ -26,7 +26,6 @@ class DecompCls(object):
                 self.spin: int = 0
                 self.loc: str = 'pm'
                 self.pop: str = 'mulliken'
-                self.dft: bool = False
                 self.xc: str = ''
                 # set calculation defaults
                 self.prop: str = 'energy'
@@ -38,10 +37,14 @@ def sanity_check(decomp: DecompCls) -> None:
         this function performs sanity checks of decomp attributes
         """
         # singlet check
-        assert decomp.spin == 0, 'decomposition scheme only implemented for singlet states'
-        # dft check
-        if decomp.dft:
-            assert decomp.xc != '', 'invalid choice of xc functional'
+        assert decomp.spin == 0, \
+            'decomposition scheme only implemented for singlet states'
+        # localization procedure
+        assert decomp.loc in ['pm', 'ibo-2', 'ibo-4'], \
+            'invalid localization procedure. valid choices: `pm`, `ibo-2`, and `ibo-4`'
+        # population scheme
+        assert decomp.pop in ['mulliken', 'iao'], \
+            'invalid population scheme. valid choices: `mulliken` and `iao`'
 
 
 if __name__ == "__main__":

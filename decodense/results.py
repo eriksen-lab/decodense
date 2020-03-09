@@ -16,7 +16,7 @@ import math
 from pyscf import gto, scf, dft
 from typing import Tuple, List, Union, Any
 
-from .system import DecompCls
+from .decomp import DecompCls
 from .tools import git_version
 
 # output folder and files
@@ -73,7 +73,7 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
     string += ' assignment         = {:}\n'
     string += ' threshold          = {:}\n'
     form += (mol.groupname, decomp.basis, decomp.loc, decomp.pop, decomp.thres,)
-    if decomp.dft:
+    if decomp.xc != '':
         string += ' xc functional      = {:}\n'
         form += (decomp.xc,)
     string += '\n electrons          = {:}\n'

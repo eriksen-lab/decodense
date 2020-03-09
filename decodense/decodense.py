@@ -14,7 +14,7 @@ import numpy as np
 from pyscf import gto, scf, dft, lib
 from mpi4py import MPI
 
-from .system import DecompCls, sanity_check
+from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, reorder
 from .properties import prop_tot
 from .results import sort, info, table
@@ -34,9 +34,8 @@ def main(mol: gto.Mole, decomp: DecompCls):
         rr = gto.mole.inter_distance(mol) * lib.param.BOHR
 
         # mf calculation
-        if not decomp.dft:
+        if decomp.xc == '':
             # hf calc
-            print('\n\n ** hartree-fock')
             time = MPI.Wtime()
             mf = scf.RHF(mol)
             mf.conv_tol = 1.0e-12
@@ -44,7 +43,6 @@ def main(mol: gto.Mole, decomp: DecompCls):
             assert mf.converged, 'HF not converged'
         else:
             # dft calc
-            print('\n\n ** dft')
             time = MPI.Wtime()
             mf = dft.RKS(mol)
             mf.xc = decomp.xc
