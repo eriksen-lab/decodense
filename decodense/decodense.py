@@ -24,7 +24,7 @@ from .tools import dim
 
 def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        main program
+        main decodense program
         """
         # sanity check
         sanity_check(decomp)
@@ -84,17 +84,5 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
             print(table(mol, decomp, res_can, res_loc, mf, centres, dist))
 
         return res_can, res_loc, centres, dist
-
-
-if __name__ == '__main__':
-        # mol object
-        mol = gto.Mole()
-        mol.build(verbose = 0, output = None,
-        basis = '631g', symmetry = True,
-        atom = """O  0.  0.  0.1\n H -0.75  0. -0.48\n H  0.75  0. -0.48\n""")
-        # decomp object
-        decomp = DecompCls()
-        # run decodense calculation
-        main(mol, decomp)
 
 
