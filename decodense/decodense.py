@@ -13,6 +13,7 @@ __status__ = 'Development'
 import numpy as np
 from pyscf import gto, scf, dft, lib
 from mpi4py import MPI
+from typing import Tuple
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, reorder
@@ -21,7 +22,7 @@ from .results import sort, info, table
 from .tools import dim, time_str
 
 
-def main(mol: gto.Mole, decomp: DecompCls):
+def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         main program
         """
@@ -31,7 +32,7 @@ def main(mol: gto.Mole, decomp: DecompCls):
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
         # inter-atomic distance array
-        rr = gto.mole.inter_distance(mol) * lib.param.BOHR
+        dist = gto.mole.inter_distance(mol) * lib.param.BOHR
 
         # mf calculation
         if decomp.xc == '':
@@ -71,7 +72,9 @@ def main(mol: gto.Mole, decomp: DecompCls):
         # print results
         print(' done in: {:}'.format(time_str(MPI.Wtime() - time)))
         print(' ---------------\n')
-        print(table(mol, decomp, res_can, res_loc, mf, centres, rr))
+        print(table(mol, decomp, res_can, res_loc, mf, centres, dist))
+
+        return res_can, res_loc, centres, dist
 
 
 if __name__ == '__main__':

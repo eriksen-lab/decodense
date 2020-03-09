@@ -91,7 +91,7 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
 
 def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.ndarray, \
           mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
-          centres: np.ndarray, rr: np.ndarray) -> str:
+          centres: np.ndarray, dist: np.ndarray) -> str:
     """
     this function prints the energy results
     """
@@ -125,7 +125,7 @@ def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.n
                          mol.atom_symbol(centres[i, 0]) if core else '{:s} & {:s}'. \
                          format(mol.atom_symbol(centres[i, 0]), mol.atom_symbol(centres[i, 1])), \
                          '' if core else '{:>.3f}'. \
-                         format(rr[centres[i, 0], centres[i, 1]]),)
+                         format(dist[centres[i, 0], centres[i, 1]]),)
             else:
                 string += '  {:>2d}  | {:>10.3f}    |\n'
                 form += (i, prop_can[i],)
@@ -168,7 +168,7 @@ def table(mol: gto.Mole, decomp: DecompCls, prop_can: np.ndarray, prop_loc: np.n
                             mol.atom_symbol(centres[i, 0]) if core else '{:s} & {:s}'. \
                             format(mol.atom_symbol(centres[i, 0]), mol.atom_symbol(centres[i, 1])), \
                             '' if core else '{:>.3f}'. \
-                            format(rr[centres[i, 0], centres[i, 1]]),)
+                            format(dist[centres[i, 0], centres[i, 1]]),)
             else:
                 string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
                 form += (i, *prop_can[i] + 1.0e-10,)

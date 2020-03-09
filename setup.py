@@ -2,6 +2,7 @@
 decodense
 A Python package for decomposing hf and dft mean-field theory
 """
+
 import sys
 from setuptools import setup, find_packages
 
@@ -15,7 +16,6 @@ except:
 
 
 setup(
-    # Self-descriptive entries which should always be present
     name= 'decodense',
     author = 'Dr. Janus Juul Eriksen',
     author_email = 'janus.eriksen@bristol.ac.uk',
