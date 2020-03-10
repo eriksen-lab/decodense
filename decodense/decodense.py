@@ -16,9 +16,9 @@ from mpi4py import MPI
 from typing import Tuple
 
 from .decomp import DecompCls, sanity_check
-from .orbitals import loc_orbs, reorder
+from .orbitals import loc_orbs, reorder, sort
 from .properties import prop_tot
-from .results import sort, info, table
+from .results import info, table
 from .tools import dim
 
 
@@ -26,6 +26,9 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
         """
         main decodense program
         """
+        # init time
+        time = MPI.Wtime()
+
         # sanity check
         sanity_check(decomp)
 
@@ -37,14 +40,12 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
         # mf calculation
         if decomp.xc == '':
             # hf calc
-            time = MPI.Wtime()
             mf = scf.RHF(mol)
             mf.conv_tol = 1.0e-12
             mf.kernel()
             assert mf.converged, 'HF not converged'
         else:
             # dft calc
-            time = MPI.Wtime()
             mf = dft.RKS(mol)
             mf.xc = decomp.xc
             mf.conv_tol = 1.0e-12
@@ -59,10 +60,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
 
         # molecular dimensions
         mol.ncore, mol.nocc, mol.nvirt, mol.norb = dim(mol, mf.mo_occ)
-
-        # print result header
-        if decomp.verbose:
-            print(info(mol, decomp))
 
         # decompose property by means of canonical orbitals
         rep_idx, mo_can = np.arange(mol.nocc), mf.mo_coeff
@@ -81,6 +78,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
 
         # print results
         if decomp.verbose:
+            print(info(mol, decomp))
             print(table(mol, decomp, res_can, res_loc, mf, centres, dist))
 
         return res_can, res_loc, centres, dist

@@ -52,8 +52,3 @@ def sanity_check(decomp: DecompCls) -> None:
             'invalid population scheme. valid choices: `mulliken` and `iao`'
 
 
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
-
-
