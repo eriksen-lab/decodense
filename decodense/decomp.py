@@ -30,6 +30,7 @@ class DecompCls(object):
                 self.time: float = 0.
                 # set calculation defaults
                 self.prop: str = 'energy'
+                self.part: str = 'atoms'
                 self.thres: float = .98
                 self.verbose: bool = False
 
@@ -43,12 +44,21 @@ def sanity_check(decomp: DecompCls) -> None:
             'invalid spin. decodense is currently only implemented for singlet ground states'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
-            'invalid property. valid choices: `energy` and `dipole`'
+            'invalid property. valid choices: `energy` (default) and `dipole`'
+        # partitioning
+        assert decomp.part in ['atoms', 'bonds'], \
+            'invalid partitioning. valid choices: `atoms` (default) and `bonds`'
+        # threshold
+        assert 0. < decomp.thres < 1., \
+            'invalid threshold. valid choices: 0. < `thres` < 1. (default: .98)'
         # localization procedure
         assert decomp.loc in ['pm', 'ibo-2', 'ibo-4'], \
-            'invalid localization procedure. valid choices: `pm`, `ibo-2`, and `ibo-4`'
+            'invalid localization procedure. valid choices: `pm` (default), `ibo-2`, and `ibo-4`'
         # population scheme
         assert decomp.pop in ['mulliken', 'iao'], \
-            'invalid population scheme. valid choices: `mulliken` and `iao`'
+            'invalid population scheme. valid choices: `mulliken` (default) and `iao`'
+        # verbosity
+        assert isinstance(decomp.verbose, bool), \
+            'invalid verbosity. valid choices: True or False'
 
 

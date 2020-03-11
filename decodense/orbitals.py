@@ -55,7 +55,7 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         this function returns a list of repetitive center indices and an array of unique charge centres
         """
         # init charge_centres array
-        centres = np.zeros([mol.nocc, 2], dtype=np.int)
+        cent = np.zeros([mol.nocc, 2], dtype=np.int)
 
         for i in range(mol.nocc):
             # get orbital
@@ -63,14 +63,37 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
             # orbital-specific rdm1
             rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
             # charge centres of rdm1_orb
-            centres[i] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
+            cent[i] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
 
         # unique centres
-        centres_unique = np.unique(centres, axis=0)
+        cent_unique = np.unique(cent, axis=0)
         # repetitive centres
-        rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_unique]
+        rep_idx = [np.where((cent == i).all(axis=1))[0] for i in cent_unique]
 
-        return rep_idx, centres_unique
+        return rep_idx, cent_unique
+
+
+def collect(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, cent: np.ndarray) -> np.ndarray:
+        """
+        this function collects results based on the involved atoms
+        """
+        # init prop_new
+        if prop_type == 'energy':
+            prop_new = np.zeros(mol.natm, dtype=np.float64)
+        elif prop_type == 'dipole':
+            prop_new = np.zeros([mol.natm, 3], dtype=np.float64)
+
+        # collect contributions
+        for a, (i, j) in enumerate(cent):
+            if i == j:
+                # contribution from core orbital or lone pair
+                prop_new[i] += prop_old[a]
+            else:
+                # contribution from valence orbital
+                prop_new[i] += prop_old[a] / 2.
+                prop_new[j] += prop_old[a] / 2.
+
+        return prop_new
 
 
 def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \

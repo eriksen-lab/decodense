@@ -18,12 +18,12 @@ from typing import List, Tuple, Union
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
-             orb_type: str, mo_coeff: np.ndarray, rep_idx: List[np.ndarray]) -> np.ndarray:
+             prop_type: str, mo_coeff: np.ndarray, rep_idx: List[np.ndarray]) -> np.ndarray:
         """
         this function returns sorted orbital-decomposed mean-field properties for a given orbital type
         """
         # ao dipole integrals with gauge origin at (0.0, 0.0, 0.0)
-        if orb_type == 'dipole':
+        if prop_type == 'dipole':
             with mol.with_common_origin([0.0, 0.0, 0.0]):
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
 
@@ -48,9 +48,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
             eps_xc = dft.libxc.eval_xc(mf.xc, rho)[0]
 
         # init orbital-specific energy or dipole array
-        if orb_type == 'energy':
+        if prop_type == 'energy':
             res_orb = np.zeros(len(rep_idx), dtype=np.float64)
-        elif orb_type == 'dipole':
+        elif prop_type == 'dipole':
             res_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
 
         # loop over orbitals
@@ -60,12 +60,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
             # orbital-specific rdm1
             rdm1_orb = _rdm1(orb)
             # energy or dipole from individual orbitals
-            if orb_type == 'energy':
+            if prop_type == 'energy':
                 res_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
-            elif orb_type == 'dipole':
+            elif prop_type == 'dipole':
                 res_orb[i] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
             # additional xc energy contribution
-            if orb_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
+            if prop_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
                 # orbital-specific rho
                 rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
                 # energy from individual orbitals

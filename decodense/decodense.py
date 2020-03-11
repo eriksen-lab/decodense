@@ -16,9 +16,9 @@ from mpi4py import MPI
 from typing import Tuple
 
 from .decomp import DecompCls, sanity_check
-from .orbitals import loc_orbs, reorder
+from .orbitals import loc_orbs, reorder, collect
 from .properties import prop_tot
-from .results import info, table
+from .results import info, table_atoms, table_bonds
 from .tools import dim
 
 
@@ -55,19 +55,23 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
 
         # molecular dimensions
         mol.ncore, mol.nocc, mol.nvirt, mol.norb = dim(mol, mf.mo_occ)
-
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
         # decompose property by means of canonical orbitals
         mo_can = mf.mo_coeff
-        rep_idx, cen_can = reorder(mol, s, mo_can, decomp.pop, decomp.thres)
+        rep_idx, cent_can = reorder(mol, s, mo_can, decomp.pop, decomp.thres)
         res_can = prop_tot(mol, mf, decomp.prop, mo_can[:, :mol.nocc], rep_idx)
 
         # decompose energy by means of localized MOs
         mo_loc = loc_orbs(mol, mf.mo_coeff, s, decomp.loc)
-        rep_idx, cen_loc = reorder(mol, s, mo_loc, decomp.pop, decomp.thres)
+        rep_idx, cent_loc = reorder(mol, s, mo_loc, decomp.pop, decomp.thres)
         res_loc = prop_tot(mol, mf, decomp.prop, mo_loc[:, :mol.nocc], rep_idx)
+
+        # collect contributions in case of `atoms` partitioning
+        if decomp.part == 'atoms':
+            res_can = collect(mol, decomp.prop, res_can, cent_can)
+            res_loc = collect(mol, decomp.prop, res_loc, cent_loc)
 
         # collect time
         decomp.time = MPI.Wtime() - time
@@ -75,9 +79,13 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
         # print results
         if decomp.verbose:
             print(info(mol, decomp))
-            print(table(mol, decomp, mf, res_can, cen_can, 'canonical'))
-            print(table(mol, decomp, mf, res_loc, cen_loc, 'localized'))
+            if decomp.part == 'atoms':
+                print(table_atoms(mol, decomp, res_can, cent_can, 'canonical'))
+                print(table_atoms(mol, decomp, res_loc, cent_loc, 'localized'))
+            elif decomp.part == 'bonds':
+                print(table_bonds(mol, decomp, res_can, cent_can, 'canonical'))
+                print(table_bonds(mol, decomp, res_loc, cent_loc, 'localized'))
 
-        return res_can, res_loc, cen_loc
+        return res_can, res_loc, cent_loc
 
 
