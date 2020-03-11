@@ -24,8 +24,6 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
             # pipek-mezey procedure
             loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
             loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
-            # convergence threshold
-            loc_core.conv_tol = loc_val.conv_tol = 1.0e-10
             # localize core and valence occupied orbitals
             mo_coeff[:, :mol.ncore] = loc_core.kernel()
             mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
@@ -39,14 +37,14 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
             # IBOs
             if variant == 'ibo-2':
                 mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], \
-                                                        iaos=iao_core, exponent=2, verbose=0)
+                                                     iaos=iao_core, exponent=2, verbose=0)
                 mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
-                                                                iaos=iao_val, exponent=2, verbose=0)
+                                                             iaos=iao_val, exponent=2, verbose=0)
             elif variant == 'ibo-4':
                 mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], \
-                                                        iaos=iao_core, exponent=4, verbose=0)
+                                                     iaos=iao_core, exponent=4, verbose=0)
                 mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
-                                                                iaos=iao_val, exponent=4, verbose=0)
+                                                             iaos=iao_val, exponent=4, verbose=0)
 
         return mo_coeff
 
@@ -67,37 +65,12 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
             # charge centres of rdm1_orb
             centres[i] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
 
-        # search for the unique centres for local results
+        # unique centres
         centres_unique = np.unique(centres, axis=0)
         # repetitive centres
         rep_idx = [np.where((centres == i).all(axis=1))[0] for i in centres_unique]
 
         return rep_idx, centres_unique
-
-
-def sort(mol: gto.Mole, res_can_old: np.ndarray, res_loc_old: np.ndarray, \
-         centres_old: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        this function returns sorted results for unique bonds only
-        """
-        # sort results wrt canonical contributions
-        if res_can_old.ndim == 1:
-            sorter_can = np.argsort(np.abs(res_can_old))[::-1]
-        else:
-            sorter_can = np.argsort(np.fromiter(map(np.linalg.norm, res_can_old), \
-                                                dtype=np.float64, count=res_can_old.shape[0]))[::-1]
-        res_can_new = res_can_old[sorter_can]
-        # sort results wrt localized contributions
-        if res_loc_old.ndim == 1:
-            sorter_loc = np.argsort(np.abs(res_loc_old))[::-1]
-        else:
-            sorter_loc = np.argsort(np.fromiter(map(np.linalg.norm, res_loc_old), \
-                                                dtype=np.float64, count=res_loc_old.shape[0]))[::-1]
-        res_loc_new = res_loc_old[sorter_loc]
-        # sort localized centres
-        centres_new = centres_old[sorter_loc]
-
-        return res_can_new, res_loc_new, centres_new
 
 
 def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
@@ -123,7 +96,7 @@ def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
         max_idx = np.argsort(charges)[::-1]
 
         if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > thres:
-            # core orbital
+            # core orbital or lone pair
             return np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
         else:
             # valence orbitals
@@ -140,8 +113,8 @@ def _mulliken_charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndar
         charges = np.zeros(mol.natm)
 
         # loop over AOs
-        for i, s in enumerate(mol.ao_labels(fmt=None)):
-            charges[s[0]] += pop[i]
+        for i, k in enumerate(mol.ao_labels(fmt=None)):
+            charges[k[0]] += pop[i]
 
         return charges
 

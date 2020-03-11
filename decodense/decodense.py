@@ -11,18 +11,18 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import gto, scf, dft, lib
+from pyscf import gto, scf, dft
 from mpi4py import MPI
 from typing import Tuple
 
 from .decomp import DecompCls, sanity_check
-from .orbitals import loc_orbs, reorder, sort
+from .orbitals import loc_orbs, reorder
 from .properties import prop_tot
 from .results import info, table
 from .tools import dim
 
 
-def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         main decodense program
         """
@@ -31,11 +31,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
 
         # sanity check
         sanity_check(decomp)
-
-        # overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
-        # inter-atomic distance array
-        dist = gto.mole.inter_distance(mol) * lib.param.BOHR
 
         # mf calculation
         if decomp.xc == '':
@@ -61,17 +56,18 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
         # molecular dimensions
         mol.ncore, mol.nocc, mol.nvirt, mol.norb = dim(mol, mf.mo_occ)
 
+        # overlap matrix
+        s = mol.intor_symmetric('int1e_ovlp')
+
         # decompose property by means of canonical orbitals
-        rep_idx, mo_can = np.arange(mol.nocc), mf.mo_coeff
+        mo_can = mf.mo_coeff
+        rep_idx, cen_can = reorder(mol, s, mo_can, decomp.pop, decomp.thres)
         res_can = prop_tot(mol, mf, decomp.prop, mo_can[:, :mol.nocc], rep_idx)
 
         # decompose energy by means of localized MOs
         mo_loc = loc_orbs(mol, mf.mo_coeff, s, decomp.loc)
-        rep_idx, centres = reorder(mol, s, mo_loc, decomp.pop, decomp.thres)
+        rep_idx, cen_loc = reorder(mol, s, mo_loc, decomp.pop, decomp.thres)
         res_loc = prop_tot(mol, mf, decomp.prop, mo_loc[:, :mol.nocc], rep_idx)
-
-        # sort results
-        res_can, res_loc, centres = sort(mol, res_can, res_loc, centres)
 
         # collect time
         decomp.time = MPI.Wtime() - time
@@ -79,8 +75,9 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray, np.n
         # print results
         if decomp.verbose:
             print(info(mol, decomp))
-            print(table(mol, decomp, res_can, res_loc, mf, centres, dist))
+            print(table(mol, decomp, mf, res_can, cen_can, 'canonical'))
+            print(table(mol, decomp, mf, res_loc, cen_loc, 'localized'))
 
-        return res_can, res_loc, centres, dist
+        return res_can, res_loc, cen_loc
 
 
