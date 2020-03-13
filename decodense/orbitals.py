@@ -49,7 +49,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -
         return mo_coeff
 
 
-def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
+def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
             pop: str, thres: float) -> Tuple[List[np.ndarray], np.ndarray]:
         """
         this function returns a list of repetitive center indices and an array of unique charge centres
@@ -73,7 +73,7 @@ def reorder(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         return rep_idx, cent_unique
 
 
-def collect(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, cent: np.ndarray) -> np.ndarray:
+def atom_part(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, cent: np.ndarray) -> np.ndarray:
         """
         this function collects results based on the involved atoms
         """

@@ -74,6 +74,31 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
         return res_orb
 
 
+def e_nuc(mol: gto.Mole) -> np.ndarray:
+        """
+        this function returns the nuclear repulsion energy
+        """
+        # coordinates and charges of nuclei
+        coords = mol.atom_coords()
+        charges = mol.atom_charges()
+        # internuclear distances (with self-repulsion removed)
+        dist = gto.inter_distance(mol)
+        dist[np.diag_indices_from(dist)] = 1e200
+
+        return np.einsum('i,ij,j->i', charges, 1. / dist, charges) * .5
+
+
+def dip_nuc(mol: gto.Mole) -> np.ndarray:
+        """
+        this function returns the nuclear contribution to the molecular dipole moment
+        """
+        # coordinates and charges of nuclei
+        coords = mol.atom_coords()
+        charges = mol.atom_charges()
+
+        return np.einsum('i,ix->ix', charges, coords)
+
+
 def _h_core(mol: gto.Mole) -> np.ndarray:
         """
         this function returns the core hamiltonian
