@@ -26,11 +26,11 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         """
         main decodense program
         """
-        # init time
-        time = MPI.Wtime()
-
         # sanity check
         sanity_check(decomp)
+
+        # init time
+        time = MPI.Wtime()
 
         # mf calculation
         if decomp.xc == '':
@@ -53,32 +53,30 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         elif decomp.prop == 'dipole':
             decomp.prop_ref = scf.hf.dip_moment(mol, mf.make_rdm1(), unit='au', verbose=0)
 
+        # nuclear property
+        if decomp.prop == 'energy':
+            decomp.prop_nuc = e_nuc(mol)
+        elif decomp.prop == 'dipole':
+            decomp.prop_nuc = dip_nuc(mol)
+
         # molecular dimensions
         mol.ncore, mol.nocc, mol.nvirt, mol.norb = dim(mol, mf.mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
-        # decompose property by means of canonical orbitals
-        mo_can = mf.mo_coeff
-        rep_idx, cent_can = assign_rdm1s(mol, s, mo_can, decomp.pop, decomp.thres)
-        res_can = prop_tot(mol, mf, decomp.prop, mo_can[:, :mol.nocc], rep_idx)
+        # compute molecular orbitals
+        if decomp.orbs == 'canonical':
+            mo = mf.mo_coeff
+        elif decomp.orbs == 'localized':
+            mo = loc_orbs(mol, mf.mo_coeff, s, decomp.loc)
 
-        # decompose energy by means of localized MOs
-        mo_loc = loc_orbs(mol, mf.mo_coeff, s, decomp.loc)
-        rep_idx, cent_loc = assign_rdm1s(mol, s, mo_loc, decomp.pop, decomp.thres)
-        res_loc = prop_tot(mol, mf, decomp.prop, mo_loc[:, :mol.nocc], rep_idx)
+        # decompose electronic property
+        rep_idx, cent = assign_rdm1s(mol, s, mo, decomp.pop, decomp.thres)
+        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo[:, :mol.nocc], rep_idx)
 
-        # collect contributions in case of atom-based partitioning
+        # collect electronic contributions in case of atom-based partitioning
         if decomp.part == 'atoms':
-            res_can = atom_part(mol, decomp.prop, res_can, cent_can)
-            res_loc = atom_part(mol, decomp.prop, res_loc, cent_loc)
-            # add nuclear contributions
-            if decomp.prop == 'energy':
-                res_can += e_nuc(mol)
-                res_loc += e_nuc(mol)
-            elif decomp.prop == 'dipole':
-                res_can += dip_nuc(mol)
-                res_loc += dip_nuc(mol)
+            decomp.prop_el = atom_part(mol, decomp.prop, decomp.prop_el, cent)
 
         # collect time
         decomp.time = MPI.Wtime() - time
@@ -87,12 +85,10 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         if decomp.verbose:
             print(info(mol, decomp))
             if decomp.part == 'atoms':
-                print(table_atoms(mol, decomp, res_can, 'canonical'))
-                print(table_atoms(mol, decomp, res_loc, 'localized'))
+                print(table_atoms(mol, decomp))
             elif decomp.part == 'bonds':
-                print(table_bonds(mol, decomp, res_can, cent_can, 'canonical'))
-                print(table_bonds(mol, decomp, res_loc, cent_loc, 'localized'))
+                print(table_bonds(mol, decomp, cent))
 
-        return res_can, res_loc
+        return decomp.prop_el, decomp.prop_nuc
 
 

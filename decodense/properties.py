@@ -49,9 +49,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
 
         # init orbital-specific energy or dipole array
         if prop_type == 'energy':
-            res_orb = np.zeros(len(rep_idx), dtype=np.float64)
+            prop_orb = np.zeros(len(rep_idx), dtype=np.float64)
         elif prop_type == 'dipole':
-            res_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
+            prop_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
 
         # loop over orbitals
         for i, j in enumerate(rep_idx):
@@ -61,17 +61,17 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
             rdm1_orb = _rdm1(orb)
             # energy or dipole from individual orbitals
             if prop_type == 'energy':
-                res_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
+                prop_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
             elif prop_type == 'dipole':
-                res_orb[i] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
+                prop_orb[i] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
             # additional xc energy contribution
             if prop_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
                 # orbital-specific rho
                 rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
                 # energy from individual orbitals
-                res_orb[i] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
+                prop_orb[i] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
 
-        return res_orb
+        return prop_orb
 
 
 def e_nuc(mol: gto.Mole) -> np.ndarray:

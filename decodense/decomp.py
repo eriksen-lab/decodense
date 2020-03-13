@@ -29,6 +29,7 @@ class DecompCls(object):
                 self.xc: str = ''
                 self.time: float = 0.
                 # set calculation defaults
+                self.orbs: str = 'localized'
                 self.prop: str = 'energy'
                 self.part: str = 'atoms'
                 self.thres: float = .98
@@ -42,6 +43,9 @@ def sanity_check(decomp: DecompCls) -> None:
         # singlet check
         assert decomp.spin == 0, \
             'invalid spin. decodense is currently only implemented for singlet ground states'
+        # orbitals
+        assert decomp.orbs in ['canonical', 'localized'], \
+            'invalid orbitals. valid choices: `canonical` and `localized` (default)'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'

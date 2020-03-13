@@ -46,24 +46,25 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
         # system info
         string += '\n\n system info:\n'
         string += ' ------------\n'
-        string += ' point group        = {:}\n'
-        string += ' basis set          = {:}\n'
-        string += '\n localization       = {:}\n'
-        string += ' assignment         = {:}\n'
-        string += ' partitioning       = {:}\n'
-        string += ' threshold          = {:}\n'
-        form += (mol.groupname, decomp.basis, decomp.loc, decomp.pop, decomp.part, decomp.thres,)
+        string += ' point group        =  {:}\n'
+        string += ' basis set          =  {:}\n'
+        string += '\n localization       =  {:}\n'
+        string += ' assignment         =  {:}\n'
+        string += ' partitioning       =  {:}\n'
+        string += ' orbital basis      =  {:}\n'
+        string += ' threshold          =  {:}\n'
+        form += (mol.groupname, decomp.basis, decomp.loc, decomp.pop, decomp.part, decomp.orbs, decomp.thres,)
         if decomp.xc != '':
-            string += ' xc functional      = {:}\n'
+            string += ' xc functional      =  {:}\n'
             form += (decomp.xc,)
-        string += '\n electrons          = {:}\n'
-        string += ' occupied orbitals  = {:}\n'
-        string += ' virtual orbitals   = {:}\n'
-        string += ' total orbitals     = {:}\n'
+        string += '\n electrons          =  {:}\n'
+        string += ' occupied orbitals  =  {:}\n'
+        string += ' virtual orbitals   =  {:}\n'
+        string += ' total orbitals     =  {:}\n'
         form += (mol.nelectron, mol.nocc, mol.nvirt, mol.norb,)
 
         # calculation info
-        string += '\n total time         = {:}\n'
+        string += '\n total time         =  {:}\n'
         if decomp.prop == 'energy':
             string += ' reference result   = {:.5f}\n'
             form += (time_str(decomp.time), decomp.prop_ref)
@@ -78,10 +79,9 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
         return string.format(*form)
 
 
-def table_atoms(mol: gto.Mole, decomp: DecompCls, \
-                prop: np.ndarray, orb_type: str) -> str:
+def table_atoms(mol: gto.Mole, decomp: DecompCls) -> str:
         """
-        this function prints the results based on an `atoms` partitioning
+        this function prints the results based on an atom-based partitioning
         """
         # init string & form
         string: str = ''
@@ -89,63 +89,66 @@ def table_atoms(mol: gto.Mole, decomp: DecompCls, \
 
         if decomp.prop == 'energy':
 
-            string += '-----------------------\n'
-            string += '{:^23}\n'
-            string += '-----------------------\n'
-            string += ' atom |   {:9}\n'
-            string += '-----------------------\n'
-            string += '-----------------------\n'
-            form += ('ground-state energy', orb_type,)
+            string += '----------------------------------------------------\n'
+            string += '{:^52}\n'
+            string += '{:^52}\n'
+            string += '----------------------------------------------------\n'
+            string += '----------------------------------------------------\n'
+            string += ' atom |  electronic  |    nuclear   |     total\n'
+            string += '----------------------------------------------------\n'
+            string += '----------------------------------------------------\n'
+            form += ('ground-state energy', decomp.orbs + ' MOs',)
 
-            for i in range(prop.size):
-                string += ' {:<5s}|{:>12.5f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop[i],)
+            for i in range(mol.natm):
+                string += ' {:<5s}|{:>12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
+                                           decomp.prop_el[i], decomp.prop_nuc[i], \
+                                           decomp.prop_el[i] + decomp.prop_nuc[i],)
 
-            string += '-----------------------\n'
-            string += '-----------------------\n'
-            string += ' tot  |{:>12.5f}\n'
-            string += '-----------------------\n\n'
-            form += (np.sum(prop),)
+            string += '----------------------------------------------------\n'
+            string += '----------------------------------------------------\n'
+            string += ' sum  |{:>12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
+            string += '----------------------------------------------------\n\n'
+            form += (np.sum(decomp.prop_el), np.sum(decomp.prop_nuc), \
+                     np.sum(decomp.prop_el + decomp.prop_nuc),)
 
         elif decomp.prop == 'dipole':
 
-            string += '-------------------------------------------\n'
-            string += '{:^43}\n'
-            string += '-------------------------------------------\n'
-            string += ' atom |             {:9}\n'
-            string += '-------------------------------------------\n'
-            string += '      |     x     /     y     /     z     |\n'
-            string += '-------------------------------------------\n'
-            string += '-------------------------------------------\n'
-            form += ('ground-state dipole moment', orb_type,)
+            string += '-------------------------------------------------------------------------------------------------------------------\n'
+            string += '{:^83}\n'
+            string += '{:^83}\n'
+            string += '-------------------------------------------------------------------------------------------------------------------\n'
+            string += '      |             electronic            |               nuclear             |               total\n'
+            string += ' atom -------------------------------------------------------------------------------------------------------------\n'
+            string += '      |     x     /     y     /     z     |     x     /     y     /     z     |     x     /     y     /     z\n'
+            string += '-------------------------------------------------------------------------------------------------------------------\n'
+            string += '-------------------------------------------------------------------------------------------------------------------\n'
+            form += ('ground-state dipole moment', decomp.orbs + ' MOs',)
 
-            for i in range(prop.shape[0]):
-                string += ' {:<5s}| {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), *prop[i] + 1.0e-10,)
+            for i in range(mol.natm):
+                string += ' {:<5s}| {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n'
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
+                                           *decomp.prop_el[i] + 1.e-10, *decomp.prop_nuc[i] + 1.e-10, \
+                                           *(decomp.prop_el[i] + decomp.prop_nuc[i]) + 1.e-10)
 
-            string += '-------------------------------------------\n'
-            string += '-------------------------------------------\n'
+            string += '-------------------------------------------------------------------------------------------------------------------\n'
+            string += '-------------------------------------------------------------------------------------------------------------------\n'
 
-            string += ' tot  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n'
-            string += '-------------------------------------------\n\n'
-            form += (*np.fromiter(map(math.fsum, prop.T), dtype=prop.dtype, count=prop.shape[1]) + 1.0e-10,)
+            string += ' sum  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n'
+            string += '-------------------------------------------------------------------------------------------------------------------\n\n'
+            form += (*np.fromiter(map(math.fsum, decomp.prop_el.T), dtype=np.float64, count=3) + 1.e-10, \
+                     *np.fromiter(map(math.fsum, decomp.prop_nuc.T), dtype=np.float64, count=3) + 1.e-10, \
+                     *np.fromiter(map(math.fsum, decomp.prop_el.T + decomp.prop_nuc.T), dtype=np.float64, count=3) + 1.e-10,)
 
         return string.format(*form)
 
 
-def table_bonds(mol: gto.Mole, decomp: DecompCls, \
-                prop: np.ndarray, centres: np.ndarray, orb_type: str) -> str:
+def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
         """
-        this function prints the results based on a `bonds` partitioning
+        this function prints the results based on a bond-based partitioning
         """
         # inter-atomic distance array
         dist = gto.mole.inter_distance(mol) * lib.param.BOHR
-
-        # nuclear repulsion energy and dipole moment
-        if decomp.prop == 'energy':
-            prop_nuc = mol.energy_nuc()
-        elif decomp.prop == 'dipole':
-            prop_nuc = np.einsum('i,ix->x', mol.atom_charges(), mol.atom_coords())
 
         # init string & form
         string: str = ''
@@ -155,73 +158,77 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, \
 
             string += '--------------------------------------------------------\n'
             string += '{:^55}\n'
+            string += '{:^55}\n'
             string += '--------------------------------------------------------\n'
-            string += '  MO  |   {:9}   |    atom(s)    |   bond length\n'
+            string += '  MO  |  electronic  |    atom(s)    |   bond length\n'
             string += '--------------------------------------------------------\n'
             string += '--------------------------------------------------------\n'
-            form += ('ground-state energy', orb_type,)
+            form += ('ground-state energy', decomp.orbs,)
 
-            for i in range(prop.size):
-                core = centres[i, 0] == centres[i, 1]
+            for i in range(decomp.prop_el.size):
+                core = cent[i, 0] == cent[i, 1]
                 string += '  {:>2d}  |{:>12.5f}   |    {:<11s}| {:>10s}\n'
-                form += (i, prop[i], \
-                         '{:s}{:d}'.format(mol.atom_symbol(centres[i, 0]), centres[i, 0]) if core \
-                         else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(centres[i, 0]), centres[i, 0], \
-                                                           mol.atom_symbol(centres[i, 1]), centres[i, 1]), \
-                         '' if core else '{:>.3f}'.format(dist[centres[i, 0], centres[i, 1]]),)
+                form += (i, decomp.prop_el[i], \
+                         '{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0]) if core \
+                         else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0], \
+                                                           mol.atom_symbol(cent[i, 1]), cent[i, 1]), \
+                         '' if core else '{:>.3f}'.format(dist[cent[i, 0], cent[i, 1]]),)
 
             string += '--------------------------------------------------------\n'
             string += '--------------------------------------------------------\n'
             string += ' sum  |{:>12.5f}   |\n'
-            form += (np.sum(prop),)
+            form += (np.sum(decomp.prop_el),)
 
             string += '-----------------------\n'
             string += ' nuc  |{:>+12.5f}   |\n'
-            form += (prop_nuc,)
+            form += (np.sum(decomp.prop_nuc),)
 
             string += '-----------------------\n'
             string += '-----------------------\n'
             string += ' tot  |{:>12.5f}   |\n'
             string += '-----------------------\n\n'
-            form += (np.sum(prop) + prop_nuc,)
+            form += (np.sum(decomp.prop_el) + np.sum(decomp.prop_nuc),)
 
         elif decomp.prop == 'dipole':
 
             string += '----------------------------------------------------------------------------\n'
             string += '{:^70}\n'
+            string += '{:^70}\n'
             string += '----------------------------------------------------------------------------\n'
-            string += '  MO  |             {:9}             |    atom(s)    |   bond length\n'
+            string += '  MO  |             electronic            |    atom(s)    |   bond length\n'
             string += '----------------------------------------------------------------------------\n'
             string += '      |     x     /     y     /     z     |\n'
             string += '----------------------------------------------------------------------------\n'
             string += '----------------------------------------------------------------------------\n'
-            form += ('ground-state dipole moment', orb_type,)
+            form += ('ground-state dipole moment', decomp.orbs,)
 
-            for i in range(prop.shape[0]):
-                core = centres[i, 0] == centres[i, 1]
-                string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |{:^15s}| {:>10s}\n'
-                form += (i, *prop[i] + 1.0e-10, \
-                            mol.atom_symbol(centres[i, 0]) if core else '{:s} & {:s}'. \
-                            format(mol.atom_symbol(centres[i, 0]), mol.atom_symbol(centres[i, 1])), \
-                            '' if core else '{:>.3f}'. \
-                            format(dist[centres[i, 0], centres[i, 1]]),)
+            for i in range(decomp.prop_el.shape[0]):
+                core = cent[i, 0] == cent[i, 1]
+                string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |    {:<11s}| {:>10s}\n'
+                form += (i, *decomp.prop_el[i] + 1.e-10, \
+                         '{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0]) if core \
+                         else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0], \
+                                                           mol.atom_symbol(cent[i, 1]), cent[i, 1]), \
+                         '' if core else '{:>.3f}'. \
+                         format(dist[cent[i, 0], cent[i, 1]]),)
 
             string += '----------------------------------------------------------------------------\n'
             string += '----------------------------------------------------------------------------\n'
 
             string += ' sum  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
-            form += (*np.fromiter(map(math.fsum, prop.T), dtype=prop.dtype, count=prop.shape[1]) + 1.0e-10,)
+            form += (*np.fromiter(map(math.fsum, decomp.prop_el.T), dtype=np.float64, count=3) + 1.e-10,)
 
             string += '----------------------------------------------------------------------------\n'
             string += ' nuc  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
-            form += (*prop_nuc + 1.0e-10,)
+            form += (*np.fromiter(map(math.fsum, decomp.prop_nuc.T), dtype=np.float64, count=3) + 1.e-10,)
 
             string += '----------------------------------------------------------------------------\n'
             string += '----------------------------------------------------------------------------\n'
 
             string += ' tot  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
             string += '----------------------------------------------------------------------------\n\n'
-            form += (*(prop_nuc + np.fromiter(map(math.fsum, prop.T), dtype=prop.dtype, count=prop.shape[1])) + 1.0e-10,)
+            form += (*(np.fromiter(map(math.fsum, decomp.prop_el.T), dtype=np.float64, count=3) + \
+                     np.fromiter(map(math.fsum, decomp.prop_nuc.T), dtype=np.float64, count=3)) + 1.e-10,)
 
         return string.format(*form)
 
