@@ -12,6 +12,8 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+from typing import Dict
+
 
 class DecompCls(object):
         """
@@ -24,11 +26,12 @@ class DecompCls(object):
                 # set system defaults
                 self.basis: str = 'sto-3g'
                 self.spin: int = 0
-                self.loc: str = 'pm'
-                self.pop: str = 'mulliken'
+                self.loc: str = 'ibo-2'
+                self.pop: str = 'iao'
                 self.xc: str = ''
                 self.time: float = 0.
                 # set calculation defaults
+                self.irrep_nelec: Dict['str', int] = {}
                 self.orbs: str = 'localized'
                 self.prop: str = 'energy'
                 self.part: str = 'atoms'
@@ -43,6 +46,9 @@ def sanity_check(decomp: DecompCls) -> None:
         # singlet check
         assert decomp.spin == 0, \
             'invalid spin. decodense is currently only implemented for singlet ground states'
+        # irrep_nelec
+        assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
+            'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
         # orbitals
         assert decomp.orbs in ['canonical', 'localized'], \
             'invalid orbitals. valid choices: `canonical` and `localized` (default)'

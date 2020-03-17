@@ -36,16 +36,15 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         if decomp.xc == '':
             # hf calc
             mf = scf.RHF(mol)
-            mf.conv_tol = 1.0e-12
-            mf.kernel()
-            assert mf.converged, 'HF not converged'
+            mf.irrep_nelec = decomp.irrep_nelec
         else:
             # dft calc
             mf = dft.RKS(mol)
             mf.xc = decomp.xc
-            mf.conv_tol = 1.0e-12
-            mf.kernel()
-            assert mf.converged, 'DFT not converged'
+        mf.irrep_nelec = decomp.irrep_nelec
+        mf.conv_tol = 1.e-12
+        mf.kernel()
+        assert mf.converged, 'mean-field calculation not converged'
 
         # reference property
         if decomp.prop == 'energy':
