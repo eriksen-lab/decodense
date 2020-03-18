@@ -43,7 +43,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             mf.xc = decomp.xc
         mf.irrep_nelec = decomp.irrep_nelec
         mf.conv_tol = 1.e-12
-        mf.verbose = 4
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
         # closed-shell system

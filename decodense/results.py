@@ -166,19 +166,20 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
             string += '--------------------------------------------------------\n'
             form += ('ground-state energy', decomp.orbs,)
 
-            for i in range(decomp.prop_el.size):
-                core = cent[i, 0] == cent[i, 1]
-                string += '  {:>2d}  |{:>12.5f}   |    {:<11s}| {:>10s}\n'
-                form += (i, decomp.prop_el[i], \
-                         '{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0]) if core \
-                         else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0], \
-                                                           mol.atom_symbol(cent[i, 1]), cent[i, 1]), \
-                         '' if core else '{:>.3f}'.format(dist[cent[i, 0], cent[i, 1]]),)
+            for i in range(2):
+                for j in range(decomp.prop_el[i].size):
+                    core = cent[i][j, 0] == cent[i][j, 1]
+                    string += '  {:>2d}  |{:>12.5f}   |    {:<11s}| {:>10s}\n'
+                    form += (j, decomp.prop_el[i][j], \
+                             '{:s}{:d}'.format(mol.atom_symbol(cent[0][j, 0]), cent[i][j, 0]) if core \
+                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0], \
+                                                               mol.atom_symbol(cent[i][j, 1]), cent[i][j, 1]), \
+                             '' if core else '{:>.3f}'.format(dist[cent[i][j, 0], cent[i][j, 1]]),)
 
             string += '--------------------------------------------------------\n'
             string += '--------------------------------------------------------\n'
             string += ' sum  |{:>12.5f}   |\n'
-            form += (np.sum(decomp.prop_el),)
+            form += (np.sum(decomp.prop_el[0]) + np.sum(decomp.prop_el[1]),)
 
             string += '-----------------------\n'
             string += ' nuc  |{:>+12.5f}   |\n'
@@ -188,7 +189,7 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
             string += '-----------------------\n'
             string += ' tot  |{:>12.5f}   |\n'
             string += '-----------------------\n\n'
-            form += (np.sum(decomp.prop_el) + np.sum(decomp.prop_nuc),)
+            form += (np.sum(decomp.prop_el[0]) + np.sum(decomp.prop_el[1]) + np.sum(decomp.prop_nuc),)
 
         elif decomp.prop == 'dipole':
 

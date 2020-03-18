@@ -134,4 +134,3 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         return np.einsum('ip,jp->ij', occup * mo, mo)
 
 
-
