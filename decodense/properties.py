@@ -16,9 +16,12 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Union
 
+from .tools import make_rdm1
+
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
-             prop_type: str, mo_coeff: np.ndarray, rep_idx: List[np.ndarray]) -> np.ndarray:
+             prop_type: str, mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
+             rep_idx: List[List[np.ndarray]]) -> np.ndarray:
         """
         this function returns sorted orbital-decomposed mean-field properties for a given orbital type
         """
@@ -28,48 +31,53 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
 
         # compute total 1-RDM (AO basis)
-        rdm1 = _rdm1(mo_coeff)
+        rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # core hamiltonian
         h_core = _h_core(mol)
         # fock potential
-        vj, vk = mf.get_jk(mol, rdm1)
+        vj, vk = scf.hf.get_jk(mol, rdm1_tot)
 
         if isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, rdm1, vk)
+            vk = _vk_dft(mol, mf, rdm1_tot, vk)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf, ao_deriv)
             # rho corresponding to total 1-RDM
-            rho = numint.eval_rho(mol, ao_value, rdm1, xctype=xc_type)
+            rho = numint.eval_rho(mol, ao_value, rdm1_tot, xctype=xc_type)
             # evaluate eps_xc (xc energy density)
             eps_xc = dft.libxc.eval_xc(mf.xc, rho)[0]
 
         # init orbital-specific energy or dipole array
         if prop_type == 'energy':
-            prop_orb = np.zeros(len(rep_idx), dtype=np.float64)
+            prop_orb = [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)]
         elif prop_type == 'dipole':
-            prop_orb = np.zeros([len(rep_idx), 3], dtype=np.float64)
+            prop_orb = [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)]
 
         # loop over orbitals
-        for i, j in enumerate(rep_idx):
-            # get orbital(s)
-            orb = mo_coeff[:, j].reshape(mo_coeff.shape[0], -1)
-            # orbital-specific rdm1
-            rdm1_orb = _rdm1(orb)
-            # energy or dipole from individual orbitals
-            if prop_type == 'energy':
-                prop_orb[i] = _e_elec(h_core, vj, vk, rdm1_orb)
-            elif prop_type == 'dipole':
-                prop_orb[i] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
-            # additional xc energy contribution
-            if prop_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
-                # orbital-specific rho
-                rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
-                # energy from individual orbitals
-                prop_orb[i] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
+        for i in range(2):
+            for j, k in enumerate(rep_idx[i]):
+                # get orbital(s)
+                orb = mo_coeff[i][:, k].reshape(mo_coeff[i].shape[0], -1)
+                # orbital-specific rdm1
+                rdm1_orb = make_rdm1(orb, mo_occ[i][k])
+                # energy or dipole from individual orbitals
+                if prop_type == 'energy':
+                    prop_orb[i][j] = _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb)
+                elif prop_type == 'dipole':
+                    prop_orb[i][j] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
+                # additional xc energy contribution
+                if prop_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
+                    # orbital-specific rho
+                    rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
+                    # energy from individual orbitals
+                    prop_orb[i][j] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
+            # closed-shell system
+            if mol.spin == 0:
+                prop_orb[i+1] = prop_orb[i]
+                break
 
         return prop_orb
 
@@ -104,13 +112,6 @@ def _h_core(mol: gto.Mole) -> np.ndarray:
         this function returns the core hamiltonian
         """
         return mol.intor_symmetric('int1e_kin') + mol.intor_symmetric('int1e_nuc')
-
-
-def _rdm1(mo: np.ndarray) -> np.ndarray:
-        """
-        this function returns an 1-RDM (in ao basis) corresponding to given mo(s)
-        """
-        return np.einsum('ip,jp->ij', mo, mo) * 2.
 
 
 def _xc_ao_deriv(mf: Union[dft.rks.RKS, dft.rks_symm.RKS]) -> Tuple[str, int]:
@@ -157,7 +158,7 @@ def _e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray
         # contribution from core hamiltonian
         e_core = np.einsum('ij,ji', h_core, rdm1)
         # contribution from effective potential
-        e_veff = np.einsum('ij,ji', vj - vk * .5, rdm1) * .5
+        e_veff = np.einsum('ij,ji', vj - vk, rdm1) * .5
         return e_core + e_veff
 
 

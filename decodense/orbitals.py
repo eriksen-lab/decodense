@@ -14,61 +14,76 @@ import numpy as np
 from pyscf import gto, scf, dft, lo
 from typing import List, Tuple, Union
 
+from .tools import make_rdm1
 
-def loc_orbs(mol: gto.Mole, mo_coeff: np.ndarray, s: np.ndarray, variant: str) -> np.ndarray:
+
+def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarray, variant: str) -> np.ndarray:
         """
         this function returns a set of localized MOs of a specific variant
         """
         # init localizer
         if variant == 'pm':
-            # pipek-mezey procedure
-            loc_core = lo.PM(mol, mo_coeff[:, :mol.ncore])
-            loc_val = lo.PM(mol, mo_coeff[:, mol.ncore:mol.nocc])
-            # localize core and valence occupied orbitals
-            mo_coeff[:, :mol.ncore] = loc_core.kernel()
-            mo_coeff[:, mol.ncore:mol.nocc] = loc_val.kernel()
+            for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
+                # pipek-mezey procedure
+                loc_core = lo.PM(mol, mo_coeff[i][:, :mol.ncore])
+                loc_val = lo.PM(mol, mo_coeff[i][:, mol.ncore:nspin])
+                # localize core and valence occupied orbitals
+                mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
+                mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
+                # closed-shell system
+                if mol.spin == 0:
+                    mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
+                    break
         elif 'ibo' in variant:
-            # IAOs
-            iao_core = lo.iao.iao(mol, mo_coeff[:, :mol.ncore])
-            iao_val = lo.iao.iao(mol, mo_coeff[:, mol.ncore:mol.nocc])
-            # orthogonalize IAOs
-            iao_core = lo.vec_lowdin(iao_core, s)
-            iao_val = lo.vec_lowdin(iao_val, s)
-            # IBOs
             if variant == 'ibo-2':
-                mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], \
-                                                     iaos=iao_core, exponent=2, verbose=0)
-                mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
-                                                             iaos=iao_val, exponent=2, verbose=0)
+                exp = 2
             elif variant == 'ibo-4':
-                mo_coeff[:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[:, :mol.ncore], \
-                                                     iaos=iao_core, exponent=4, verbose=0)
-                mo_coeff[:, mol.ncore:mol.nocc] = lo.ibo.ibo(mol, mo_coeff[:, mol.ncore:mol.nocc], \
-                                                             iaos=iao_val, exponent=4, verbose=0)
+                exp = 4
+            for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
+                # IAOs
+                iao_core = lo.iao.iao(mol, mo_coeff[i][:, :mol.ncore])
+                iao_val = lo.iao.iao(mol, mo_coeff[i][:, mol.ncore:nspin])
+                # orthogonalize IAOs
+                iao_core = lo.vec_lowdin(iao_core, s)
+                iao_val = lo.vec_lowdin(iao_val, s)
+                # IBOs
+                mo_coeff[i][:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[i][:, :mol.ncore], \
+                                                        iaos=iao_core, exponent=exp, verbose=0)
+                mo_coeff[i][:, mol.ncore:nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, mol.ncore:nspin], \
+                                                                 iaos=iao_val, exponent=exp, verbose=0)
+                # closed-shell system
+                if mol.spin == 0:
+                    mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
+                    break
 
         return mo_coeff
 
 
-def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
-            pop: str, thres: float) -> Tuple[List[np.ndarray], np.ndarray]:
+def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
+                 mo_occ: np.ndarray, pop: str, thres: float) -> Tuple[List[List[np.ndarray]], np.ndarray]:
         """
         this function returns a list of repetitive center indices and an array of unique charge centres
         """
         # init charge_centres array
-        cent = np.zeros([mol.nocc, 2], dtype=np.int)
+        cent = [np.zeros([mol.nalpha, 2], dtype=np.int), np.zeros([mol.nbeta, 2], dtype=np.int)]
 
-        for i in range(mol.nocc):
-            # get orbital
-            orb = mo_coeff[:, i].reshape(mol.norb, 1)
-            # orbital-specific rdm1
-            rdm1_orb = np.einsum('ip,jp->ij', orb, orb) * 2.
-            # charge centres of rdm1_orb
-            cent[i] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
+        for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
+            for j in range(nspin):
+                # get orbital
+                orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], 1)
+                # orbital-specific rdm1
+                rdm1_orb = make_rdm1(orb, mo_occ[i][j])
+                # charge centres of rdm1_orb
+                cent[i][j] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
+            # closed-shell system
+            if mol.spin == 0:
+                cent[i+1] = cent[i]
+                break
 
         # unique centres
-        cent_unique = np.unique(cent, axis=0)
+        cent_unique = np.array([np.unique(cent[i], axis=0) for i in range(2)])
         # repetitive centres
-        rep_idx = [np.where((cent == i).all(axis=1))[0] for i in cent_unique]
+        rep_idx = [[np.where((cent[i] == j).all(axis=1))[0] for j in cent_unique[i]] for i in range(2)]
 
         return rep_idx, cent_unique
 
@@ -84,14 +99,15 @@ def atom_part(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, cent: np.ndar
             prop_new = np.zeros([mol.natm, 3], dtype=np.float64)
 
         # collect contributions
-        for a, (i, j) in enumerate(cent):
-            if i == j:
-                # contribution from core orbital or lone pair
-                prop_new[i] += prop_old[a]
-            else:
-                # contribution from valence orbital
-                prop_new[i] += prop_old[a] / 2.
-                prop_new[j] += prop_old[a] / 2.
+        for i in range(2):
+            for a, (j, k) in enumerate(cent[i]):
+                if j == k:
+                    # contribution from core orbital or lone pair
+                    prop_new[j] += prop_old[i][a]
+                else:
+                    # contribution from valence orbital
+                    prop_new[j] += prop_old[i][a] / 2.
+                    prop_new[k] += prop_old[i][a] / 2.
 
         return prop_new
 

@@ -25,7 +25,6 @@ class DecompCls(object):
                 """
                 # set system defaults
                 self.basis: str = 'sto-3g'
-                self.spin: int = 0
                 self.loc: str = 'ibo-2'
                 self.pop: str = 'iao'
                 self.xc: str = ''
@@ -43,9 +42,6 @@ def sanity_check(decomp: DecompCls) -> None:
         """
         this function performs sanity checks of decomp attributes
         """
-        # singlet check
-        assert decomp.spin == 0, \
-            'invalid spin. decodense is currently only implemented for singlet ground states'
         # irrep_nelec
         assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
             'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'

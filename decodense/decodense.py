@@ -35,7 +35,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         # mf calculation
         if decomp.xc == '':
             # hf calc
-            mf = scf.RHF(mol)
+            mf = scf.RHF(mol) if mol.spin == 0 else scf.UHF(mol)
             mf.irrep_nelec = decomp.irrep_nelec
         else:
             # dft calc
@@ -43,8 +43,13 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             mf.xc = decomp.xc
         mf.irrep_nelec = decomp.irrep_nelec
         mf.conv_tol = 1.e-12
+        mf.verbose = 4
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
+        # closed-shell system
+        if mol.spin == 0:
+            mf.mo_coeff = np.asarray((mf.mo_coeff, mf.mo_coeff))
+            mf.mo_occ = np.asarray((mf.mo_occ / 2., mf.mo_occ / 2.))
 
         # reference property
         if decomp.prop == 'energy':
@@ -59,7 +64,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             decomp.prop_nuc = dip_nuc(mol)
 
         # molecular dimensions
-        mol.ncore, mol.nocc, mol.nvirt, mol.norb = dim(mol, mf.mo_occ)
+        mol.ncore, mol.nalpha, mol.nbeta = dim(mol, mf.mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
@@ -70,8 +75,8 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             mo = loc_orbs(mol, mf.mo_coeff, s, decomp.loc)
 
         # decompose electronic property
-        rep_idx, cent = assign_rdm1s(mol, s, mo, decomp.pop, decomp.thres)
-        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo[:, :mol.nocc], rep_idx)
+        rep_idx, cent = assign_rdm1s(mol, s, mo, mf.mo_occ, decomp.pop, decomp.thres)
+        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mf.mo_occ, rep_idx)
 
         # collect electronic contributions in case of atom-based partitioning
         if decomp.part == 'atoms':
