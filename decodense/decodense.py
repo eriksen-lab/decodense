@@ -39,7 +39,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             mf.irrep_nelec = decomp.irrep_nelec
         else:
             # dft calc
-            mf = dft.RKS(mol)
+            mf = dft.RKS(mol) if mol.spin == 0 else dft.UKS(mol)
             mf.xc = decomp.xc
         mf.irrep_nelec = decomp.irrep_nelec
         mf.conv_tol = 1.e-12
@@ -48,8 +48,8 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         assert mf.converged, 'mean-field calculation not converged'
         # closed-shell system
         if mol.spin == 0:
-            mf.mo_coeff = np.asarray((mf.mo_coeff, mf.mo_coeff))
-            mf.mo_occ = np.asarray((mf.mo_occ / 2., mf.mo_occ / 2.))
+            mf.mo_coeff = np.asarray((mf.mo_coeff,) * 2)
+            mf.mo_occ = np.asarray((mf.mo_occ / 2.,) * 2)
 
         # reference property
         if decomp.prop == 'energy':

@@ -19,7 +19,7 @@ from typing import List, Tuple, Union
 from .tools import make_rdm1
 
 
-def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, dft.rks_symm.RKS], \
+def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              prop_type: str, mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              rep_idx: List[List[np.ndarray]]) -> np.ndarray:
         """
@@ -38,7 +38,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
         # fock potential
         vj, vk = scf.hf.get_jk(mol, rdm1_tot)
 
-        if isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
+        if isinstance(mf, dft.rks.KohnShamDFT):
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf)
             # update exchange operator wrt range-separated parameter and exact exchange components
@@ -46,9 +46,13 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
             # ao function values on given grid
             ao_value = _ao_val(mol, mf, ao_deriv)
             # rho corresponding to total 1-RDM
-            rho = numint.eval_rho(mol, ao_value, rdm1_tot, xctype=xc_type)
+            if mol.spin == 0:
+                rho = numint.eval_rho(mol, ao_value, rdm1_tot[0] + rdm1_tot[1], xctype=xc_type)
+            else:
+                rho = (numint.eval_rho(mol, ao_value, rdm1_tot[0], xctype=xc_type), \
+                       numint.eval_rho(mol, ao_value, rdm1_tot[1], xctype=xc_type))
             # evaluate eps_xc (xc energy density)
-            eps_xc = dft.libxc.eval_xc(mf.xc, rho)[0]
+            eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=mol.spin)[0]
 
         # init orbital-specific energy or dipole array
         if prop_type == 'energy':
@@ -69,7 +73,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.RHF, scf.hf_symm.RHF, dft.rks.RKS, 
                 elif prop_type == 'dipole':
                     prop_orb[i][j] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
                 # additional xc energy contribution
-                if prop_type == 'energy' and isinstance(mf, (dft.rks.RKS, dft.rks_symm.RKS)):
+                if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
                     # orbital-specific rho
                     rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
                     # energy from individual orbitals
@@ -114,7 +118,7 @@ def _h_core(mol: gto.Mole) -> np.ndarray:
         return mol.intor_symmetric('int1e_kin') + mol.intor_symmetric('int1e_nuc')
 
 
-def _xc_ao_deriv(mf: Union[dft.rks.RKS, dft.rks_symm.RKS]) -> Tuple[str, int]:
+def _xc_ao_deriv(mf: dft.rks.KohnShamDFT) -> Tuple[str, int]:
         """
         this function returns the type of xc functional and the level of ao derivatives needed
         """
@@ -128,7 +132,7 @@ def _xc_ao_deriv(mf: Union[dft.rks.RKS, dft.rks_symm.RKS]) -> Tuple[str, int]:
         return xc_type, ao_deriv
 
 
-def _vk_dft(mol: gto.Mole, mf: Union[dft.rks.RKS, dft.rks_symm.RKS], rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
+def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
         """
         this function returns the appropriate dft exchange operator
         """
@@ -144,7 +148,7 @@ def _vk_dft(mol: gto.Mole, mf: Union[dft.rks.RKS, dft.rks_symm.RKS], rdm1: np.nd
         return vk
 
 
-def _ao_val(mol: gto.Mole, mf: Union[dft.rks.RKS, dft.rks_symm.RKS], ao_deriv: int) -> np.ndarray:
+def _ao_val(mol: gto.Mole, mf: dft.rks.KohnShamDFT, ao_deriv: int) -> np.ndarray:
         """
         this function returns ao function values on the given grid
         """
@@ -164,7 +168,7 @@ def _e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray
 
 def _e_xc(eps_xc: np.ndarray, weights: np.ndarray, rho: np.ndarray) -> float:
         """
-        this function returns a contribution to exchange-correlation energy contribution from given rmd1
+        this function returns a contribution to exchange-correlation energy contribution from given rmd1 (rho)
         """
         if rho.ndim == 1:
             e_xc = np.einsum('i,i,i->', eps_xc, rho, weights)
