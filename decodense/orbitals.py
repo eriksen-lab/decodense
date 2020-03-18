@@ -25,11 +25,9 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         if variant == 'pm':
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # pipek-mezey procedure
-                loc_core = lo.PM(mol, mo_coeff[i][:, :mol.ncore])
-                loc_val = lo.PM(mol, mo_coeff[i][:, mol.ncore:nspin])
+                loc = lo.PM(mol, mo_coeff[i][:, :nspin])
                 # localize core and valence occupied orbitals
-                mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
-                mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
+                mo_coeff[i][:, :nspin] = loc.kernel()
         elif 'ibo' in variant:
             if variant == 'ibo-2':
                 exp = 2
@@ -37,16 +35,11 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
                 exp = 4
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # IAOs
-                iao_core = lo.iao.iao(mol, mo_coeff[i][:, :mol.ncore])
-                iao_val = lo.iao.iao(mol, mo_coeff[i][:, mol.ncore:nspin])
+                iao = lo.iao.iao(mol, mo_coeff[i][:, :nspin])
                 # orthogonalize IAOs
-                iao_core = lo.vec_lowdin(iao_core, s)
-                iao_val = lo.vec_lowdin(iao_val, s)
+                iao = lo.vec_lowdin(iao, s)
                 # IBOs
-                mo_coeff[i][:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[i][:, :mol.ncore], \
-                                                        iaos=iao_core, exponent=exp, verbose=0)
-                mo_coeff[i][:, mol.ncore:nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, mol.ncore:nspin], \
-                                                                 iaos=iao_val, exponent=exp, verbose=0)
+                mo_coeff[i][:, :nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, :nspin], iaos=iao, exponent=exp, verbose=0)
 
         return mo_coeff
 

@@ -69,6 +69,9 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
             mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
             mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+        else:
+            mo = mf.mo_coeff
+            mo_occ = mf.mo_occ
 
         # nuclear property
         if decomp.prop == 'energy':
@@ -77,7 +80,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             decomp.prop_nuc = dip_nuc(mol)
 
         # molecular dimensions
-        mol.ncore, mol.nalpha, mol.nbeta = dim(mol, mo_occ)
+        mol.nalpha, mol.nbeta = dim(mol, mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
