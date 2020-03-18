@@ -27,7 +27,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         main decodense program
         """
         # sanity check
-        sanity_check(decomp)
+        sanity_check(mol, decomp)
 
         # init time
         time = MPI.Wtime()
@@ -35,26 +35,40 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         # mf calculation
         if decomp.xc == '':
             # hf calc
-            mf = scf.RHF(mol) if mol.spin == 0 else scf.UHF(mol)
-            mf.irrep_nelec = decomp.irrep_nelec
+            if mol.spin == 0:
+                mf = scf.RHF(mol)
+            else:
+                if decomp.ref == 'restricted':
+                    mf = scf.ROHF(mol)
+                elif decomp.ref == 'unrestricted':
+                    mf = scf.UHF(mol)
         else:
             # dft calc
-            mf = dft.RKS(mol) if mol.spin == 0 else dft.UKS(mol)
+            if mol.spin == 0:
+                mf = dft.RKS(mol)
+            else:
+                if decomp.ref == 'restricted':
+                    mf = dft.ROKS(mol)
+                elif decomp.ref == 'unrestricted':
+                    mf = dft.UKS(mol)
             mf.xc = decomp.xc
         mf.irrep_nelec = decomp.irrep_nelec
         mf.conv_tol = 1.e-12
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
-        # closed-shell system
-        if mol.spin == 0:
-            mf.mo_coeff = np.asarray((mf.mo_coeff,) * 2)
-            mf.mo_occ = np.asarray((mf.mo_occ / 2.,) * 2)
 
         # reference property
         if decomp.prop == 'energy':
             decomp.prop_ref = mf.e_tot
         elif decomp.prop == 'dipole':
             decomp.prop_ref = scf.hf.dip_moment(mol, mf.make_rdm1(), unit='au', verbose=0)
+
+        # restricted references
+        if decomp.ref == 'restricted':
+            mo = np.asarray((mf.mo_coeff,) * 2)
+            mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
+            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
+            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
 
         # nuclear property
         if decomp.prop == 'energy':
@@ -63,19 +77,17 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             decomp.prop_nuc = dip_nuc(mol)
 
         # molecular dimensions
-        mol.ncore, mol.nalpha, mol.nbeta = dim(mol, mf.mo_occ)
+        mol.ncore, mol.nalpha, mol.nbeta = dim(mol, mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
-        # compute molecular orbitals
-        if decomp.orbs == 'canonical':
-            mo = mf.mo_coeff
-        elif decomp.orbs == 'localized':
-            mo = loc_orbs(mol, mf.mo_coeff, s, decomp.loc)
+        # compute localized molecular orbitals
+        if decomp.orbs == 'localized':
+            mo = loc_orbs(mol, mo, s, decomp.loc)
 
         # decompose electronic property
-        rep_idx, cent = assign_rdm1s(mol, s, mo, mf.mo_occ, decomp.pop, decomp.thres)
-        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mf.mo_occ, rep_idx)
+        rep_idx, cent = assign_rdm1s(mol, s, mo, mo_occ, decomp.pop, decomp.thres)
+        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ, rep_idx)
 
         # collect electronic contributions in case of atom-based partitioning
         if decomp.part == 'atoms':

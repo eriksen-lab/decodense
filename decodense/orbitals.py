@@ -30,10 +30,6 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
                 # localize core and valence occupied orbitals
                 mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
                 mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
-                # closed-shell system
-                if mol.spin == 0:
-                    mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
-                    break
         elif 'ibo' in variant:
             if variant == 'ibo-2':
                 exp = 2
@@ -51,10 +47,6 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
                                                         iaos=iao_core, exponent=exp, verbose=0)
                 mo_coeff[i][:, mol.ncore:nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, mol.ncore:nspin], \
                                                                  iaos=iao_val, exponent=exp, verbose=0)
-                # closed-shell system
-                if mol.spin == 0:
-                    mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
-                    break
 
         return mo_coeff
 
@@ -75,10 +67,6 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                 # charge centres of rdm1_orb
                 cent[i][j] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
-            # closed-shell system
-            if mol.spin == 0:
-                cent[i+1] = cent[i]
-                break
 
         # unique centres
         cent_unique = np.array([np.unique(cent[i], axis=0) for i in range(2)])

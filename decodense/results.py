@@ -58,11 +58,12 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
             string += ' xc functional      =  {:}\n'
             form += (decomp.xc,)
         string += '\n electrons          =  {:}\n'
-        string += ' spin multiplicity  =  {:}\n'
+        string += ' reference funct.   =  {:}\n'
+        string += ' molecular spin     =  {:}\n'
         string += ' alpha electrons    =  {:}\n'
         string += ' beta electrons     =  {:}\n'
         string += ' basis functions    =  {:}\n'
-        form += (mol.nelectron, mol.spin, mol.nalpha, mol.nbeta, mol.nao_nr(),)
+        form += (mol.nelectron, decomp.ref, mol.spin, mol.nalpha, mol.nbeta, mol.nao_nr(),)
 
         # calculation info
         string += '\n total time         =  {:}\n'

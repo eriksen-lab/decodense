@@ -12,6 +12,7 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+from pyscf import gto
 from typing import Dict
 
 
@@ -31,6 +32,7 @@ class DecompCls(object):
                 self.time: float = 0.
                 # set calculation defaults
                 self.irrep_nelec: Dict['str', int] = {}
+                self.ref: str = 'restricted'
                 self.orbs: str = 'localized'
                 self.prop: str = 'energy'
                 self.part: str = 'atoms'
@@ -38,13 +40,19 @@ class DecompCls(object):
                 self.verbose: bool = False
 
 
-def sanity_check(decomp: DecompCls) -> None:
+def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         """
         this function performs sanity checks of decomp attributes
         """
         # irrep_nelec
         assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
             'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
+        # reference
+        assert decomp.ref in ['restricted', 'unrestricted'], \
+            'invalid reference. valid choices: `restricted` (default) and `unrestricted`'
+        if decomp.ref == 'unrestricted':
+            assert mol.spin != 0, \
+                'invalid reference. unrestricted references are only meaningful for non-singlet states'
         # orbitals
         assert decomp.orbs in ['canonical', 'localized'], \
             'invalid orbitals. valid choices: `canonical` and `localized` (default)'
