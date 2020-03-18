@@ -116,8 +116,8 @@ def table_atoms(mol: gto.Mole, decomp: DecompCls) -> str:
         elif decomp.prop == 'dipole':
 
             string += '-------------------------------------------------------------------------------------------------------------------\n'
-            string += '{:^83}\n'
-            string += '{:^83}\n'
+            string += '{:^113}\n'
+            string += '{:^113}\n'
             string += '-------------------------------------------------------------------------------------------------------------------\n'
             string += '      |             electronic            |               nuclear             |               total\n'
             string += ' atom -------------------------------------------------------------------------------------------------------------\n'
@@ -163,10 +163,13 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
             string += '--------------------------------------------------------\n'
             string += '  MO  |  electronic  |    atom(s)    |   bond length\n'
             string += '--------------------------------------------------------\n'
-            string += '--------------------------------------------------------\n'
             form += ('ground-state energy', decomp.orbs,)
 
             for i in range(2):
+                string += '--------------------------------------------------------\n'
+                string += '{:^55}\n'
+                string += '--------------------------------------------------------\n'
+                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
                 for j in range(decomp.prop_el[i].size):
                     core = cent[i][j, 0] == cent[i][j, 1]
                     string += '  {:>2d}  |{:>12.5f}   |    {:<11s}| {:>10s}\n'
@@ -194,8 +197,8 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
         elif decomp.prop == 'dipole':
 
             string += '----------------------------------------------------------------------------\n'
-            string += '{:^70}\n'
-            string += '{:^70}\n'
+            string += '{:^75}\n'
+            string += '{:^75}\n'
             string += '----------------------------------------------------------------------------\n'
             string += '  MO  |             electronic            |    atom(s)    |   bond length\n'
             string += '----------------------------------------------------------------------------\n'
@@ -204,21 +207,27 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
             string += '----------------------------------------------------------------------------\n'
             form += ('ground-state dipole moment', decomp.orbs,)
 
-            for i in range(decomp.prop_el.shape[0]):
-                core = cent[i, 0] == cent[i, 1]
-                string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |    {:<11s}| {:>10s}\n'
-                form += (i, *decomp.prop_el[i] + 1.e-10, \
-                         '{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0]) if core \
-                         else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i, 0]), cent[i, 0], \
-                                                           mol.atom_symbol(cent[i, 1]), cent[i, 1]), \
-                         '' if core else '{:>.3f}'. \
-                         format(dist[cent[i, 0], cent[i, 1]]),)
+            for i in range(2):
+                string += '----------------------------------------------------------------------------\n'
+                string += '{:^75}\n'
+                string += '----------------------------------------------------------------------------\n'
+                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
+                for j in range(decomp.prop_el[i].shape[0]):
+                    core = cent[i][j, 0] == cent[i][j, 1]
+                    string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |    {:<11s}| {:>10s}\n'
+                    form += (j, *decomp.prop_el[i][j] + 1.e-10, \
+                             '{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0]) if core \
+                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0], \
+                                                               mol.atom_symbol(cent[i][j, 1]), cent[i][j, 1]), \
+                             '' if core else '{:>.3f}'. \
+                             format(dist[cent[i][j, 0], cent[i][j, 1]]),)
 
             string += '----------------------------------------------------------------------------\n'
             string += '----------------------------------------------------------------------------\n'
 
             string += ' sum  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
-            form += (*np.fromiter(map(math.fsum, decomp.prop_el.T), dtype=np.float64, count=3) + 1.e-10,)
+            form += (*(np.fromiter(map(math.fsum, decomp.prop_el[0].T), dtype=np.float64, count=3) + \
+                     np.fromiter(map(math.fsum, decomp.prop_el[1].T), dtype=np.float64, count=3)) + 1.e-10,)
 
             string += '----------------------------------------------------------------------------\n'
             string += ' nuc  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
@@ -229,7 +238,8 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
 
             string += ' tot  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |\n'
             string += '----------------------------------------------------------------------------\n\n'
-            form += (*(np.fromiter(map(math.fsum, decomp.prop_el.T), dtype=np.float64, count=3) + \
+            form += (*(np.fromiter(map(math.fsum, decomp.prop_el[0].T), dtype=np.float64, count=3) + \
+                     np.fromiter(map(math.fsum, decomp.prop_el[1].T), dtype=np.float64, count=3) + \
                      np.fromiter(map(math.fsum, decomp.prop_nuc.T), dtype=np.float64, count=3)) + 1.e-10,)
 
         return string.format(*form)
