@@ -14,29 +14,27 @@ import os
 import numpy as np
 import math
 from pyscf import gto, lib
-from typing import Tuple, List, Union, Any
+from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls
 from .tools import git_version, time_str
 
 
-def _ref(mol: gto.Mole, decomp: DecompCls) -> str:
-        """
-        this functions returns the correct (formatted) reference function
-        """
-        if decomp.ref == 'restricted':
-            if mol.spin == 0:
-                ref = 'RHF' if decomp.xc == '' else 'RKS'
-            else:
-                ref = 'ROHF' if decomp.xc == '' else 'ROKS'
-        else:
-            ref = 'UHF' if decomp.xc == '' else 'UKS'
-        return ref
+def collect_res(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
+        res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
+                               'ref': _ref(mol, decomp), 'thres': decomp.thres, \
+                               'part': decomp.part, 'time': decomp.time, 'sym': mol.groupname}
+        if decomp.orbs == 'localized':
+            res['loc'] = decomp.loc
+            res['pop'] = decomp.pop
+        if decomp.xc != '':
+            res['xc'] = decomp.xc
+        return res
 
 
-def info(mol: gto.Mole, decomp: DecompCls) -> str:
+def table_info(mol: gto.Mole, decomp: DecompCls) -> str:
         """
-        this function prints the results header and basic info
+        this function prints basic info
         """
         # init string & form
         string: str = ''
@@ -62,12 +60,13 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
         string += ' ------------\n'
         string += ' point group        =  {:}\n'
         string += ' basis set          =  {:}\n'
-        string += '\n localization       =  {:}\n'
-        string += ' assignment         =  {:}\n'
-        string += ' partitioning       =  {:}\n'
-        string += ' orbital basis      =  {:}\n'
+        string += '\n partitioning       =  {:}\n'
         string += ' threshold          =  {:}\n'
-        form += (mol.groupname, mol.basis, decomp.loc, decomp.pop, decomp.part, decomp.orbs, decomp.thres,)
+        form += (mol.groupname, mol.basis, decomp.part, decomp.thres,)
+        if decomp.orbs == 'localized':
+            string += ' localization       =  {:}\n'
+            string += ' assignment         =  {:}\n'
+            form += (decomp.loc, decomp.pop,)
         if decomp.xc != '':
             string += ' xc functional      =  {:}\n'
             form += (decomp.xc,)
@@ -78,7 +77,8 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
         string += ' spin: <S^2>        =  {:.3f}\n'
         string += ' spin: 2*S + 1      =  {:.3f}\n'
         string += ' basis functions    =  {:d}\n'
-        form += (_ref(mol, decomp), mol.nelectron, mol.nalpha, mol.nbeta, decomp.ss, decomp.s, mol.nao_nr(),)
+        form += (_ref(mol, decomp), mol.nelectron, mol.nalpha, mol.nbeta, \
+                 decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
 
         # calculation info
         string += '\n total time         =  {:}\n'
@@ -259,5 +259,20 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
                      np.fromiter(map(math.fsum, decomp.prop_nuc.T), dtype=np.float64, count=3)) + 1.e-10,)
 
         return string.format(*form)
+
+
+def _ref(mol: gto.Mole, decomp: DecompCls) -> str:
+        """
+        this functions returns the correct (formatted) reference function
+        """
+        if decomp.ref == 'restricted':
+            if mol.spin == 0:
+                ref = 'RHF' if decomp.xc == '' else 'RKS'
+            else:
+                ref = 'ROHF' if decomp.xc == '' else 'ROKS'
+        else:
+            ref = 'UHF' if decomp.xc == '' else 'UKS'
+        return ref
+
 
 

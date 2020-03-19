@@ -13,16 +13,16 @@ __status__ = 'Development'
 import numpy as np
 from pyscf import gto, scf, dft
 from mpi4py import MPI
-from typing import Tuple
+from typing import Dict, Tuple, Any
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s, atom_part
 from .properties import prop_tot, e_nuc, dip_nuc
-from .results import info, table_atoms, table_bonds
+from .results import collect_res, table_info, table_atoms, table_bonds
 from .tools import dim
 
 
-def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
+def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         """
         main decodense program
         """
@@ -88,7 +88,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         if decomp.orbs == 'localized':
             mo = loc_orbs(mol, mo, s, decomp.loc)
 
-        # spin
+        # determine spin
         decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
@@ -102,14 +102,17 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         # collect time
         decomp.time = MPI.Wtime() - time
 
+        # collect results
+        res = collect_res(mol, decomp)
+
         # print results
         if decomp.verbose:
-            print(info(mol, decomp))
+            print(table_info(mol, decomp))
             if decomp.part == 'atoms':
                 print(table_atoms(mol, decomp))
             elif decomp.part == 'bonds':
                 print(table_bonds(mol, decomp, cent))
 
-        return decomp.prop_el, decomp.prop_nuc
+        return res
 
 
