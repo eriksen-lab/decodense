@@ -78,6 +78,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
                     # energy from individual orbitals
                     prop_orb[i][j] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
+            # closed-shell system
+            if mol.spin == 0:
+                prop_orb[i+1] = prop_orb[i]
+                break
 
         return prop_orb
 

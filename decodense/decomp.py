@@ -28,6 +28,8 @@ class DecompCls(object):
                 self.loc: str = 'ibo-2'
                 self.pop: str = 'iao'
                 self.xc: str = ''
+                self.ss: float = 0.
+                self.s: float = 0.
                 self.time: float = 0.
                 # set calculation defaults
                 self.irrep_nelec: Dict['str', int] = {}

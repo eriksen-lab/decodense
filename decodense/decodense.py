@@ -88,6 +88,10 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
         if decomp.orbs == 'localized':
             mo = loc_orbs(mol, mo, s, decomp.loc)
 
+        # spin
+        decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), \
+                                                  mol.intor_symmetric('int1e_ovlp'))
+
         # decompose electronic property
         rep_idx, cent = assign_rdm1s(mol, s, mo, mo_occ, decomp.pop, decomp.thres)
         decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ, rep_idx)
