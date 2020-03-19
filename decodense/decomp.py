@@ -28,10 +28,6 @@ class DecompCls(object):
                 self.loc: str = 'ibo-2'
                 self.pop: str = 'iao'
                 self.xc: str = ''
-                self.ss: float = 0.
-                self.s: float = 0.
-                self.time: float = 0.
-                # set calculation defaults
                 self.irrep_nelec: Dict['str', int] = {}
                 self.ref: str = 'restricted'
                 self.orbs: str = 'localized'
@@ -39,6 +35,13 @@ class DecompCls(object):
                 self.part: str = 'atoms'
                 self.thres: float = .98
                 self.verbose: bool = False
+                # set calculation defaults
+                self.ss: float = 0.
+                self.s: float = 0.
+                self.time: float = 0.
+                self.prop_el: np.ndarray = None
+                self.prop_nuc: np.ndarray = None
+                self.prop_tot: np.ndarray = None
 
 
 def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:

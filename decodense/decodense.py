@@ -98,6 +98,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         # collect electronic contributions in case of atom-based partitioning
         if decomp.part == 'atoms':
             decomp.prop_el = atom_part(mol, decomp.prop, decomp.prop_el, cent)
+            decomp.prop_tot = decomp.prop_el + decomp.prop_nuc
 
         # collect time
         decomp.time = MPI.Wtime() - time

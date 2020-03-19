@@ -24,6 +24,8 @@ def collect_res(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
                                'ref': _ref(mol, decomp), 'thres': decomp.thres, \
                                'part': decomp.part, 'time': decomp.time, 'sym': mol.groupname}
+        if decomp.prop_tot is not None:
+            res['prop_tot'] = decomp.prop_tot
         if decomp.orbs == 'localized':
             res['loc'] = decomp.loc
             res['pop'] = decomp.pop
@@ -119,15 +121,13 @@ def table_atoms(mol: gto.Mole, decomp: DecompCls) -> str:
             for i in range(mol.natm):
                 string += ' {:<5s}|{:>12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
                 form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
-                                           decomp.prop_el[i], decomp.prop_nuc[i], \
-                                           decomp.prop_el[i] + decomp.prop_nuc[i],)
+                                           decomp.prop_el[i], decomp.prop_nuc[i], decomp.prop_tot[i],)
 
             string += '----------------------------------------------------\n'
             string += '----------------------------------------------------\n'
             string += ' sum  |{:>12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
             string += '----------------------------------------------------\n\n'
-            form += (np.sum(decomp.prop_el), np.sum(decomp.prop_nuc), \
-                     np.sum(decomp.prop_el + decomp.prop_nuc),)
+            form += (np.sum(decomp.prop_el), np.sum(decomp.prop_nuc), np.sum(decomp.prop_tot),)
 
         elif decomp.prop == 'dipole':
 
@@ -145,8 +145,7 @@ def table_atoms(mol: gto.Mole, decomp: DecompCls) -> str:
             for i in range(mol.natm):
                 string += ' {:<5s}| {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}\n'
                 form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
-                                           *decomp.prop_el[i] + 1.e-10, *decomp.prop_nuc[i] + 1.e-10, \
-                                           *(decomp.prop_el[i] + decomp.prop_nuc[i]) + 1.e-10)
+                                           *decomp.prop_el[i] + 1.e-10, *decomp.prop_nuc[i] + 1.e-10, *decomp.prop_tot[i] + 1.e-10,)
 
             string += '-------------------------------------------------------------------------------------------------------------------\n'
             string += '-------------------------------------------------------------------------------------------------------------------\n'
@@ -155,7 +154,7 @@ def table_atoms(mol: gto.Mole, decomp: DecompCls) -> str:
             string += '-------------------------------------------------------------------------------------------------------------------\n\n'
             form += (*np.fromiter(map(math.fsum, decomp.prop_el.T), dtype=np.float64, count=3) + 1.e-10, \
                      *np.fromiter(map(math.fsum, decomp.prop_nuc.T), dtype=np.float64, count=3) + 1.e-10, \
-                     *np.fromiter(map(math.fsum, decomp.prop_el.T + decomp.prop_nuc.T), dtype=np.float64, count=3) + 1.e-10,)
+                     *np.fromiter(map(math.fsum, decomp.prop_tot.T), dtype=np.float64, count=3) + 1.e-10,)
 
         return string.format(*form)
 
