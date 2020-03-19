@@ -25,9 +25,11 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         if variant == 'pm':
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # pipek-mezey procedure
-                loc = lo.PM(mol, mo_coeff[i][:, :nspin])
+                loc_core = lo.PM(mol, mo_coeff[i][:, :mol.ncore])
+                loc_val = lo.PM(mol, mo_coeff[i][:, mol.ncore:nspin])
                 # localize core and valence occupied orbitals
-                mo_coeff[i][:, :nspin] = loc.kernel()
+                mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
+                mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
                 # closed-shell system
                 if mol.spin == 0:
                     mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
@@ -35,11 +37,16 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         elif 'ibo' in variant:
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # IAOs
-                iao = lo.iao.iao(mol, mo_coeff[i][:, :nspin])
+                iao_core = lo.iao.iao(mol, mo_coeff[i][:, :mol.ncore])
+                iao_val = lo.iao.iao(mol, mo_coeff[i][:, mol.ncore:nspin])
                 # orthogonalize IAOs
-                iao = lo.vec_lowdin(iao, s)
+                iao_core = lo.vec_lowdin(iao_core, s)
+                iao_val = lo.vec_lowdin(iao_val, s)
                 # IBOs
-                mo_coeff[i][:, :nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, :nspin], iaos=iao, exponent=int(variant[-1]), verbose=0)
+                mo_coeff[i][:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[i][:, :mol.ncore], \
+                                                        iaos=iao_core, exponent=int(variant[-1]), verbose=0)
+                mo_coeff[i][:, mol.ncore:nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, mol.ncore:nspin], \
+                                                             iaos=iao_val, exponent=int(variant[-1]), verbose=0)
                 # closed-shell system
                 if mol.spin == 0:
                     mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]

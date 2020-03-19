@@ -117,13 +117,14 @@ def _ncore(mol: gto.Mole) -> int:
         return ncore
 
 
-def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int]:
+def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int, int]:
         """
         determine molecular dimensions
         """
+        ncore = _ncore(mol)
         nalpha = np.where(mo_occ[0] > 0.)[0].size
         nbeta = np.where(mo_occ[1] > 0.)[0].size
-        return nalpha, nbeta
+        return ncore, nalpha, nbeta
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:

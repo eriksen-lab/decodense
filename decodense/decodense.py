@@ -80,7 +80,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             decomp.prop_nuc = dip_nuc(mol)
 
         # molecular dimensions
-        mol.nalpha, mol.nbeta = dim(mol, mo_occ)
+        mol.ncore, mol.nalpha, mol.nbeta = dim(mol, mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
@@ -89,8 +89,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Tuple[np.ndarray, np.ndarray]:
             mo = loc_orbs(mol, mo, s, decomp.loc)
 
         # spin
-        decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), \
-                                                  mol.intor_symmetric('int1e_ovlp'))
+        decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
         rep_idx, cent = assign_rdm1s(mol, s, mo, mo_occ, decomp.pop, decomp.thres)
