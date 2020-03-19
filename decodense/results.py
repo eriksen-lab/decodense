@@ -177,7 +177,7 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
             string += '{:^55}\n'
             string += '{:^55}\n'
             string += '--------------------------------------------------------\n'
-            string += '  MO  |  electronic  |    atom(s)    |   bond length\n'
+            string += '  MO  |   electronic  |    atom(s)    |   bond length\n'
             string += '--------------------------------------------------------\n'
             form += ('ground-state energy', decomp.orbs,)
 
@@ -188,12 +188,12 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
                 form += ('alpha-spin',) if i == 0 else ('beta-spin',)
                 for j in range(decomp.prop_el[i].size):
                     core = cent[i][j, 0] == cent[i][j, 1]
-                    string += '  {:>2d}  |{:>12.5f}   |    {:<11s}| {:>10s}\n'
+                    string += '  {:>2d}  |{:>12.5f}   |    {:<11s}|  {:>10s}\n'
                     form += (j, decomp.prop_el[i][j], \
                              '{:s}{:d}'.format(mol.atom_symbol(cent[0][j, 0]), cent[i][j, 0]) if core \
                              else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0], \
                                                                mol.atom_symbol(cent[i][j, 1]), cent[i][j, 1]), \
-                             '' if core else '{:>.3f}'.format(dist[cent[i][j, 0], cent[i][j, 1]]),)
+                             '' if core else '{:>.6f}'.format(dist[cent[i][j, 0], cent[i][j, 1]]),)
 
             string += '--------------------------------------------------------\n'
             string += '--------------------------------------------------------\n'
@@ -230,12 +230,12 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, cent: np.ndarray) -> str:
                 form += ('alpha-spin',) if i == 0 else ('beta-spin',)
                 for j in range(decomp.prop_el[i].shape[0]):
                     core = cent[i][j, 0] == cent[i][j, 1]
-                    string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |    {:<11s}| {:>10s}\n'
+                    string += '  {:>2d}  | {:>8.3f}  / {:>8.3f}  / {:>8.3f}  |    {:<11s}|  {:>10s}\n'
                     form += (j, *decomp.prop_el[i][j] + 1.e-10, \
                              '{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0]) if core \
                              else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0], \
                                                                mol.atom_symbol(cent[i][j, 1]), cent[i][j, 1]), \
-                             '' if core else '{:>.3f}'. \
+                             '' if core else '{:>.6f}'. \
                              format(dist[cent[i][j, 0], cent[i][j, 1]]),)
 
             string += '----------------------------------------------------------------------------\n'
