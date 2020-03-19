@@ -20,6 +20,20 @@ from .decomp import DecompCls
 from .tools import git_version, time_str
 
 
+def _ref(mol: gto.Mole, decomp: DecompCls) -> str:
+        """
+        this functions returns the correct (formatted) reference function
+        """
+        if decomp.ref == 'restricted':
+            if mol.spin == 0:
+                ref = 'RHF' if decomp.xc == '' else 'RKS'
+            else:
+                ref = 'ROHF' if decomp.xc == '' else 'ROKS'
+        else:
+            ref = 'UHF' if decomp.xc == '' else 'UKS'
+        return ref
+
+
 def info(mol: gto.Mole, decomp: DecompCls) -> str:
         """
         this function prints the results header and basic info
@@ -53,17 +67,17 @@ def info(mol: gto.Mole, decomp: DecompCls) -> str:
         string += ' partitioning       =  {:}\n'
         string += ' orbital basis      =  {:}\n'
         string += ' threshold          =  {:}\n'
-        form += (mol.groupname, decomp.basis, decomp.loc, decomp.pop, decomp.part, decomp.orbs, decomp.thres,)
+        form += (mol.groupname, mol.basis, decomp.loc, decomp.pop, decomp.part, decomp.orbs, decomp.thres,)
         if decomp.xc != '':
             string += ' xc functional      =  {:}\n'
             form += (decomp.xc,)
-        string += '\n electrons          =  {:}\n'
-        string += ' reference funct.   =  {:}\n'
+        string += '\n reference funct.   =  {:}\n'
+        string += ' electrons          =  {:}\n'
         string += ' molecular spin     =  {:}\n'
         string += ' alpha electrons    =  {:}\n'
         string += ' beta electrons     =  {:}\n'
         string += ' basis functions    =  {:}\n'
-        form += (mol.nelectron, decomp.ref, mol.spin, mol.nalpha, mol.nbeta, mol.nao_nr(),)
+        form += (_ref(mol, decomp), mol.nelectron, mol.spin, mol.nalpha, mol.nbeta, mol.nao_nr(),)
 
         # calculation info
         string += '\n total time         =  {:}\n'

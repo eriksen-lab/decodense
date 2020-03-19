@@ -25,7 +25,6 @@ class DecompCls(object):
                 init molecule attributes
                 """
                 # set system defaults
-                self.basis: str = 'sto-3g'
                 self.loc: str = 'ibo-2'
                 self.pop: str = 'iao'
                 self.xc: str = ''

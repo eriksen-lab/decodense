@@ -29,17 +29,13 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
                 # localize core and valence occupied orbitals
                 mo_coeff[i][:, :nspin] = loc.kernel()
         elif 'ibo' in variant:
-            if variant == 'ibo-2':
-                exp = 2
-            elif variant == 'ibo-4':
-                exp = 4
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # IAOs
                 iao = lo.iao.iao(mol, mo_coeff[i][:, :nspin])
                 # orthogonalize IAOs
                 iao = lo.vec_lowdin(iao, s)
                 # IBOs
-                mo_coeff[i][:, :nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, :nspin], iaos=iao, exponent=exp, verbose=0)
+                mo_coeff[i][:, :nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, :nspin], iaos=iao, exponent=int(variant[-1]), verbose=0)
 
         return mo_coeff
 
