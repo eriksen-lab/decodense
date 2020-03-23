@@ -21,7 +21,7 @@ from .tools import make_rdm1
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              prop_type: str, mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             rep_idx: List[List[np.ndarray]]) -> np.ndarray:
+             rep_idx: List[List[np.ndarray]]) -> List[np.ndarray]:
         """
         this function returns sorted orbital-decomposed mean-field properties for a given orbital type
         """
@@ -69,9 +69,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 rdm1_orb = make_rdm1(orb, mo_occ[i][k])
                 # energy or dipole from individual orbitals
                 if prop_type == 'energy':
-                    prop_orb[i][j] = _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb)
+                    prop_orb[i][j] += _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb)
                 elif prop_type == 'dipole':
-                    prop_orb[i][j] = -np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
+                    prop_orb[i][j] -= np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
                 # additional xc energy contribution
                 if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
                     # orbital-specific rho
