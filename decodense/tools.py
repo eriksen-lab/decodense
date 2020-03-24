@@ -72,32 +72,6 @@ def git_version() -> str:
         return GIT_REVISION
 
 
-def time_str(time: float) -> str:
-        """
-        this function returns time as a HH:MM:SS string
-        """
-        # hours, minutes, and seconds
-        hours = time // 3600.
-        minutes = (time - (time // 3600) * 3600.) // 60.
-        seconds = time - hours * 3600. - minutes * 60.
-
-        # init time string
-        string: str = ''
-        form: Tuple[float, ...] = ()
-
-        # write time string
-        if hours > 0:
-            string += '{:.0f}h '
-            form += (hours,)
-        if minutes > 0:
-            string += '{:.0f}m '
-            form += (minutes,)
-        string += '{:.2f}s'
-        form += (seconds,)
-
-        return string.format(*form)
-
-
 def _ncore(mol: gto.Mole) -> int:
         """
         this function returns number of core orbitals

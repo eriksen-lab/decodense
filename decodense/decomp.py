@@ -12,6 +12,7 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import numpy as np
 from pyscf import gto
 from typing import Dict
 
@@ -34,7 +35,7 @@ class DecompCls(object):
                 self.prop: str = 'energy'
                 self.part: str = 'atoms'
                 self.thres: float = .98
-                self.verbose: bool = False
+                self.verbose: int = 0
                 # set calculation defaults
                 self.ss: float = 0.
                 self.s: float = 0.
@@ -42,6 +43,7 @@ class DecompCls(object):
                 self.prop_el: np.ndarray = None
                 self.prop_nuc: np.ndarray = None
                 self.prop_tot: np.ndarray = None
+                self.cent: np.ndarray = None
 
 
 def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
@@ -67,6 +69,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.part in ['atoms', 'bonds'], \
             'invalid partitioning. valid choices: `atoms` (default) and `bonds`'
         # threshold
+        assert isinstance(decomp.thres, float), \
+            'invalid threshold. valid choices: 0. < `thres` < 1. (default: .98)'
         assert 0. < decomp.thres < 1., \
             'invalid threshold. valid choices: 0. < `thres` < 1. (default: .98)'
         # localization procedure
@@ -76,7 +80,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.pop in ['mulliken', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` (default) and `iao`'
         # verbosity
-        assert isinstance(decomp.verbose, bool), \
-            'invalid verbosity. valid choices: True or False'
+        assert isinstance(decomp.verbose, int), \
+            'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'
+        assert 0 <= decomp.verbose, \
+            'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'
 
 

@@ -18,7 +18,7 @@ from typing import Dict, Tuple, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s, atom_part
 from .properties import prop_tot, e_nuc, dip_nuc
-from .results import collect_res, table_info, table_atoms, table_bonds
+from .results import collect_res
 from .tools import dim
 
 
@@ -53,6 +53,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
                     mf = dft.UKS(mol)
             mf.xc = decomp.xc
         mf.irrep_nelec = decomp.irrep_nelec
+        mf.verbose = decomp.verbose
         mf.conv_tol = 1.e-12
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
@@ -99,21 +100,12 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         if decomp.part == 'atoms':
             decomp.prop_el = atom_part(mol, decomp.prop, decomp.prop_el, cent)
             decomp.prop_tot = decomp.prop_el + decomp.prop_nuc
+        else:
+            decomp.cent = cent
 
         # collect time
         decomp.time = MPI.Wtime() - time
 
-        # collect results
-        res = collect_res(mol, decomp)
-
-        # print results
-        if decomp.verbose:
-            print(table_info(mol, decomp))
-            if decomp.part == 'atoms':
-                print(table_atoms(mol, decomp))
-            elif decomp.part == 'bonds':
-                print(table_bonds(mol, decomp, cent))
-
-        return res
+        return collect_res(mol, decomp)
 
 
