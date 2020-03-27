@@ -88,6 +88,7 @@ def _ncore(mol: gto.Mole) -> int:
                 ncore += 4
             if mol.atom_charge(i) > 30:
                 ncore += 6
+
         return ncore
 
 
@@ -98,6 +99,7 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int, int]:
         ncore = _ncore(mol)
         nalpha = np.where(mo_occ[0] > 0.)[0].size
         nbeta = np.where(mo_occ[1] > 0.)[0].size
+
         return ncore, nalpha, nbeta
 
 

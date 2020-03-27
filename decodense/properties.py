@@ -129,6 +129,7 @@ def _xc_ao_deriv(mf: dft.rks.KohnShamDFT) -> Tuple[str, int]:
             ao_deriv = 1
         elif xc_type == 'MGGA':
             ao_deriv = 2
+
         return xc_type, ao_deriv
 
 
@@ -145,6 +146,7 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, rdm1: np.ndarray, vk: np.nda
             vk_lr = mf.get_k(mol, rdm1, omega=omega)
             vk_lr *= (alpha - hyb)
             vk += vk_lr
+
         return vk
 
 
@@ -163,6 +165,7 @@ def _e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray
         e_core = np.einsum('ij,ji', h_core, rdm1)
         # contribution from effective potential
         e_veff = np.einsum('ij,ji', vj - vk, rdm1) * .5
+
         return e_core + e_veff
 
 
@@ -170,10 +173,6 @@ def _e_xc(eps_xc: np.ndarray, weights: np.ndarray, rho: np.ndarray) -> float:
         """
         this function returns a contribution to exchange-correlation energy contribution from given rmd1 (rho)
         """
-        if rho.ndim == 1:
-            e_xc = np.einsum('i,i,i->', eps_xc, rho, weights)
-        else:
-            e_xc = np.einsum('i,i,i->', eps_xc, rho[0], weights)
-        return e_xc
+        return np.einsum('i,i,i->', eps_xc, rho if rho.ndim == 1 else rho[0], weights)
 
 
