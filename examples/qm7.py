@@ -27,15 +27,17 @@ def main():
         size = comm.Get_size()
         assert 1 < size, 'run.py must be run in parallel: `mpiexec -np N run.py`'
 
+        # init decomp object
+        decomp = decodense.DecompCls(xc = XC, basis = BASIS)
+
         # master
         if rank == 0:
 
-            # restart
+            # make output dir and write info
             if not os.path.isdir(OUTPUT):
                 os.mkdir(OUTPUT)
-                restart = False
-            else:
-                restart = True
+                with open(OUTPUT + 'info.txt', 'w') as f_info:
+                    f_info.write(decodense.table_info(decomp))
             # full list of molecules
             molecules = sorted(os.listdir(INPUT))
             # number of slaves and tasks
@@ -43,7 +45,7 @@ def main():
             n_tasks = len(molecules)
 
             # start_idx
-            n_results = len(os.listdir(OUTPUT))
+            n_results = len(os.listdir(OUTPUT)) - 1
             assert n_results % 3 == 0, 'restart error: each structure must have an *_el.npy, *_tot.npy, and *_atom.npy file'
             start_idx = n_results // 3
 
@@ -88,9 +90,6 @@ def main():
                 n_slaves -= 1
 
         else: # slaves
-
-            # init decomp object
-            decomp = decodense.DecompCls(xc = XC)
 
             # send availability to master
             comm.send(None, dest=0, tag=1)

@@ -36,7 +36,7 @@ def collect_res(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         return res
 
 
-def table_info(mol: gto.Mole, decomp: DecompCls, time: float) -> str:
+def table_info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
         """
         this function prints basic info
         """
@@ -45,28 +45,27 @@ def table_info(mol: gto.Mole, decomp: DecompCls, time: float) -> str:
         form: Tuple[Any, ...] = ()
 
         # print geometry
-        string += '\n\n   ------------------------------------\n'
-        string += '{:^43}\n'
-        string += '   ------------------------------------\n'
-        form += ('geometry',)
-
-        molecule = gto.tostring(mol).split('\n')
-        for i in range(len(molecule)):
-            atom = molecule[i].split()
-            for j in range(1, 4):
-                atom[j] = float(atom[j])
-            string += '   {:<3s} {:>10.5f} {:>10.5f} {:>10.5f}\n'
-            form += (*atom,)
-        string += '   ------------------------------------\n'
+        if mol is not None:
+            string += '\n\n   ------------------------------------\n'
+            string += '{:^43}\n'
+            string += '   ------------------------------------\n'
+            form += ('geometry',)
+            molecule = gto.tostring(mol).split('\n')
+            for i in range(len(molecule)):
+                atom = molecule[i].split()
+                for j in range(1, 4):
+                    atom[j] = float(atom[j])
+                string += '   {:<3s} {:>10.5f} {:>10.5f} {:>10.5f}\n'
+                form += (*atom,)
+            string += '   ------------------------------------\n'
 
         # system info
         string += '\n\n system info:\n'
         string += ' ------------\n'
-        string += ' point group        =  {:}\n'
         string += ' basis set          =  {:}\n'
-        string += '\n partitioning       =  {:}\n'
+        string += ' partitioning       =  {:}\n'
         string += ' threshold          =  {:}\n'
-        form += (mol.groupname, mol.basis, decomp.part, decomp.thres,)
+        form += (decomp.basis, decomp.part, decomp.thres,)
         if decomp.orbs == 'localized':
             string += ' localization       =  {:}\n'
             string += ' assignment         =  {:}\n'
@@ -74,20 +73,26 @@ def table_info(mol: gto.Mole, decomp: DecompCls, time: float) -> str:
         if decomp.xc != '':
             string += ' xc functional      =  {:}\n'
             form += (decomp.xc,)
-        string += '\n reference funct.   =  {:}\n'
-        string += ' electrons          =  {:d}\n'
-        string += ' alpha electrons    =  {:d}\n'
-        string += ' beta electrons     =  {:d}\n'
-        string += ' spin: <S^2>        =  {:.3f}\n'
-        string += ' spin: 2*S + 1      =  {:.3f}\n'
-        string += ' basis functions    =  {:d}\n'
-        form += (_ref(mol, decomp), mol.nelectron, mol.nalpha, mol.nbeta, \
-                 decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
+        if mol is not None:
+            string += '\n reference funct.   =  {:}\n'
+            string += ' point group        =  {:}\n'
+            string += ' electrons          =  {:d}\n'
+            string += ' alpha electrons    =  {:d}\n'
+            string += ' beta electrons     =  {:d}\n'
+            string += ' spin: <S^2>        =  {:.3f}\n'
+            string += ' spin: 2*S + 1      =  {:.3f}\n'
+            string += ' basis functions    =  {:d}\n'
+            form += (_ref(mol, decomp), mol.groupname, mol.nelectron, mol.nalpha, mol.nbeta, \
+                     decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
 
         # timing and git version
-        string += '\n total time         =  {:}\n'
-        string += ' git version: {:}\n\n'
-        form += (_time(time), git_version(),)
+        if time is not None:
+            string += '\n total time         =  {:}\n'
+            string += ' git version: {:}\n\n'
+            form += (_time(time), git_version(),)
+        else:
+            string += '\n git version: {:}\n\n'
+            form += (git_version(),)
 
         return string.format(*form)
 

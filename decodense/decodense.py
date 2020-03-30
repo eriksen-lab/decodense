@@ -58,12 +58,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
 
-        # reference property
-        if decomp.prop == 'energy':
-            decomp.prop_ref = mf.e_tot
-        elif decomp.prop == 'dipole':
-            decomp.prop_ref = scf.hf.dip_moment(mol, mf.make_rdm1(), unit='au', verbose=0)
-
         # restricted references
         if decomp.ref == 'restricted':
             mo = np.asarray((mf.mo_coeff,) * 2)
