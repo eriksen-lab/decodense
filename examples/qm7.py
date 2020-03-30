@@ -3,6 +3,7 @@
 
 import os
 import os.path
+import re
 import numpy as np
 from mpi4py import MPI
 from pyscf import gto
@@ -33,11 +34,12 @@ def main():
         # master
         if rank == 0:
 
-            # make output dir and write info
+            # make output dir
             if not os.path.isdir(OUTPUT):
                 os.mkdir(OUTPUT)
-                with open(OUTPUT + 'info.txt', 'w') as f_info:
-                    f_info.write(decodense.table_info(decomp))
+                restart = False
+            else:
+                restart = True
             # full list of molecules
             molecules = sorted(os.listdir(INPUT))
             # number of slaves and tasks
@@ -45,9 +47,16 @@ def main():
             n_tasks = len(molecules)
 
             # start_idx
-            n_results = len(os.listdir(OUTPUT)) - 1
-            assert n_results % 3 == 0, 'restart error: each structure must have an *_el.npy, *_tot.npy, and *_atom.npy file'
-            start_idx = n_results // 3
+            if restart:
+                results = sorted(os.listdir(OUTPUT))
+                rst_idx = np.argmax(1 < np.ediff1d([int(i) for j in results for i in re.findall('(\d+)', j)]))
+                assert len(results[:rst_idx]) % 3 == 0, 'restart error: each structure must have an *_el.npy, *_tot.npy, and *_atom.npy file'
+                if rst_idx == 0:
+                    start_idx = molecules.index(re.findall('(\d+)', results[-1])[0] + '.xyz') + 1
+                else:
+                    start_idx = molecules.index(re.findall('(\d+)', results[rst_idx])[0] + '.xyz') + 1
+            else:
+                start_idx = 0
 
             # loop over molecules in data set
             for mol_idx, mol_name in enumerate(molecules[start_idx:], start_idx):
@@ -89,6 +98,10 @@ def main():
                 # remove slave
                 n_slaves -= 1
 
+            # write final info
+            with open(OUTPUT + 'info.txt', 'w') as f_info:
+                f_info.write(decodense.table_info(decomp))
+
         else: # slaves
 
             # send availability to master
@@ -108,11 +121,15 @@ def main():
                     # atomic energies
                     e_atom = np.array([decodense.atom_energies[XC.upper()][BASIS.upper()][mol.atom_pure_symbol(atom)] for atom in range(mol.natm)])
                     # send results to master
-                    comm.send({'name': mol_dict['name'][:-4], 'prop_el': e_calc['prop_el'], \
+                    comm.send({'name': re.findall('(\d+)', mol_dict['name'])[0], 'prop_el': e_calc['prop_el'], \
                                'prop_tot': e_calc['prop_tot'], 'prop_atom': e_calc['prop_tot'] - e_atom}, dest=0, tag=1)
                 else:
                     # exit
                     break
+
+        # final barrier
+        comm.Barrier()
+        MPI.Finalize()
 
 
 if __name__ == '__main__':
