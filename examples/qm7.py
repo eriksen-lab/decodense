@@ -11,8 +11,10 @@ from pyscf import gto
 import decodense
 
 # input / output
+STR_LENGTH = 4 # e.g., 0001, 0010, 0100, 1000
 INPUT = os.getcwd() + '/qm7/'
 OUTPUT = os.getcwd() + '/qm7_out/'
+
 # decodense variables
 BASIS = 'ccpvdz'
 XC = 'pbe0'
@@ -37,29 +39,23 @@ def main():
             # make output dir
             if not os.path.isdir(OUTPUT):
                 os.mkdir(OUTPUT)
-                restart = False
-            else:
-                restart = True
             # full list of molecules
-            molecules = sorted(os.listdir(INPUT))
+            molecules = np.array([int(i) for j in sorted(os.listdir(INPUT)) for i in re.findall('(\d+)', j)])
             # number of slaves and tasks
             n_slaves = size - 1
-            n_tasks = len(molecules)
+            n_tasks = molecules.size
 
             # start_idx
-            if restart:
-                results = sorted(os.listdir(OUTPUT))
-                rst_idx = np.argmax(1 < np.ediff1d([int(i) for j in results for i in re.findall('(\d+)', j)]))
-                assert len(results[:rst_idx]) % 3 == 0, 'restart error: each structure must have an *_el.npy, *_tot.npy, and *_atom.npy file'
-                if rst_idx == 0:
-                    start_idx = molecules.index(re.findall('(\d+)', results[-1])[0] + '.xyz') + 1
-                else:
-                    start_idx = molecules.index(re.findall('(\d+)', results[rst_idx])[0] + '.xyz') + 1
-            else:
-                start_idx = 0
+            results = np.array([int(i) for j in sorted(os.listdir(OUTPUT)) for i in re.findall('(\d+)', j)])
+            rst_idx = np.setdiff1d(molecules, results)[0]
+            assert results.size % 3 == 0, 'restart error: invalid number of *_el.npy, *_tot.npy, and *_atom.npy files'
+            start_idx = np.where(molecules == rst_idx)[0][0]
 
             # loop over molecules in data set
             for mol_idx, mol_name in enumerate(molecules[start_idx:], start_idx):
+
+                # recast mol_name as string with padded zeros
+                mol_str = str(mol_name).zfill(STR_LENGTH)
 
                 # probe for available slaves
                 comm.Probe(source=MPI.ANY_SOURCE, tag=1, status=stat)
@@ -72,7 +68,7 @@ def main():
                     np.save(OUTPUT + res['name'] + '_atom', res['prop_atom'])
 
                 # send mol_dict to slave
-                comm.send({'name': mol_name, 'struct': gto.format_atom(INPUT + mol_name)}, dest=stat.source, tag=2)
+                comm.send({'name': mol_str, 'struct': gto.format_atom(INPUT + mol_str + '.xyz')}, dest=stat.source, tag=2)
 
                 # print status
                 prog = (mol_idx + 1) / n_tasks
@@ -121,7 +117,7 @@ def main():
                     # atomic energies
                     e_atom = np.array([decodense.atom_energies[XC.upper()][BASIS.upper()][mol.atom_pure_symbol(atom)] for atom in range(mol.natm)])
                     # send results to master
-                    comm.send({'name': re.findall('(\d+)', mol_dict['name'])[0], 'prop_el': e_calc['prop_el'], \
+                    comm.send({'name': mol_dict['name'], 'prop_el': e_calc['prop_el'], \
                                'prop_tot': e_calc['prop_tot'], 'prop_atom': e_calc['prop_tot'] - e_atom}, dest=0, tag=1)
                 else:
                     # exit
