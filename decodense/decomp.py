@@ -21,21 +21,24 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self) -> None:
+        def __init__(self, loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
+                     irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', \
+                     orbs: str = 'localized', prop: str = 'energy', part: str = 'atoms', \
+                     thres: float = .98, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
                 # set system defaults
-                self.loc: str = 'ibo-2'
-                self.pop: str = 'iao'
-                self.xc: str = ''
-                self.irrep_nelec: Dict['str', int] = {}
-                self.ref: str = 'restricted'
-                self.orbs: str = 'localized'
-                self.prop: str = 'energy'
-                self.part: str = 'atoms'
-                self.thres: float = .98
-                self.verbose: int = 0
+                self.loc = loc
+                self.pop = pop
+                self.xc = xc
+                self.irrep_nelec = irrep_nelec
+                self.ref = ref
+                self.orbs = orbs
+                self.prop = prop
+                self.part = part
+                self.thres = thres
+                self.verbose = verbose
                 # set calculation defaults
                 self.ss: float = 0.
                 self.s: float = 0.
