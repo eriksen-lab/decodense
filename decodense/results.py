@@ -20,9 +20,9 @@ from .decomp import DecompCls
 from .tools import git_version
 
 
-def collect_res(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
+def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
         res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
-                               'ref': _ref(mol, decomp), 'thres': decomp.thres, \
+                               'ref': _ref(decomp, mol), 'thres': decomp.thres, \
                                'part': decomp.part, 'time': decomp.time, 'sym': mol.groupname}
         if decomp.prop_tot is not None:
             res['prop_tot'] = decomp.prop_tot
@@ -82,7 +82,7 @@ def table_info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union
             string += ' spin: <S^2>        =  {:.3f}\n'
             string += ' spin: 2*S + 1      =  {:.3f}\n'
             string += ' basis functions    =  {:d}\n'
-            form += (_ref(mol, decomp), mol.groupname, mol.nelectron, mol.nalpha, mol.nbeta, \
+            form += (_ref(decomp, mol), mol.groupname, mol.nelectron, mol.nalpha, mol.nbeta, \
                      decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
 
         # timing and git version
@@ -97,7 +97,7 @@ def table_info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union
         return string.format(*form)
 
 
-def table_atoms(mol: gto.Mole, decomp: DecompCls, prop: str, **kwargs: np.ndarray) -> str:
+def table_atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on an atom-based partitioning
         """
@@ -193,7 +193,7 @@ def table_atoms(mol: gto.Mole, decomp: DecompCls, prop: str, **kwargs: np.ndarra
         return string.format(*form)
 
 
-def table_bonds(mol: gto.Mole, decomp: DecompCls, prop: str, **kwargs: np.ndarray) -> str:
+def table_bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on a bond-based partitioning
         """
@@ -304,7 +304,7 @@ def table_bonds(mol: gto.Mole, decomp: DecompCls, prop: str, **kwargs: np.ndarra
         return string.format(*form)
 
 
-def _ref(mol: gto.Mole, decomp: DecompCls) -> str:
+def _ref(decomp: DecompCls, mol: gto.Mole) -> str:
         """
         this functions returns the correct (formatted) reference function
         """

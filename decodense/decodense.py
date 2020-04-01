@@ -54,7 +54,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
             mf.xc = decomp.xc
         mf.irrep_nelec = decomp.irrep_nelec
         mf.verbose = decomp.verbose
-        mf.conv_tol = 1.e-12
+        mf.conv_tol = decomp.conv_tol
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
 
@@ -100,6 +100,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         # collect time
         decomp.time = MPI.Wtime() - time
 
-        return collect_res(mol, decomp)
+        return collect_res(decomp, mol)
 
 
