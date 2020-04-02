@@ -16,13 +16,12 @@ INPUT = os.getcwd() + '/qm7/'
 OUTPUT = os.getcwd() + '/qm7_out/'
 
 # decodense variables
-BASIS = 'ccpvdz'
-XC = 'pbe0'
-#XC = 'wb97x_d'
-LOC = 'ibo-2'
-#LOC = 'ibo-4'
-PROP = 'energy'
-#PROP = 'dipole'
+PARAMS = {
+    'basis': 'ccpvdz',
+    'xc': 'pbe0',
+    'loc': 'ibo-2',
+    'prop': 'energy',
+}
 
 def main():
         """
@@ -36,7 +35,7 @@ def main():
         assert 1 < size, 'run.py must be run in parallel: `mpiexec -np N run.py`'
 
         # init decomp object
-        decomp = decodense.DecompCls(xc = XC, basis = BASIS, loc = LOC, prop = PROP)
+        decomp = decodense.DecompCls(**PARAMS)
 
         # master
         if rank == 0:
@@ -70,7 +69,7 @@ def main():
                 if res is not None:
                     np.save(OUTPUT + res['name'] + '_el', res['prop_el'])
                     np.save(OUTPUT + res['name'] + '_tot', res['prop_tot'])
-                    if PROP == 'energy':
+                    if PARAMS['prop'] == 'energy':
                         np.save(OUTPUT + res['name'] + '_atom', res['prop_atom'])
 
                 # send mol_dict to slave
@@ -93,7 +92,7 @@ def main():
                 if res is not None:
                     np.save(OUTPUT + res['name'] + '_el', res['prop_el'])
                     np.save(OUTPUT + res['name'] + '_tot', res['prop_tot'])
-                    if PROP == 'energy':
+                    if PARAMS['prop'] == 'energy':
                         np.save(OUTPUT + res['name'] + '_atom', res['prop_atom'])
 
                 # send exit signal to slave
@@ -118,13 +117,15 @@ def main():
                 # perform task
                 if mol_dict is not None:
                     # init molecule
-                    mol = gto.M(verbose = 0, output = None, unit = 'bohr', basis = BASIS, atom = mol_dict['struct'])
+                    mol = gto.M(verbose = 0, output = None, unit = 'bohr', basis = PARAMS['basis'], atom = mol_dict['struct'])
                     # decodense calc
                     e_calc = decodense.main(mol, decomp)
                     # send results to master
-                    if PROP == 'energy':
+                    if PARAMS['prop'] == 'energy':
                         # atomic energies
-                        e_atom = np.array([decodense.atom_energies[XC.upper()][BASIS.upper()][mol.atom_pure_symbol(atom)] for atom in range(mol.natm)])
+                        e_atom = np.array([decodense.atom_energies[PARAMS['xc'].upper()] \
+                                                                  [PARAMS['basis'].upper()] \
+                                                                  [mol.atom_pure_symbol(atom)] for atom in range(mol.natm)])
                         comm.send({'name': mol_dict['name'], 'prop_el': e_calc['prop_el'], \
                                    'prop_tot': e_calc['prop_tot'], 'prop_atom': e_calc['prop_tot'] - e_atom}, dest=0, tag=1)
                     else:
