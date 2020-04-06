@@ -22,9 +22,9 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
-                     irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-12, \
+                     irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
                      orbs: str = 'localized', prop: str = 'energy', part: str = 'atoms', \
-                     thres: float = .98, verbose: int = 0) -> None:
+                     thres: float = .75, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
