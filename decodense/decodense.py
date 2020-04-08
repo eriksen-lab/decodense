@@ -16,7 +16,7 @@ from mpi4py import MPI
 from typing import Dict, Tuple, Any
 
 from .decomp import DecompCls, sanity_check
-from .orbitals import loc_orbs, assign_rdm1s, atom_part
+from .orbitals import loc_orbs, assign_rdm1s, partition
 from .properties import prop_tot, e_nuc, dip_nuc
 from .results import collect_res
 from .tools import dim
@@ -87,15 +87,12 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
-        rep_idx, cent = assign_rdm1s(mol, s, mo, mo_occ, decomp.pop, decomp.thres)
-        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ, rep_idx)
+        weights = assign_rdm1s(mol, s, mo, mo_occ, decomp.pop)
+        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ)
 
-        # collect electronic contributions in case of atom-based partitioning
-        if decomp.part == 'atoms':
-            decomp.prop_el = atom_part(mol, decomp.prop, decomp.prop_el, cent)
-            decomp.prop_tot = decomp.prop_el + decomp.prop_nuc
-        else:
-            decomp.cent = cent
+        # collect electronic contributions
+        decomp.prop_el = partition(mol, decomp.prop, decomp.prop_el, weights)
+        decomp.prop_tot = decomp.prop_el + decomp.prop_nuc
 
         # collect time
         decomp.time = MPI.Wtime() - time

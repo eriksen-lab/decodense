@@ -20,8 +20,8 @@ from .tools import make_rdm1
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-             prop_type: str, mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             rep_idx: List[List[np.ndarray]]) -> List[np.ndarray]:
+             prop_type: str, mo_coeff: Tuple[np.ndarray, np.ndarray], \
+             mo_occ: Tuple[np.ndarray, np.ndarray]) -> List[np.ndarray]:
         """
         this function returns sorted orbital-decomposed mean-field properties for a given orbital type
         """
@@ -56,17 +56,17 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # init orbital-specific energy or dipole array
         if prop_type == 'energy':
-            prop_orb = [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)]
+            prop_orb = [np.zeros(mol.nalpha, dtype=np.float64), np.zeros(mol.nbeta, dtype=np.float64)]
         elif prop_type == 'dipole':
-            prop_orb = [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)]
+            prop_orb = [np.zeros([mol.nalpha, 3], dtype=np.float64), np.zeros([mol.nbeta, 3], dtype=np.float64)]
 
         # loop over orbitals
-        for i in range(2):
-            for j, k in enumerate(rep_idx[i]):
+        for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
+            for j in range(nspin):
                 # get orbital(s)
-                orb = mo_coeff[i][:, k].reshape(mo_coeff[i].shape[0], -1)
+                orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
                 # orbital-specific rdm1
-                rdm1_orb = make_rdm1(orb, mo_occ[i][k])
+                rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                 # energy or dipole from individual orbitals
                 if prop_type == 'energy':
                     prop_orb[i][j] += _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb)

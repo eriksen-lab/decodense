@@ -22,12 +22,9 @@ from .tools import git_version
 
 def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
         res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
-                               'ref': _ref(decomp, mol), 'thres': decomp.thres, \
-                               'part': decomp.part, 'time': decomp.time, 'sym': mol.groupname}
+                               'ref': _ref(decomp, mol), 'time': decomp.time, 'sym': mol.groupname}
         if decomp.prop_tot is not None:
             res['prop_tot'] = decomp.prop_tot
-        if decomp.cent is not None:
-            res['cent'] = decomp.cent
         if decomp.orbs == 'localized':
             res['loc'] = decomp.loc
             res['pop'] = decomp.pop
@@ -36,7 +33,7 @@ def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
         return res
 
 
-def table_info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
+def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
         """
         this function prints basic info
         """
@@ -63,9 +60,7 @@ def table_info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union
         string += '\n\n system info:\n'
         string += ' ------------\n'
         string += ' basis set          =  {:}\n'
-        string += ' partitioning       =  {:}\n'
-        string += ' threshold          =  {:}\n'
-        form += (decomp.basis, decomp.part, decomp.thres,)
+        form += (decomp.basis,)
         if decomp.orbs == 'localized':
             string += ' localization       =  {:}\n'
             string += ' assignment         =  {:}\n'
@@ -97,7 +92,7 @@ def table_info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union
         return string.format(*form)
 
 
-def table_atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
+def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on an atom-based partitioning
         """
@@ -189,117 +184,6 @@ def table_atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarra
             form += (*np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3) + 1.e-10, \
                      *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) + 1.e-10, \
                      *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) + 1.e-10,)
-
-        return string.format(*form)
-
-
-def table_bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
-        """
-        this function prints the results based on a bond-based partitioning
-        """
-        # inter-atomic distance array
-        dist = gto.mole.inter_distance(mol) * lib.param.BOHR
-
-        # init string & form
-        string: str = ''
-        form: Tuple[Any, ...] = ()
-
-        if prop == 'energy':
-
-            prop_el = kwargs['prop_el']
-            prop_nuc = kwargs['prop_nuc']
-            assert prop_el[0].ndim == 1, 'wrong choice of property'
-            cent = kwargs['cent']
-
-            string += '--------------------------------------------------------\n'
-            string += '{:^55}\n'
-            string += '{:^55}\n'
-            string += '--------------------------------------------------------\n'
-            string += '  MO  |   electronic  |    atom(s)    |   bond length\n'
-            string += '--------------------------------------------------------\n'
-            form += ('ground-state energy', decomp.orbs,)
-
-            for i in range(2):
-                string += '--------------------------------------------------------\n'
-                string += '{:^55}\n'
-                string += '--------------------------------------------------------\n'
-                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
-                for j in range(prop_el[i].size):
-                    core = cent[i][j, 0] == cent[i][j, 1]
-                    string += '  {:>2d}  |{:>+12.5f}   |    {:<11s}|  {:>10s}\n'
-                    form += (j, prop_el[i][j], \
-                             '{:s}{:d}'.format(mol.atom_symbol(cent[0][j, 0]), cent[i][j, 0]) if core \
-                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0], \
-                                                               mol.atom_symbol(cent[i][j, 1]), cent[i][j, 1]), \
-                             '' if core else '{:>.6f}'.format(dist[cent[i][j, 0], cent[i][j, 1]]),)
-
-            string += '--------------------------------------------------------\n'
-            string += '--------------------------------------------------------\n'
-            string += ' sum  |{:>+12.5f}   |\n'
-            form += (np.sum(prop_el[0]) + np.sum(prop_el[1]),)
-
-            string += '-----------------------\n'
-            string += ' nuc  |{:>+12.5f}   |\n'
-            form += (np.sum(prop_nuc),)
-
-            string += '-----------------------\n'
-            string += '-----------------------\n'
-            string += ' tot  |{:>12.5f}   |\n'
-            string += '-----------------------\n\n'
-            form += (np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc),)
-
-        elif prop == 'dipole':
-
-            prop_el = kwargs['prop_el']
-            prop_nuc = kwargs['prop_nuc']
-            assert prop_el[0].ndim == 2, 'wrong choice of property'
-            cent = kwargs['cent']
-
-            string += '----------------------------------------------------------------------------\n'
-            string += '{:^75}\n'
-            string += '{:^75}\n'
-            string += '----------------------------------------------------------------------------\n'
-            string += '  MO  |             electronic            |    atom(s)    |   bond length\n'
-            string += '----------------------------------------------------------------------------\n'
-            string += '      |     x     /     y     /     z     |\n'
-            string += '----------------------------------------------------------------------------\n'
-            string += '----------------------------------------------------------------------------\n'
-            form += ('ground-state dipole moment', decomp.orbs,)
-
-            for i in range(2):
-                string += '----------------------------------------------------------------------------\n'
-                string += '{:^75}\n'
-                string += '----------------------------------------------------------------------------\n'
-                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
-                for j in range(prop_el[i].shape[0]):
-                    core = cent[i][j, 0] == cent[i][j, 1]
-                    string += '  {:>2d}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |    {:<11s}|  {:>10s}\n'
-                    form += (j, *prop_el[i][j] + 1.e-10, \
-                             '{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0]) if core \
-                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(cent[i][j, 0]), cent[i][j, 0], \
-                                                               mol.atom_symbol(cent[i][j, 1]), cent[i][j, 1]), \
-                             '' if core else '{:>.6f}'. \
-                             format(dist[cent[i][j, 0], cent[i][j, 1]]),)
-
-            string += '----------------------------------------------------------------------------\n'
-            string += '----------------------------------------------------------------------------\n'
-
-            string += ' sum  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
-            form += (*(np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
-                     np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3)) + 1.e-10,)
-
-            string += '----------------------------------------------------------------------------\n'
-            string += ' nuc  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
-            form += (*np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) + 1.e-10,)
-
-            string += '----------------------------------------------------------------------------\n'
-            string += '----------------------------------------------------------------------------\n'
-
-            string += ' tot  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
-            string += '----------------------------------------------------------------------------\n\n'
-            form += (*(np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
-                     np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3) + \
-                     np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)) + 1.e-10,)
 
         return string.format(*form)
 

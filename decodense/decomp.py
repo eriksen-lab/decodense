@@ -23,8 +23,7 @@ class DecompCls(object):
         """
         def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
                      irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
-                     orbs: str = 'localized', prop: str = 'energy', part: str = 'atoms', \
-                     thres: float = .75, verbose: int = 0) -> None:
+                     orbs: str = 'localized', prop: str = 'energy', verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -38,8 +37,6 @@ class DecompCls(object):
                 self.conv_tol = conv_tol
                 self.orbs = orbs
                 self.prop = prop
-                self.part = part
-                self.thres = thres
                 self.verbose = verbose
                 # set calculation defaults
                 self.ss: float = 0.
@@ -48,7 +45,7 @@ class DecompCls(object):
                 self.prop_el: np.ndarray = None
                 self.prop_nuc: np.ndarray = None
                 self.prop_tot: np.ndarray = None
-                self.cent: np.ndarray = None
+                self.weights: np.ndarray = None
 
 
 def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
@@ -84,14 +81,6 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'
-        # partitioning
-        assert decomp.part in ['atoms', 'bonds'], \
-            'invalid partitioning. valid choices: `atoms` (default) and `bonds`'
-        # partitioning threshold
-        assert isinstance(decomp.thres, float), \
-            'invalid partitioning threshold. valid choices: 0. < `thres` < 1. (default: .98)'
-        assert 0. < decomp.thres < 1., \
-            'invalid partitioning threshold. valid choices: 0. < `thres` < 1. (default: .98)'
         # verbosity
         assert isinstance(decomp.verbose, int), \
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'

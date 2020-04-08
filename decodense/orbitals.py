@@ -57,12 +57,12 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
 
 
 def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
-                 mo_occ: np.ndarray, pop: str, thres: float) -> Tuple[List[List[np.ndarray]], np.ndarray]:
+                 mo_occ: np.ndarray, pop: str) -> List[np.ndarray]:
         """
-        this function returns a list of repetitive center indices and an array of unique charge centres
+        this function returns a list of charge centre weights for each spin-orbital
         """
-        # init charge_centres array
-        cent = [np.zeros([mol.nalpha, 2], dtype=np.int), np.zeros([mol.nbeta, 2], dtype=np.int)]
+        # init charge weights array
+        weights = [np.zeros([mol.nalpha, mol.natm], dtype=np.float64), np.zeros([mol.nbeta, mol.natm], dtype=np.float64)]
 
         for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
             for j in range(nspin):
@@ -70,22 +70,17 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], 1)
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mo_occ[i][j])
-                # charge centres of rdm1_orb
-                cent[i][j] = _charge_centres(mol, s, orb, rdm1_orb, pop, thres)
+                # charge centre weights of rdm1_orb
+                weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop)
             # closed-shell system
             if mol.spin == 0:
-                cent[i+1] = cent[i]
+                weights[i+1] = weights[i]
                 break
 
-        # unique centres
-        cent_unique = np.array([np.unique(cent[i], axis=0) for i in range(2)])
-        # repetitive centres
-        rep_idx = [[np.where((cent[i] == j).all(axis=1))[0] for j in cent_unique[i]] for i in range(2)]
-
-        return rep_idx, cent_unique
+        return weights
 
 
-def atom_part(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, cent: np.ndarray) -> np.ndarray:
+def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.ndarray) -> np.ndarray:
         """
         this function collects results based on the involved atoms
         """
@@ -97,22 +92,17 @@ def atom_part(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, cent: np.ndar
 
         # collect contributions
         for i in range(2):
-            for a, (j, k) in enumerate(cent[i]):
-                if j == k:
-                    # contribution from core orbital or lone pair
-                    prop_new[j] += prop_old[i][a]
-                else:
-                    # contribution from valence orbital
-                    prop_new[j] += prop_old[i][a] / 2.
-                    prop_new[k] += prop_old[i][a] / 2.
+            for orb, orb_weights in enumerate(weights[i]):
+                for atom, atom_weight in enumerate(orb_weights):
+                    prop_new[atom] += prop_old[i][orb] * atom_weight
 
         return prop_new
 
 
-def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
-                    rdm1: np.ndarray, pop: str, thres: float) -> np.ndarray:
+def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
+                    rdm1: np.ndarray, pop: str) -> np.ndarray:
         """
-        this function returns a single atom/pair of atoms onto which a given MO is assigned
+        this function returns an array of weights based an atomic charges
         """
         if pop == 'mulliken':
             # traditional mulliken charges
@@ -128,15 +118,7 @@ def _charge_centres(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             # charges
             charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
 
-        # get sorted indices
-        max_idx = np.argsort(charges)[::-1]
-
-        if np.abs(charges[max_idx[0]]) / np.abs((charges[max_idx[0]] + charges[max_idx[1]])) > thres:
-            # core orbital or lone pair
-            return np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
-        else:
-            # valence orbitals
-            return np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
+        return charges / np.sum(charges)
 
 
 def _mulliken_charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
