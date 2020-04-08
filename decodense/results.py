@@ -83,7 +83,7 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         # timing and git version
         if time is not None:
             string += '\n total time         =  {:}\n'
-            string += ' git version: {:}\n\n'
+            string += '\n git version: {:}\n\n'
             form += (_time(time), git_version(),)
         else:
             string += '\n git version: {:}\n\n'
