@@ -130,7 +130,7 @@ def _mulliken_charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndar
         this function returns the mulliken charges on the individual atoms
         """
         # mulliken population matrix
-        pop = np.einsum('ij,ji->i', rdm1, s).real
+        pop = np.einsum('ij,ji->i', rdm1, s)
         # init charges
         charges = np.zeros(mol.natm)
 
