@@ -90,11 +90,15 @@ def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.n
         elif prop_type == 'dipole':
             prop_new = np.zeros([mol.natm, 3], dtype=np.float64)
 
-        # collect contributions
+        # sum up contributions
         for i in range(2):
             for orb, orb_weights in enumerate(weights[i]):
                 for atom, atom_weight in enumerate(orb_weights):
                     prop_new[atom] += prop_old[i][orb] * atom_weight
+            # closed-shell system
+            if mol.spin == 0:
+                prop_new *= 2.
+                break
 
         return prop_new
 

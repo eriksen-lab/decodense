@@ -60,11 +60,13 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         string += '\n\n system info:\n'
         string += ' ------------\n'
         string += ' basis set          =  {:}\n'
-        form += (decomp.basis,)
+        string += ' assignment         =  {:}\n'
+        form += (decomp.basis, decomp.pop,)
+        string += ' localization       =  {:}\n'
         if decomp.orbs == 'localized':
-            string += ' localization       =  {:}\n'
-            string += ' assignment         =  {:}\n'
-            form += (decomp.loc, decomp.pop,)
+            form += (decomp.loc,)
+        else:
+            form += ('none',)
         if decomp.xc != '':
             string += ' xc functional      =  {:}\n'
             form += (decomp.xc,)
