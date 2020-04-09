@@ -13,7 +13,7 @@ import decodense
 
 # input / output
 INPUT = os.getcwd() + '/qm7.mat'
-OUTPUT = os.getcwd() + '/qm7_out/'
+OUTPUT = os.getcwd() + '/output/'
 UNIT = 'bohr'
 
 # decodense variables
@@ -21,6 +21,7 @@ PARAMS = {
     'basis': 'ccpvdz',
     'xc': 'pbe0',
     'loc': 'ibo-2',
+    'pop': 'iao',
     'prop': 'energy',
 }
 
@@ -40,6 +41,9 @@ def main():
 
         # master
         if rank == 0:
+
+            # write MPI parameters
+            print('\n MPI global size = {:}\n'.format(size))
 
             # make output dir
             if not os.path.isdir(OUTPUT):
@@ -109,7 +113,7 @@ def main():
 
             # write final info
             with open(OUTPUT + 'info.txt', 'w') as f_info:
-                f_info.write(decodense.table_info(decomp))
+                f_info.write(decodense.info(decomp))
 
         else: # slaves
 
