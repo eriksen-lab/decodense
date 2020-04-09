@@ -59,7 +59,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
 def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
                  mo_occ: np.ndarray, pop: str) -> List[np.ndarray]:
         """
-        this function returns a list of charge centre weights for each spin-orbital
+        this function returns a list of population weights of each spin-orbital on the individual atoms
         """
         # init charge weights array
         weights = [np.zeros([mol.nalpha, mol.natm], dtype=np.float64), np.zeros([mol.nbeta, mol.natm], dtype=np.float64)]
@@ -92,9 +92,7 @@ def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.n
 
         # sum up contributions
         for i in range(2):
-            for orb, orb_weights in enumerate(weights[i]):
-                for atom, atom_weight in enumerate(orb_weights):
-                    prop_new[atom] += prop_old[i][orb] * atom_weight
+            prop_new += np.einsum('i,ik', prop_old[i], weights[i])
             # closed-shell system
             if mol.spin == 0:
                 prop_new *= 2.

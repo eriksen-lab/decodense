@@ -171,7 +171,7 @@ def _e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray
 
 def _e_xc(eps_xc: np.ndarray, weights: np.ndarray, rho: np.ndarray) -> float:
         """
-        this function returns a contribution to exchange-correlation energy contribution from given rmd1 (rho)
+        this function returns a contribution to the exchange-correlation energy from given rmd1 (via rho)
         """
         return np.einsum('i,i,i->', eps_xc, rho if rho.ndim == 1 else rho[0], weights)
 
