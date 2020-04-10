@@ -114,13 +114,13 @@ def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             iao = lo.iao.iao(mol, orb)
             iao = lo.vec_lowdin(iao, s)
             orb_iao = np.einsum('ki,kl,lj', iao, s, orb)
-            rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao) * 2.
+            rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao)
             pmol = mol.copy()
             pmol.build(False, False, basis='minao')
             # charges
             charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
 
-        return charges / np.sum(charges)
+        return charges
 
 
 def _mulliken_charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
