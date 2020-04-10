@@ -21,7 +21,7 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
+        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'mulliken', xc: str = '', \
                      irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
                      orbs: str = 'localized', prop: str = 'energy', verbose: int = 0) -> None:
                 """
@@ -59,8 +59,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.loc in ['pm', 'ibo-2', 'ibo-4'], \
             'invalid localization procedure. valid choices: `pm` (default), `ibo-2`, and `ibo-4`'
         # population scheme
-        assert decomp.pop in ['mulliken', 'iao'], \
-            'invalid population scheme. valid choices: `mulliken` (default) and `iao`'
+        assert decomp.pop in ['mulliken', 'iao', 'meta-lowdin'], \
+            'invalid population scheme. valid choices: `mulliken` (default), `iao`, and `meta-lowdin`'
         # reference
         assert decomp.ref in ['restricted', 'unrestricted'], \
             'invalid reference. valid choices: `restricted` (default) and `unrestricted`'

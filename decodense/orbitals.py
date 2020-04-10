@@ -110,15 +110,23 @@ def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             # traditional mulliken charges
             charges = _mulliken_charges(mol, s, rdm1)
         elif pop == 'iao':
-            # base mulliken charges on IAOs
+            # base mulliken charges on IAOs (JCTC, 9, 4834 (2013))
             iao = lo.iao.iao(mol, orb)
             iao = lo.vec_lowdin(iao, s)
-            orb_iao = np.einsum('ki,kl,lj', iao, s, orb)
+            orb_iao = np.einsum('ki,kl,lj->ij', iao, s, orb)
             rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao)
             pmol = mol.copy()
             pmol.build(False, False, basis='minao')
             # charges
             charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
+        elif pop == 'meta-lowdin':
+            # base mulliken charges on meta-Lowdin atomic orbitals (JCTC, 10, 3784 (2014))
+            c = lo.orth.restore_ao_character(mol)
+            orth_coeff = lo.orth.orth_ao(mol, 'meta_lowdin', pre_orth_ao=c, s=s)
+            c_inv = np.einsum('ki,kj->ij', orth_coeff, s)
+            rdm1_meta = np.einsum('ik,kl,jl->ij', c_inv, rdm1, c_inv)
+            # charges
+            charges = _mulliken_charges(mol, np.eye(orth_coeff.shape[0]), rdm1_meta)
 
         return charges
 
