@@ -146,6 +146,9 @@ def main():
                     # exit
                     break
 
+        # barrier
+        MPI.Barrier()
+
 
 if __name__ == '__main__':
     main()
