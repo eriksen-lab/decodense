@@ -146,10 +146,6 @@ def main():
                     # exit
                     break
 
-        # final barrier
-        comm.Barrier()
-        MPI.Finalize()
-
 
 if __name__ == '__main__':
     main()
