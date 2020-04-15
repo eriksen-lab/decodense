@@ -147,7 +147,7 @@ def main():
                     break
 
         # barrier
-        MPI.Barrier()
+        comm.Barrier()
 
 
 if __name__ == '__main__':
