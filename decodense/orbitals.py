@@ -22,7 +22,20 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         this function returns a set of localized MOs of a specific variant
         """
         # init localizer
-        if variant == 'pm':
+        if variant == 'boys':
+            for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
+                # pipek-mezey procedure
+                loc_core = lo.Boys(mol, mo_coeff[i][:, :mol.ncore])
+                loc_val = lo.Boys(mol, mo_coeff[i][:, mol.ncore:nspin])
+                loc_core.conv_tol = loc_val.conv_tol = 1.e-10
+                # localize core and valence occupied orbitals
+                mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
+                mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
+                # closed-shell system
+                if mol.spin == 0:
+                    mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
+                    break
+        elif variant == 'pm':
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # pipek-mezey procedure
                 loc_core = lo.PM(mol, mo_coeff[i][:, :mol.ncore])

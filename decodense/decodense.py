@@ -80,7 +80,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         s = mol.intor_symmetric('int1e_ovlp')
 
         # compute localized molecular orbitals
-        if decomp.orbs == 'localized':
+        if decomp.loc != '':
             mo = loc_orbs(mol, mo, s, decomp.loc)
 
         # determine spin

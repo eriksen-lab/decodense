@@ -56,8 +56,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.basis == mol.basis, \
             'invalid basis. basis set (default: `sto3g`) in decomp and mol objects must match'
         # localization procedure
-        assert decomp.loc in ['pm', 'ibo-2', 'ibo-4'], \
-            'invalid localization procedure. valid choices: `pm` (default), `ibo-2`, and `ibo-4`'
+        assert decomp.loc in ['', 'boys', 'pm', 'ibo-2', 'ibo-4'], \
+            'invalid localization procedure. valid choices: `boys`, `pm`, `ibo-2` (default), and `ibo-4`'
         # population scheme
         assert decomp.pop in ['mulliken', 'iao', 'meta-lowdin'], \
             'invalid population scheme. valid choices: `mulliken` (default), `iao`, and `meta-lowdin`'
@@ -75,9 +75,6 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # irrep_nelec
         assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
             'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
-        # orbitals
-        assert decomp.orbs in ['canonical', 'localized'], \
-            'invalid orbitals. valid choices: `canonical` and `localized` (default)'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'

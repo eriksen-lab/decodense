@@ -22,14 +22,10 @@ from .tools import git_version
 
 def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
         res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
+                               'pop': decomp.pop, 'loc': _loc(decomp), 'xc': _xc(decomp), \
                                'ref': _ref(decomp, mol), 'time': decomp.time, 'sym': mol.groupname}
         if decomp.prop_tot is not None:
             res['prop_tot'] = decomp.prop_tot
-        if decomp.orbs == 'localized':
-            res['loc'] = decomp.loc
-            res['pop'] = decomp.pop
-        if decomp.xc != '':
-            res['xc'] = decomp.xc
         return res
 
 
@@ -63,13 +59,9 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         string += ' assignment         =  {:}\n'
         form += (decomp.basis, decomp.pop,)
         string += ' localization       =  {:}\n'
-        if decomp.orbs == 'localized':
-            form += (decomp.loc,)
-        else:
-            form += ('none',)
-        if decomp.xc != '':
-            string += ' xc functional      =  {:}\n'
-            form += (decomp.xc,)
+        form += (_loc(decomp),)
+        string += ' xc functional      =  {:}\n'
+        form += (_xc(decomp),)
         if mol is not None:
             string += '\n reference funct.   =  {:}\n'
             string += ' point group        =  {:}\n'
@@ -111,13 +103,12 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
 
             string += '----------------------------------------------------\n'
             string += '{:^52}\n'
-            string += '{:^52}\n'
             string += '----------------------------------------------------\n'
             string += '----------------------------------------------------\n'
             string += ' atom |  electronic  |    nuclear   |     total\n'
             string += '----------------------------------------------------\n'
             string += '----------------------------------------------------\n'
-            form += ('ground-state energy', decomp.orbs + ' MOs',)
+            form += ('ground-state energy MOs',)
 
             for i in range(mol.natm):
                 string += ' {:<5s}|{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
@@ -138,13 +129,12 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
 
             string += '------------------------\n'
             string += '{:^25}\n'
-            string += '{:^25}\n'
             string += '------------------------\n'
             string += '------------------------\n'
             string += ' atom |      total\n'
             string += '------------------------\n'
             string += '------------------------\n'
-            form += ('atomization energy', decomp.orbs + ' MOs',)
+            form += ('atomization energy MOs',)
 
             for i in range(mol.natm):
                 string += ' {:<5s}|{:>+12.5f}\n'
@@ -165,14 +155,13 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
 
             string += '-------------------------------------------------------------------------------------------------------------------\n'
             string += '{:^113}\n'
-            string += '{:^113}\n'
             string += '-------------------------------------------------------------------------------------------------------------------\n'
             string += '      |             electronic            |               nuclear             |               total\n'
             string += ' atom -------------------------------------------------------------------------------------------------------------\n'
             string += '      |     x     /     y     /     z     |     x     /     y     /     z     |     x     /     y     /     z\n'
             string += '-------------------------------------------------------------------------------------------------------------------\n'
             string += '-------------------------------------------------------------------------------------------------------------------\n'
-            form += ('ground-state dipole moment', decomp.orbs + ' MOs',)
+            form += ('ground-state dipole moment MOs',)
 
             for i in range(mol.natm):
                 string += ' {:<5s}| {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}\n'
@@ -202,6 +191,26 @@ def _ref(decomp: DecompCls, mol: gto.Mole) -> str:
         else:
             ref = 'UHF' if decomp.xc == '' else 'UKS'
         return ref
+
+
+def _loc(decomp: DecompCls) -> str:
+        """
+        this functions returns the correct (formatted) localization
+        """
+        if decomp.loc == '':
+            return 'none'
+        else:
+            return decomp.loc
+
+
+def _xc(decomp: DecompCls) -> str:
+        """
+        this functions returns the correct (formatted) xc functional
+        """
+        if decomp.xc == '':
+            return 'none'
+        else:
+            return decomp.xc
 
 
 def _time(time: float) -> str:
