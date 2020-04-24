@@ -128,12 +128,7 @@ def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             # charges
             charges = _mulliken_charges(mol, np.eye(orth_coeff.shape[0]), rdm1_meta)
 
-        # compute distribution on the basis of two most important atoms
-        max_charges = np.argsort(charges)[::-1][:2]
-        weights = np.zeros_like(charges)
-        weights[max_charges] = np.round(np.abs(charges[max_charges]) / np.sum(np.abs(charges[max_charges])), 2)
-
-        return weights
+        return charges
 
 
 def _mulliken_charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
