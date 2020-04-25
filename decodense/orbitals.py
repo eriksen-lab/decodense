@@ -77,6 +77,11 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         # init charge weights array
         weights = [np.zeros([mol.nalpha, mol.natm], dtype=np.float64), np.zeros([mol.nbeta, mol.natm], dtype=np.float64)]
 
+        # mol object projected into minao basis
+        if pop == 'iao':
+            pmol = mol.copy()
+            pmol.build(False, False, basis='minao')
+
         for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
             for j in range(nspin):
                 # get orbital
@@ -84,7 +89,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                 # charge centre weights of rdm1_orb
-                weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop)
+                weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop, pmol=pmol if pop == 'iao' else None)
             # closed-shell system
             if mol.spin == 0:
                 weights[i+1] = weights[i]
@@ -115,7 +120,7 @@ def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.n
 
 
 def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
-                    rdm1: np.ndarray, pop: str) -> np.ndarray:
+                    rdm1: np.ndarray, pop: str, pmol: Union[gto.Mole, None]) -> np.ndarray:
         """
         this function returns an array of weights based an atomic charges
         """
@@ -128,18 +133,9 @@ def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             iao = lo.vec_lowdin(iao, s)
             orb_iao = np.einsum('ki,kl,lj->ij', iao, s, orb)
             rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao)
-            pmol = mol.copy()
-            pmol.build(False, False, basis='minao')
             # charges
-            charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
-        elif pop == 'meta-lowdin':
-            # base mulliken charges on meta-Lowdin atomic orbitals (JCTC, 10, 3784 (2014))
-            c = lo.orth.restore_ao_character(mol)
-            orth_coeff = lo.orth.orth_ao(mol, 'meta_lowdin', pre_orth_ao=c, s=s)
-            c_inv = np.einsum('ki,kj->ij', orth_coeff, s)
-            rdm1_meta = np.einsum('ik,kl,jl->ij', c_inv, rdm1, c_inv)
-            # charges
-            charges = _mulliken_charges(mol, np.eye(orth_coeff.shape[0]), rdm1_meta)
+#            charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
+            charges = _mulliken_charges(pmol, np.eye(rdm1_iao.shape[0]), rdm1_iao)
 
         return charges
 

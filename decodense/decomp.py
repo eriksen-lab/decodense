@@ -23,7 +23,7 @@ class DecompCls(object):
         """
         def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'mulliken', xc: str = '', \
                      irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
-                     orbs: str = 'localized', prop: str = 'energy', verbose: int = 0) -> None:
+                     prop: str = 'energy', verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -35,7 +35,6 @@ class DecompCls(object):
                 self.irrep_nelec = irrep_nelec
                 self.ref = ref
                 self.conv_tol = conv_tol
-                self.orbs = orbs
                 self.prop = prop
                 self.verbose = verbose
                 # set calculation defaults
@@ -59,8 +58,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.loc in ['', 'boys', 'pm', 'ibo-2', 'ibo-4'], \
             'invalid localization procedure. valid choices: `boys`, `pm`, `ibo-2` (default), and `ibo-4`'
         # population scheme
-        assert decomp.pop in ['mulliken', 'iao', 'meta-lowdin'], \
-            'invalid population scheme. valid choices: `mulliken` (default), `iao`, and `meta-lowdin`'
+        assert decomp.pop in ['mulliken', 'iao'], \
+            'invalid population scheme. valid choices: `mulliken` (default) and `iao`'
         # reference
         assert decomp.ref in ['restricted', 'unrestricted'], \
             'invalid reference. valid choices: `restricted` (default) and `unrestricted`'
