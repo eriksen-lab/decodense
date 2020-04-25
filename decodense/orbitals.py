@@ -134,7 +134,6 @@ def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             orb_iao = np.einsum('ki,kl,lj->ij', iao, s, orb)
             rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao)
             # charges
-#            charges = _mulliken_charges(pmol, np.eye(pmol.nao_nr()), rdm1_iao)
             charges = _mulliken_charges(pmol, np.eye(rdm1_iao.shape[0]), rdm1_iao)
 
         return charges
