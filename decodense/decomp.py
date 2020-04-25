@@ -58,8 +58,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.loc in ['', 'boys', 'pm', 'ibo-2', 'ibo-4'], \
             'invalid localization procedure. valid choices: `boys`, `pm`, `ibo-2` (default), and `ibo-4`'
         # population scheme
-        assert decomp.pop in ['mulliken', 'iao', 'meta-lowdin'], \
-            'invalid population scheme. valid choices: `mulliken` (default), `iao`, and `meta-lowdin`'
+        assert decomp.pop in ['mulliken', 'iao', 'meta-lowdin', 'nao'], \
+            'invalid population scheme. valid choices: `mulliken` (default), `iao`, `meta-lowdin`, and `nao`'
         # reference
         assert decomp.ref in ['restricted', 'unrestricted'], \
             'invalid reference. valid choices: `restricted` (default) and `unrestricted`'

@@ -87,7 +87,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
-        weights = assign_rdm1s(mol, s, mo, mo_occ, decomp.pop)
+        weights = assign_rdm1s(mol, mf, s, mo, mo_occ, decomp.pop)
         decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ)
 
         # collect electronic contributions
