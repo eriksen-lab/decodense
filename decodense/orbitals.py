@@ -12,7 +12,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto, scf, dft, lo
-from typing import List, Tuple, Union
+from typing import List, Tuple, Dict, Union, Any
 
 from .tools import make_rdm1
 
@@ -77,10 +77,15 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         # init charge weights array
         weights = [np.zeros([mol.nalpha, mol.natm], dtype=np.float64), np.zeros([mol.nbeta, mol.natm], dtype=np.float64)]
 
-        # mol object projected into minao basis
         if pop == 'iao':
+            # mol object projected into minao basis
             pmol = mol.copy()
             pmol.build(False, False, basis='minao')
+        elif pop == 'meta-lowdin':
+            # transformation coefficients to local ao basis 
+            c = lo.orth.restore_ao_character(mol)
+            orth_coeff = lo.orth.orth_ao(mol, 'meta_lowdin', pre_orth_ao=c, s=s)
+            c_inv = np.einsum('ki,kj->ij', orth_coeff, s)
 
         for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
             for j in range(nspin):
@@ -89,7 +94,12 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                 # charge centre weights of rdm1_orb
-                weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop, pmol=pmol if pop == 'iao' else None)
+                if pop == 'mulliken':
+                    weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop)
+                elif pop == 'iao':
+                    weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop, pmol=pmol)
+                elif pop == 'meta-lowdin':
+                    weights[i][j] = _charge_weights(mol, s, orb, rdm1_orb, pop, c_inv=c_inv)
             # closed-shell system
             if mol.spin == 0:
                 weights[i+1] = weights[i]
@@ -120,7 +130,7 @@ def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.n
 
 
 def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
-                    rdm1: np.ndarray, pop: str, pmol: Union[gto.Mole, None]) -> np.ndarray:
+                    rdm1: np.ndarray, pop: str, **kwargs: Union[gto.Mole, np.ndarray]) -> np.ndarray:
         """
         this function returns an array of weights based an atomic charges
         """
@@ -134,7 +144,12 @@ def _charge_weights(mol: gto.Mole, s: np.ndarray, orb: np.ndarray, \
             orb_iao = np.einsum('ki,kl,lj->ij', iao, s, orb)
             rdm1_iao = np.einsum('ip,jp->ij', orb_iao, orb_iao)
             # charges
-            charges = _mulliken_charges(pmol, np.eye(rdm1_iao.shape[0]), rdm1_iao)
+            charges = _mulliken_charges(kwargs['pmol'], np.eye(rdm1_iao.shape[0]), rdm1_iao)
+        elif pop == 'meta-lowdin':
+            # base mulliken charges on meta-Lowdin atomic orbitals (JCTC, 10, 3784 (2014))	
+            rdm1_meta = np.einsum('ik,kl,jl->ij', kwargs['c_inv'], rdm1, kwargs['c_inv'])
+            # charges
+            charges = _mulliken_charges(mol, np.eye(rdm1_meta.shape[0]), rdm1_meta)
 
         return charges
 
