@@ -75,7 +75,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
             decomp.prop_nuc = dip_nuc(mol)
 
         # molecular dimensions
-        mol.ncore, mol.nalpha, mol.nbeta = dim(mol, mo_occ)
+        mol.nalpha, mol.nbeta = dim(mol, mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
@@ -87,7 +87,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
-        weights = assign_rdm1s(mol, mf, s, mo, mo_occ, decomp.pop)
+        weights = assign_rdm1s(mol, mf, s, mo, mo_occ, decomp.pop, decomp.verbose)
         decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ)
 
         # collect electronic contributions

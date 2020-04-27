@@ -21,7 +21,7 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'mulliken', xc: str = '', \
+        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
                      irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
                      prop: str = 'energy', verbose: int = 0) -> None:
                 """
@@ -55,11 +55,11 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.basis == mol.basis, \
             'invalid basis. basis set (default: `sto3g`) in decomp and mol objects must match'
         # localization procedure
-        assert decomp.loc in ['', 'boys', 'pm', 'ibo-2', 'ibo-4'], \
-            'invalid localization procedure. valid choices: `boys`, `pm`, `ibo-2` (default), and `ibo-4`'
+        assert decomp.loc in ['', 'fb', 'pm', 'ibo-2', 'ibo-4'], \
+            'invalid localization procedure. valid choices: `fb`, `pm`, `ibo-2` (default), and `ibo-4`'
         # population scheme
-        assert decomp.pop in ['mulliken', 'iao', 'meta-lowdin', 'nao'], \
-            'invalid population scheme. valid choices: `mulliken` (default), `iao`, `meta-lowdin`, and `nao`'
+        assert decomp.pop in ['mulliken', 'iao'], \
+            'invalid population scheme. valid choices: `mulliken` or `iao` (default)'
         # reference
         assert decomp.ref in ['restricted', 'unrestricted'], \
             'invalid reference. valid choices: `restricted` (default) and `unrestricted`'

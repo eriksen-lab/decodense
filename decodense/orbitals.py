@@ -22,15 +22,13 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         this function returns a set of localized MOs of a specific variant
         """
         # init localizer
-        if variant == 'boys':
+        if variant == 'fb':
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
-                # pipek-mezey procedure
-                loc_core = lo.Boys(mol, mo_coeff[i][:, :mol.ncore])
-                loc_val = lo.Boys(mol, mo_coeff[i][:, mol.ncore:nspin])
-                loc_core.conv_tol = loc_val.conv_tol = 1.e-10
-                # localize core and valence occupied orbitals
-                mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
-                mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
+                # foster-boys procedure
+                loc = lo.Boys(mol, mo_coeff[i][:, :nspin])
+                loc.conv_tol = 1.e-10
+                # FB MOs
+                mo_coeff[i][:, :nspin] = loc.kernel()
                 # closed-shell system
                 if mol.spin == 0:
                     mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
@@ -38,29 +36,22 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         elif variant == 'pm':
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
                 # pipek-mezey procedure
-                loc_core = lo.PM(mol, mo_coeff[i][:, :mol.ncore])
-                loc_val = lo.PM(mol, mo_coeff[i][:, mol.ncore:nspin])
-                loc_core.conv_tol = loc_val.conv_tol = 1.e-10
-                # localize core and valence occupied orbitals
-                mo_coeff[i][:, :mol.ncore] = loc_core.kernel()
-                mo_coeff[i][:, mol.ncore:nspin] = loc_val.kernel()
+                loc = lo.PM(mol, mo_coeff[i][:, :nspin])
+                loc.conv_tol = 1.e-10
+                # PM MOs
+                mo_coeff[i][:, :nspin] = loc.kernel()
                 # closed-shell system
                 if mol.spin == 0:
                     mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
                     break
         elif 'ibo' in variant:
             for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
-                # IAOs
-                iao_core = lo.iao.iao(mol, mo_coeff[i][:, :mol.ncore])
-                iao_val = lo.iao.iao(mol, mo_coeff[i][:, mol.ncore:nspin])
-                # orthogonalize IAOs
-                iao_core = lo.vec_lowdin(iao_core, s)
-                iao_val = lo.vec_lowdin(iao_val, s)
+                # orthogonalized IAOs
+                iao = lo.iao.iao(mol, mo_coeff[i][:, :nspin])
+                iao = lo.vec_lowdin(iao, s)
                 # IBOs
-                mo_coeff[i][:, :mol.ncore] = lo.ibo.ibo(mol, mo_coeff[i][:, :mol.ncore], iaos=iao_core, \
-                                                        grad_tol = 1.e-10, exponent=int(variant[-1]), verbose=0)
-                mo_coeff[i][:, mol.ncore:nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, mol.ncore:nspin], iaos=iao_val, \
-                                                             grad_tol = 1.e-10, exponent=int(variant[-1]), verbose=0)
+                mo_coeff[i][:, :nspin] = lo.ibo.ibo(mol, mo_coeff[i][:, :nspin], iaos=iao, \
+                                                    grad_tol = 1.e-10, exponent=int(variant[-1]), verbose=0)
                 # closed-shell system
                 if mol.spin == 0:
                     mo_coeff[i+1][:, :nspin] = mo_coeff[i][:, :nspin]
@@ -71,7 +62,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
 
 def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                  s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
-                 mo_occ: np.ndarray, pop: str) -> List[np.ndarray]:
+                 mo_occ: np.ndarray, pop: str, verbose: int) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -82,9 +73,11 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # mol object projected into minao basis
             pmol = mol.copy()
             pmol.build(False, False, basis='minao')
-        elif pop in ['meta-lowdin', 'nao']:
-            # c stores coefficients for ao to localized orbitals
-            c = lo.orth_ao(mf, pop)
+
+        if 0 < verbose:
+            symbols = [mol.atom_symbol(i) for i in range(mol.natm)]
+            print('\n *** partial charge weights: ***')
+            print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
 
         for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
 
@@ -94,8 +87,6 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 iao = lo.iao.iao(mol, mo_coeff[i][:, :nspin])
                 iao = lo.vec_lowdin(iao, s)
                 mo = np.einsum('ki,kl,lj->ij', iao, s, mo_coeff[i][:, :nspin])
-            elif pop in ['meta-lowdin', 'nao']:
-                mo = np.einsum('ki,kl,lj->ij', c, s, mo_coeff[i][:, :nspin])
 
             for j in range(nspin):
                 # get orbital
@@ -103,9 +94,14 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                 # charge centre weights of rdm1_orb
-                weights[i][j] = _mulliken_charges(pmol if pop == 'iao' else mol, \
-                                                  s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
-                                                  rdm1_orb)
+                weights[i][j] = _charges(pmol if pop == 'iao' else mol, \
+                                         s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
+                                         rdm1_orb)
+
+                if 0 < verbose:
+                    with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
+                        print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', j, weights[i][j]))
+
             # closed-shell system
             if mol.spin == 0:
                 weights[i+1] = weights[i]
@@ -135,7 +131,7 @@ def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.n
         return prop_new
 
 
-def _mulliken_charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
+def _charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
         this function returns the mulliken charges on the individual atoms
         """

@@ -72,35 +72,14 @@ def git_version() -> str:
         return GIT_REVISION
 
 
-def _ncore(mol: gto.Mole) -> int:
-        """
-        this function returns number of core orbitals
-        """
-        # init ncore
-        ncore = 0
-        # loop over atoms
-        for i in range(mol.natm):
-            if mol.atom_charge(i) > 2:
-                ncore += 1
-            if mol.atom_charge(i) > 12:
-                ncore += 4
-            if mol.atom_charge(i) > 20:
-                ncore += 4
-            if mol.atom_charge(i) > 30:
-                ncore += 6
-
-        return ncore
-
-
-def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int, int]:
+def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int]:
         """
         determine molecular dimensions
         """
-        ncore = _ncore(mol)
         nalpha = np.where(mo_occ[0] > 0.)[0].size
         nbeta = np.where(mo_occ[1] > 0.)[0].size
 
-        return ncore, nalpha, nbeta
+        return nalpha, nbeta
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
