@@ -122,7 +122,10 @@ def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.n
 
         # sum up contributions
         for i in range(2):
-            prop_new += np.einsum('i,ik', prop_old[i], weights[i])
+            if prop_type == 'energy':
+                prop_new += np.einsum('i,ik', prop_old[i], weights[i])
+            elif prop_type == 'dipole':
+                prop_new += np.einsum('ix,ik', prop_old[i], weights[i])
             # closed-shell system
             if mol.spin == 0:
                 prop_new *= 2.
