@@ -55,7 +55,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=mol.spin)[0]
 
         # init atom-specific energy or dipole array
-        prop_atom = np.zeros(mol.natm, dtype=np.float64)
+        if prop_type == 'energy':
+            prop_atom = np.zeros(mol.natm, dtype=np.float64)
+        elif prop_type == 'dipole':
+            prop_atom = np.zeros([mol.natm, 3], dtype=np.float64)
 
         # loop over atoms
         for k in range(mol.natm):
