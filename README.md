@@ -1,5 +1,11 @@
 # decodense
-Decompose mean-field (HF/KS-DFT) results in terms of either bond-wise or atom-wise contributions.
+Decompose mean-field (HF/KS-DFT) results in terms of either atom-wise (``master``) or bond-wise (``bond_partition``) contributions.
+
+A specific branch (``bond_partition``) is dedicated to calculations that decompose results by bonds:
+
+``git switch bond_partition``
+
+The repository consists of the following directories:
 
 ``decodense``: Source code
 
