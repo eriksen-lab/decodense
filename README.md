@@ -5,6 +5,10 @@ A specific branch (``bond_partition``) is dedicated to calculations that decompo
 
 ``git switch bond_partition``
 
+To install, please type:
+
+``pip install -e .``
+
 The repository consists of the following directories:
 
 ``decodense``: Source code
