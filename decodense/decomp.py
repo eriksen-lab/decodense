@@ -14,7 +14,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto
-from typing import Dict
+from typing import List, Dict
 
 
 class DecompCls(object):
@@ -22,8 +22,8 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
-                     irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
-                     prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
+                     irrep_nelec: Dict[str, int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
+                     mom: List[Dict[int, int]] = [], prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -35,6 +35,7 @@ class DecompCls(object):
                 self.irrep_nelec = irrep_nelec
                 self.ref = ref
                 self.conv_tol = conv_tol
+                self.mom = mom
                 self.prop = prop
                 self.cube = cube
                 self.verbose = verbose
@@ -61,20 +62,26 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # population scheme
         assert decomp.pop in ['mulliken', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` or `iao` (default)'
+        # irrep_nelec
+        assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
+            'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
         # reference
         assert decomp.ref in ['restricted', 'unrestricted'], \
             'invalid reference. valid choices: `restricted` (default) and `unrestricted`'
-        if decomp.ref == 'unrestricted':
-            assert mol.spin != 0, \
-                'invalid reference. unrestricted references are only meaningful for non-singlet states'
         # mf convergence tolerance
         assert isinstance(decomp.conv_tol, float), \
             'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-12)'
         assert 0. < decomp.conv_tol, \
             'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-12)'
-        # irrep_nelec
-        assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
-            'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
+        # mom
+        assert isinstance(decomp.mom, list), \
+            'invalid mom argument. must be a list of dictionaries'
+        assert all([isinstance(i, int) for j in decomp.mom for i in j.keys()]), \
+            'invalid mom argument. dictionaries keys (0/1 for alpha/beta) must be ints'
+        assert all([isinstance(i, float) and i in [0., 1., 2.] for j in decomp.mom for i in j.values()]), \
+            'invalid mom argument. dictionaries values must be floats with a value of 0., 1., or 2.'
+        assert len(decomp.mom) <= 2, \
+            'invalid mom argument. must be a list of at max two dictionaries'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'

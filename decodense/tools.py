@@ -12,11 +12,15 @@ __status__ = 'Development'
 
 import sys
 import os
+import copy
 import numpy as np
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft
 from pyscf import tools as pyscf_tools
-from typing import Tuple, Dict, Union
+from typing import Tuple, List, Dict, Union
+
+
+MAX_CYCLE = 100
 
 
 class Logger(object):
@@ -73,35 +77,47 @@ def git_version() -> str:
         return GIT_REVISION
 
 
-def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], \
-            conv_tol: float, verbose: int) -> Tuple[Union[scf.hf.SCF, dft.rks.KohnShamDFT], np.ndarray, np.ndarray]:
+def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], conv_tol: float, verbose: int, \
+            mom: List[Dict[int, int]]) -> Tuple[Union[scf.hf.SCF, dft.rks.KohnShamDFT], np.ndarray, np.ndarray]:
         """
         this function returns the results of a mean-field (hf or ks-dft) calculation
         """
         if xc == '':
             # hf calc
-            if mol.spin == 0:
+            if ref == 'restricted':
                 mf = scf.RHF(mol)
-            else:
-                if ref == 'restricted':
-                    mf = scf.ROHF(mol)
-                elif ref == 'unrestricted':
-                    mf = scf.UHF(mol)
+            elif ref == 'unrestricted':
+                mf = scf.UHF(mol)
         else:
             # dft calc
-            if mol.spin == 0:
-                mf = dft.RKS(mol)
-            else:
-                if ref == 'restricted':
-                    mf = dft.ROKS(mol)
-                elif ref == 'unrestricted':
-                    mf = dft.UKS(mol)
+            if ref == 'restricted':
+                mf = dft.ROKS(mol)
+            elif ref == 'unrestricted':
+                mf = dft.UKS(mol)
             mf.xc = xc
+        mf.max_cycle = MAX_CYCLE
         mf.irrep_nelec = irrep_nelec
         mf.conv_tol = conv_tol
         mf.verbose = verbose
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
+
+        # maximum occpuation method
+        if mom:
+            # save ground state mo coefficients and update occupations
+            mo = mf.mo_coeff
+            occ = mf.mo_occ
+            # loop through mom dictionary
+            for i in range(len(mom)):
+                for key, val in mom[i].items():
+                    occ[i][key] = val
+
+            # base calculation on original mf object
+            mf = copy.copy(mf)
+            rdm1 = mf.make_rdm1(mo, occ)
+            mf = scf.addons.mom_occ(mf, mo, occ)
+            mf.kernel(rdm1)
+            assert mf.converged, 'maximum occupation method mean-field calculation not converged'
 
         # restricted references
         if ref == 'restricted':
@@ -116,14 +132,14 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], \
         return mf, mo_coeff, mo_occ
 
 
-def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[int, int]:
+def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        nalpha = np.where(mo_occ[0] > 0.)[0].size
-        nbeta = np.where(mo_occ[1] > 0.)[0].size
+        alpha = np.where(mo_occ[0] > 0.)[0]
+        beta = np.where(mo_occ[1] > 0.)[0]
 
-        return nalpha, nbeta
+        return alpha, beta
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:

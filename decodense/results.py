@@ -71,7 +71,7 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
             string += ' spin: <S^2>        =  {:.3f}\n'
             string += ' spin: 2*S + 1      =  {:.3f}\n'
             string += ' basis functions    =  {:d}\n'
-            form += (_ref(decomp, mol), mol.groupname, mol.nelectron, mol.nalpha, mol.nbeta, \
+            form += (_ref(decomp, mol), mol.groupname, mol.nelectron, mol.alpha.size, mol.beta.size, \
                      decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
 
         # timing and git version

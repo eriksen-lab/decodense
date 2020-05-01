@@ -21,7 +21,7 @@ from .tools import make_rdm1, write_cube
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             weights: List[np.ndarray], prop_type: str, cube: bool) -> np.ndarray:
+             weights: List[np.ndarray], ref: str, prop_type: str, cube: bool) -> np.ndarray:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -46,13 +46,13 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # ao function values on given grid
             ao_value = _ao_val(mol, mf, ao_deriv)
             # rho corresponding to total 1-RDM
-            if mol.spin == 0:
-                rho = numint.eval_rho(mol, ao_value, rdm1_tot[0] + rdm1_tot[1], xctype=xc_type)
+            if np.allclose(rdm1_tot[0], rdm1_tot[1]):
+                rho = numint.eval_rho(mol, ao_value, rdm1_tot[0] * 2., xctype=xc_type)
             else:
                 rho = (numint.eval_rho(mol, ao_value, rdm1_tot[0], xctype=xc_type), \
                        numint.eval_rho(mol, ao_value, rdm1_tot[1], xctype=xc_type))
-            # evaluate eps_xc (xc energy density)
-            eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=mol.spin)[0]
+            # evaluate xc energy density
+            eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=0 if isinstance(rho, np.ndarray) else -1)[0]
 
         # init atom-specific energy or dipole array
         if prop_type == 'energy':
@@ -64,21 +64,24 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         for k in range(mol.natm):
             # get atom-specific rdm1
             rdm1_atom = np.zeros_like(rdm1_tot[0])
-            for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
-                for j in range(nspin):
+            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+                for l, j in enumerate(spin_mo):
                     # get orbital(s)
                     orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
                     # orbital-specific rdm1
                     rdm1_orb = make_rdm1(orb, mo_occ[i][j])
-                    rdm1_atom += rdm1_orb * weights[i][j][k]
+                    # weighted contribution to rdm1_atom
+                    rdm1_orb_atom = rdm1_orb * weights[i][l][k]
+                    # energy or dipole from individual atoms
+                    if prop_type == 'energy':
+                        prop_atom[k] += _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb_atom)
+                    elif prop_type == 'dipole':
+                        prop_atom[k] -= np.einsum('xij,ji->x', ao_dip, rdm1_orb_atom)
+                    # add to rdm1_atom
+                    rdm1_atom += rdm1_orb_atom
             # write rdm1_atom as cube file
             if cube:
                 write_cube(mol, rdm1_atom, 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
-            # energy or dipole from individual atoms
-            if prop_type == 'energy':
-                prop_atom[k] += _e_elec(h_core, vj[0] + vj[1], vk[0], rdm1_atom)
-            elif prop_type == 'dipole':
-                prop_atom[k] -= np.einsum('xij,ji->x', ao_dip, rdm1_atom)
             # additional xc energy contribution
             if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
                 # atom-specific rho
@@ -172,10 +175,10 @@ def _e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray
         return e_core + e_veff
 
 
-def _e_xc(eps_xc: np.ndarray, weights: np.ndarray, rho: np.ndarray) -> float:
+def _e_xc(eps_xc: np.ndarray, grid_weights: np.ndarray, rho: np.ndarray) -> float:
         """
         this function returns a contribution to the exchange-correlation energy from given rmd1 (via rho)
         """
-        return np.einsum('i,i,i->', eps_xc, rho if rho.ndim == 1 else rho[0], weights)
+        return np.einsum('i,i,i->', eps_xc, rho if rho.ndim == 1 else rho[0], grid_weights)
 
 
