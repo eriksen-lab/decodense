@@ -73,7 +73,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     rdm1_atom += rdm1_orb * weights[i][j][k]
             # write rdm1_atom as cube file
             if cube:
-                write_cube(mol, rdm1_atom, '{:s}_{:d}'.format(mol.atom_symbol(k), k))
+                write_cube(mol, rdm1_atom, 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
             # energy or dipole from individual atoms
             if prop_type == 'energy':
                 prop_atom[k] += _e_elec(h_core, vj[0] + vj[1], vk[0], rdm1_atom)
