@@ -23,7 +23,7 @@ class DecompCls(object):
         """
         def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
                      irrep_nelec: Dict['str', int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
-                     prop: str = 'energy', verbose: int = 0) -> None:
+                     prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -36,6 +36,7 @@ class DecompCls(object):
                 self.ref = ref
                 self.conv_tol = conv_tol
                 self.prop = prop
+                self.cube = cube
                 self.verbose = verbose
                 # set calculation defaults
                 self.ss: float = 0.
@@ -77,6 +78,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'
+        # cube
+        assert isinstance(decomp.cube, bool), \
+            'invalid cube argument. must be a bool'
         # verbosity
         assert isinstance(decomp.verbose, int), \
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'

@@ -16,10 +16,10 @@ from mpi4py import MPI
 from typing import Dict, Tuple, Any
 
 from .decomp import DecompCls, sanity_check
-from .orbitals import loc_orbs, assign_rdm1s, partition
+from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot, e_nuc, dip_nuc
 from .results import collect_res
-from .tools import dim
+from .tools import dim, make_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
@@ -60,12 +60,12 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
 
         # restricted references
         if decomp.ref == 'restricted':
-            mo = np.asarray((mf.mo_coeff,) * 2)
+            mo_coeff = np.asarray((mf.mo_coeff,) * 2)
             mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
             mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
             mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
         else:
-            mo = mf.mo_coeff
+            mo_coeff = mf.mo_coeff
             mo_occ = mf.mo_occ
 
         # nuclear property
@@ -81,17 +81,16 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
 
         # compute localized molecular orbitals
         if decomp.loc != '':
-            mo = loc_orbs(mol, mo, s, decomp.loc)
+            mo_coeff = loc_orbs(mol, mo_coeff, s, decomp.loc)
 
         # determine spin
-        decomp.ss, decomp.s = scf.uhf.spin_square((mo[0][:, :mol.nalpha], mo[1][:, :mol.nbeta]), s)
+        decomp.ss, decomp.s = scf.uhf.spin_square((mo_coeff[0][:, :mol.nalpha], mo_coeff[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
-        weights = assign_rdm1s(mol, mf, s, mo, mo_occ, decomp.pop, decomp.verbose)
-        decomp.prop_el = prop_tot(mol, mf, decomp.prop, mo, mo_occ)
+        weights = assign_rdm1s(mol, mf, s, mo_coeff, mo_occ, decomp.pop, decomp.verbose)
+        decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, weights, decomp.prop, decomp.cube)
 
         # collect electronic contributions
-        decomp.prop_el = partition(mol, decomp.prop, decomp.prop_el, weights)
         decomp.prop_tot = decomp.prop_el + decomp.prop_nuc
 
         # collect time

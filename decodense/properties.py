@@ -16,14 +16,14 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Union
 
-from .tools import make_rdm1
+from .tools import make_rdm1, write_cube
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-             prop_type: str, mo_coeff: Tuple[np.ndarray, np.ndarray], \
-             mo_occ: Tuple[np.ndarray, np.ndarray]) -> List[np.ndarray]:
+             mo_coeff: List[np.ndarray], mo_occ: List[np.ndarray], \
+             weights: List[np.ndarray], prop_type: str, cube: bool) -> np.ndarray:
         """
-        this function returns sorted orbital-decomposed mean-field properties for a given orbital type
+        this function returns atom-decomposed mean-field properties
         """
         # ao dipole integrals with gauge origin at (0.0, 0.0, 0.0)
         if prop_type == 'dipole':
@@ -54,36 +54,36 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # evaluate eps_xc (xc energy density)
             eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=mol.spin)[0]
 
-        # init orbital-specific energy or dipole array
-        if prop_type == 'energy':
-            prop_orb = [np.zeros(mol.nalpha, dtype=np.float64), np.zeros(mol.nbeta, dtype=np.float64)]
-        elif prop_type == 'dipole':
-            prop_orb = [np.zeros([mol.nalpha, 3], dtype=np.float64), np.zeros([mol.nbeta, 3], dtype=np.float64)]
+        # init atom-specific energy or dipole array
+        prop_atom = np.zeros(mol.natm, dtype=np.float64)
 
-        # loop over orbitals
-        for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
-            for j in range(nspin):
-                # get orbital(s)
-                orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
-                # orbital-specific rdm1
-                rdm1_orb = make_rdm1(orb, mo_occ[i][j])
-                # energy or dipole from individual orbitals
-                if prop_type == 'energy':
-                    prop_orb[i][j] += _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb)
-                elif prop_type == 'dipole':
-                    prop_orb[i][j] -= np.einsum('xij,ji->x', ao_dip, rdm1_orb).real
-                # additional xc energy contribution
-                if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
-                    # orbital-specific rho
-                    rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
-                    # energy from individual orbitals
-                    prop_orb[i][j] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
-            # closed-shell system
-            if mol.spin == 0:
-                prop_orb[i+1] = prop_orb[i]
-                break
+        # loop over atoms
+        for k in range(mol.natm):
+            # get atom-specific rdm1
+            rdm1_atom = np.zeros_like(rdm1_tot[0])
+            for i, nspin in enumerate((mol.nalpha, mol.nbeta)):
+                for j in range(nspin):
+                    # get orbital(s)
+                    orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
+                    # orbital-specific rdm1
+                    rdm1_orb = make_rdm1(orb, mo_occ[i][j])
+                    rdm1_atom += rdm1_orb * weights[i][j][k]
+            # write rdm1_atom as cube file
+            if cube:
+                write_cube(mol, rdm1_atom, '{:s}_{:d}'.format(mol.atom_symbol(k), k))
+            # energy or dipole from individual atoms
+            if prop_type == 'energy':
+                prop_atom[k] += _e_elec(h_core, vj[0] + vj[1], vk[0], rdm1_atom)
+            elif prop_type == 'dipole':
+                prop_atom[k] -= np.einsum('xij,ji->x', ao_dip, rdm1_atom)
+            # additional xc energy contribution
+            if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
+                # atom-specific rho
+                rho_atom = numint.eval_rho(mol, ao_value, rdm1_atom, xctype=xc_type)
+                # energy from individual atoms
+                prop_atom[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
 
-        return prop_orb
+        return prop_atom
 
 
 def e_nuc(mol: gto.Mole) -> np.ndarray:

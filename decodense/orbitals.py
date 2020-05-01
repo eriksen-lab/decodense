@@ -110,30 +110,6 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         return weights
 
 
-def partition(mol: gto.Mole, prop_type: str, prop_old: np.ndarray, weights: np.ndarray) -> np.ndarray:
-        """
-        this function collects results based on the involved atoms
-        """
-        # init prop_new
-        if prop_type == 'energy':
-            prop_new = np.zeros(mol.natm, dtype=np.float64)
-        elif prop_type == 'dipole':
-            prop_new = np.zeros([mol.natm, 3], dtype=np.float64)
-
-        # sum up contributions
-        for i in range(2):
-            if prop_type == 'energy':
-                prop_new += np.einsum('i,ik', prop_old[i], weights[i])
-            elif prop_type == 'dipole':
-                prop_new += np.einsum('ix,ik', prop_old[i], weights[i])
-            # closed-shell system
-            if mol.spin == 0:
-                prop_new *= 2.
-                break
-
-        return prop_new
-
-
 def _charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
         this function returns the mulliken charges on the individual atoms

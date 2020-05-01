@@ -15,6 +15,7 @@ import os
 import numpy as np
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft
+from pyscf import tools as pyscf_tools
 from typing import Tuple, Union
 
 
@@ -87,5 +88,12 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         this function returns an 1-RDM (in ao basis) corresponding to given mo(s)
         """
         return np.einsum('ip,jp->ij', occup * mo, mo)
+
+
+def write_cube(mol: gto.Mole, rdm1: np.ndarray, name: str):
+        """
+        this function writes an 1-RDM1 as a cube file
+        """
+        pyscf_tools.cubegen.density(mol, '{:}.cube'.format(name), rdm1)
 
 
