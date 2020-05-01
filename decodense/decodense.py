@@ -11,7 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import gto, scf, dft
+from pyscf import gto, scf
 from mpi4py import MPI
 from typing import Dict, Tuple, Any
 
@@ -19,7 +19,7 @@ from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot, e_nuc, dip_nuc
 from .results import collect_res
-from .tools import dim, make_rdm1
+from .tools import mf_calc, dim, make_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
@@ -33,40 +33,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         time = MPI.Wtime()
 
         # mf calculation
-        if decomp.xc == '':
-            # hf calc
-            if mol.spin == 0:
-                mf = scf.RHF(mol)
-            else:
-                if decomp.ref == 'restricted':
-                    mf = scf.ROHF(mol)
-                elif decomp.ref == 'unrestricted':
-                    mf = scf.UHF(mol)
-        else:
-            # dft calc
-            if mol.spin == 0:
-                mf = dft.RKS(mol)
-            else:
-                if decomp.ref == 'restricted':
-                    mf = dft.ROKS(mol)
-                elif decomp.ref == 'unrestricted':
-                    mf = dft.UKS(mol)
-            mf.xc = decomp.xc
-        mf.irrep_nelec = decomp.irrep_nelec
-        mf.verbose = decomp.verbose
-        mf.conv_tol = decomp.conv_tol
-        mf.kernel()
-        assert mf.converged, 'mean-field calculation not converged'
-
-        # restricted references
-        if decomp.ref == 'restricted':
-            mo_coeff = np.asarray((mf.mo_coeff,) * 2)
-            mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
-            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
-            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
-        else:
-            mo_coeff = mf.mo_coeff
-            mo_occ = mf.mo_occ
+        mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, decomp.conv_tol, decomp.verbose)
 
         # nuclear property
         if decomp.prop == 'energy':
@@ -87,7 +54,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         decomp.ss, decomp.s = scf.uhf.spin_square((mo_coeff[0][:, :mol.nalpha], mo_coeff[1][:, :mol.nbeta]), s)
 
         # decompose electronic property
-        weights = assign_rdm1s(mol, mf, s, mo_coeff, mo_occ, decomp.pop, decomp.verbose)
+        weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, decomp.verbose)
         decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, weights, decomp.prop, decomp.cube)
 
         # collect electronic contributions

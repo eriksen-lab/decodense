@@ -60,8 +60,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], s: np.ndarr
         return mo_coeff
 
 
-def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-                 s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
+def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
                  mo_occ: np.ndarray, pop: str, verbose: int) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms

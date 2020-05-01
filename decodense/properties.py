@@ -20,7 +20,7 @@ from .tools import make_rdm1, write_cube
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-             mo_coeff: List[np.ndarray], mo_occ: List[np.ndarray], \
+             mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              weights: List[np.ndarray], prop_type: str, cube: bool) -> np.ndarray:
         """
         this function returns atom-decomposed mean-field properties
