@@ -22,9 +22,12 @@ from .tools import git_version
 
 def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
         res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
-                               'prop_tot': decomp.prop_tot, 'pop_atom': decomp.pop_atom, \
                                'pop': decomp.pop, 'loc': _loc(decomp), 'xc': _xc(decomp), \
                                'ref': _ref(decomp, mol), 'time': decomp.time, 'sym': mol.groupname}
+        if decomp.pop_atom is not None:
+            res['pop_atom'] = decomp.pop_atom
+        if decomp.centres is not None:
+            res['centres'] = decomp.centres
         return res
 
 
@@ -87,7 +90,19 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
 
 def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
         """
-        this function prints the results based on an atom-based partitioning
+        this function prints the results based on either an atom- or bond-based partitioning
+        """
+        if decomp.part == 'atoms':
+            return atoms(decomp, mol, prop, **kwargs)
+        else: # bonds
+            if prop == 'atomization':
+                raise NotImplementedError('atomization energies are not implemented for bond-wise partitioning')
+            return bonds(decomp, mol, prop, **kwargs)
+
+
+def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
+        """
+        atom-based partitioning
         """
         # init string & form
         string: str = ''
@@ -97,8 +112,8 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
 
             prop_el = kwargs['prop_el']
             prop_nuc = kwargs['prop_nuc']
-            prop_tot = kwargs['prop_tot']
-            assert prop_el.ndim == prop_nuc.ndim == prop_tot.ndim == 1, 'wrong choice of property'
+            prop_tot = prop_el + prop_nuc
+            assert prop_el.ndim == prop_nuc.ndim == 1, 'wrong choice of property'
             pop_atom = kwargs['pop_atom']
 
             string += '--------------------------------------------------------------------\n'
@@ -122,7 +137,7 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
 
         if prop == 'atomization':
 
-            prop_tot = kwargs['prop_tot']
+            prop_tot = kwargs['prop_el'] + kwargs['prop_nuc']
             prop_atom = kwargs['prop_atom']
             assert prop_tot.ndim == prop_atom.ndim == 1, 'wrong choice of property'
             assert prop_tot.size == prop_atom.size, 'mismatch between lengths of input arrays'
@@ -151,7 +166,7 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
 
             prop_el = kwargs['prop_el']
             prop_nuc = kwargs['prop_nuc']
-            prop_tot = kwargs['prop_tot']
+            prop_tot = prop_el + prop_nuc
             assert prop_el.ndim == prop_nuc.ndim == prop_tot.ndim == 2, 'wrong choice of property'
             pop_atom = kwargs['pop_atom']
 
@@ -178,6 +193,115 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
                      *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) + 1.e-10, \
                      *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) + 1.e-10, \
                      -1. * np.sum(pop_atom))
+
+        return string.format(*form)
+
+
+def bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
+        """
+        bond-based partitioning
+        """
+        # init string & form
+        string: str = ''
+        form: Tuple[Any, ...] = ()
+
+        # inter-atomic distance array
+        dist = gto.mole.inter_distance(mol) * lib.param.BOHR
+
+        if prop == 'energy':
+
+            prop_el = kwargs['prop_el']
+            prop_nuc = kwargs['prop_nuc']
+            assert prop_el[0].ndim == 1, 'wrong choice of property'
+            centres = kwargs['centres']
+
+            string += '--------------------------------------------------------\n'
+            string += '{:^55}\n'
+            string += '--------------------------------------------------------\n'
+            string += '  MO  |   electronic  |    atom(s)    |   bond length\n'
+            string += '--------------------------------------------------------\n'
+            form += ('ground-state energy',)
+
+            for i in range(2):
+                string += '--------------------------------------------------------\n'
+                string += '{:^55}\n'
+                string += '--------------------------------------------------------\n'
+                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
+                for j in range(prop_el[i].size):
+                    core = centres[i][j, 0] == centres[i][j, 1]
+                    string += '  {:>2d}  |{:>+12.5f}   |    {:<11s}|  {:>9s}\n'
+                    form += (j, prop_el[i][j], \
+                             '{:s}{:d}'.format(mol.atom_symbol(centres[0][j, 0]), centres[i][j, 0]) if core \
+                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0], \
+                                                               mol.atom_symbol(centres[i][j, 1]), centres[i][j, 1]), \
+                             '' if core else '{:>.3f}'.format(dist[centres[i][j, 0], centres[i][j, 1]]),)
+
+            string += '--------------------------------------------------------\n'
+            string += '--------------------------------------------------------\n'
+            string += ' sum  |{:>+12.5f}   |\n'
+            form += (np.sum(prop_el[0]) + np.sum(prop_el[1]),)
+
+            string += '-----------------------\n'
+            string += ' nuc  |{:>+12.5f}   |\n'
+            form += (np.sum(prop_nuc),)
+
+            string += '-----------------------\n'
+            string += '-----------------------\n'
+            string += ' tot  |{:>12.5f}   |\n'
+            string += '-----------------------\n\n'
+            form += (np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc),)
+
+        elif prop == 'dipole':
+
+            prop_el = kwargs['prop_el']
+            prop_nuc = kwargs['prop_nuc']
+            assert prop_el[0].ndim == 2, 'wrong choice of property'
+            centres = kwargs['centres']
+
+            string += '----------------------------------------------------------------------------\n'
+            string += '{:^75}\n'
+            string += '----------------------------------------------------------------------------\n'
+            string += '  MO  |             electronic            |    atom(s)    |   bond length\n'
+            string += '----------------------------------------------------------------------------\n'
+            string += '      |     x     /     y     /     z     |\n'
+            string += '----------------------------------------------------------------------------\n'
+            string += '----------------------------------------------------------------------------\n'
+            form += ('ground-state dipole moment',)
+
+            for i in range(2):
+                string += '----------------------------------------------------------------------------\n'
+                string += '{:^75}\n'
+                string += '----------------------------------------------------------------------------\n'
+                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
+                for j in range(prop_el[i].shape[0]):
+                    core = centres[i][j, 0] == centres[i][j, 1]
+                    string += '  {:>2d}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |    {:<11s}|  {:>9s}\n'
+                    form += (j, *prop_el[i][j] + 1.e-10, \
+                             '{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0]) if core \
+                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0], \
+                                                               mol.atom_symbol(centres[i][j, 1]), centres[i][j, 1]), \
+                             '' if core else '{:>.3f}'. \
+                             format(dist[centres[i][j, 0], centres[i][j, 1]]),)
+
+            string += '----------------------------------------------------------------------------\n'
+            string += '----------------------------------------------------------------------------\n'
+
+            string += ' sum  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
+            form += (*(np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
+                     np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3)) + 1.e-10,)
+
+            string += '----------------------------------------------------------------------------\n'
+            string += ' nuc  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
+            form += (*np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) + 1.e-10,)
+
+            string += '----------------------------------------------------------------------------\n'
+            string += '----------------------------------------------------------------------------\n'
+
+            string += ' tot  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
+            string += '----------------------------------------------------------------------------\n\n'
+            form += (*(np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
+                     np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3) + \
+                     np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)) + 1.e-10,)
 
         return string.format(*form)
 

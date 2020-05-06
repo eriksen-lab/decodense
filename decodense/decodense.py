@@ -55,12 +55,16 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         decomp.ss, decomp.s = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], mo_coeff[1][:, mol.beta]), s)
 
         # decompose electronic property
-        weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, decomp.verbose)
-        decomp.prop_el, decomp.pop_atom = prop_tot(mol, mf, mo_coeff, mo_occ, weights, \
-                                                   decomp.ref, decomp.prop, decomp.cube)
-
-        # collect electronic contributions
-        decomp.prop_tot = decomp.prop_el + decomp.prop_nuc
+        if decomp.part == 'atoms':
+            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
+                                   decomp.part, decomp.verbose)[0]
+            decomp.prop_el, decomp.pop_atom = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.ref, \
+                                                       decomp.prop, decomp.part, decomp.cube, weights = weights)
+        elif decomp.part == 'bonds':
+            rep_idx, decomp.centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
+                                                   decomp.part, decomp.verbose, thres = decomp.thres)
+            decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.ref, \
+                                      decomp.prop, decomp.part, decomp.cube, rep_idx = rep_idx)[0]
 
         # collect time
         decomp.time = MPI.Wtime() - time

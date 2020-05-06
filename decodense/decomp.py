@@ -21,8 +21,8 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', \
-                     irrep_nelec: Dict[str, int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, \
+        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', part = 'atoms', \
+                     irrep_nelec: Dict[str, int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
                      mom: List[Dict[int, int]] = [], prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
@@ -32,9 +32,11 @@ class DecompCls(object):
                 self.loc = loc
                 self.pop = pop
                 self.xc = xc
+                self.part = part
                 self.irrep_nelec = irrep_nelec
                 self.ref = ref
                 self.conv_tol = conv_tol
+                self.thres = thres
                 self.mom = mom
                 self.prop = prop
                 self.cube = cube
@@ -48,6 +50,7 @@ class DecompCls(object):
                 self.prop_tot: np.ndarray = None
                 self.pop_atom: np.ndarray = None
                 self.weights: np.ndarray = None
+                self.centres: np.ndarray = None
 
 
 def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
@@ -63,6 +66,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # population scheme
         assert decomp.pop in ['mulliken', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` or `iao` (default)'
+        # partitioning
+        assert decomp.part in ['atoms', 'bonds'], \
+            'invalid partitioning. valid choices: `atoms` (default) or `bonds`'
         # irrep_nelec
         assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
             'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
@@ -74,6 +80,11 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-12)'
         assert 0. < decomp.conv_tol, \
             'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-12)'
+        # bond partitioning threshold
+        assert isinstance(decomp.thres, float), \
+            'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
+        assert 0. < decomp.thres < 1., \
+            'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
         # mom
         assert isinstance(decomp.mom, list), \
             'invalid mom argument. must be a list of dictionaries'

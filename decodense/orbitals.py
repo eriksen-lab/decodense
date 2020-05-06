@@ -62,25 +62,34 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], \
 
 
 def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
-                 mo_occ: np.ndarray, ref: str, pop: str, verbose: int) -> List[np.ndarray]:
+                 mo_occ: np.ndarray, ref: str, pop: str, part: str, verbose: int, \
+                 **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
         # init population weights array
         weights = [np.zeros([mol.alpha.size, mol.natm], dtype=np.float64), np.zeros([mol.beta.size, mol.natm], dtype=np.float64)]
 
+        # init population centres array and get threshold
+        if part == 'bonds':
+            centres = [np.zeros([mol.alpha.size, 2], dtype=np.int), np.zeros([mol.beta.size, 2], dtype=np.int)]
+            thres = kwargs['thres']
+
+        # mol object projected into minao basis
         if pop == 'iao':
-            # mol object projected into minao basis
             pmol = mol.copy()
             pmol.build(False, False, basis='minao')
 
+        # verbose print
         if 0 < verbose:
             symbols = [mol.atom_symbol(i) for i in range(mol.natm)]
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
 
+        # loop over spin
         for i, spin_mo in enumerate((mol.alpha, mol.beta)):
 
+            # get mo coefficients and occupation
             if pop == 'mulliken':
                 mo = mo_coeff[i][:, spin_mo]
             elif pop == 'iao':
@@ -89,6 +98,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 mo = np.einsum('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
             mocc = mo_occ[i][spin_mo]
 
+            # loop over spin-orbitals
             for j in range(spin_mo.size):
                 # get orbital
                 orb = mo[:, j].reshape(mo.shape[0], 1)
@@ -99,16 +109,38 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                                            s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
                                            rdm1_orb)
 
+                # verbose print
                 if 0 < verbose:
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
                         print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', j, weights[i][j]))
 
+                if part == 'bonds':
+                    # get sorted indices
+                    max_idx = np.argsort(weights[i][j])[::-1]
+                    # compute population centres
+                    if np.abs(weights[i][j][max_idx[0]]) / np.abs((weights[i][j][max_idx[0]] + weights[i][j][max_idx[1]])) > thres:
+                        # core orbital or lone pair
+                        centres[i][j] = np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
+                    else:
+                        # valence orbitals
+                        centres[i][j] = np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
+
             # closed-shell reference
             if ref == 'restricted' and mol.spin == 0:
                 weights[i+1] = weights[i]
+                if part == 'bonds':
+                    centres[i+1] = centres[i]
                 break
 
-        return weights
+        # unique and repetitive centres
+        if part == 'bonds':
+            centres_unique = np.array([np.unique(centres[i], axis=0) for i in range(2)])
+            rep_idx = [[np.where((centres[i] == j).all(axis=1))[0] for j in centres_unique[i]] for i in range(2)]
+
+        if part == 'atoms':
+            return weights, None
+        else: # bonds
+            return rep_idx, centres_unique
 
 
 def population(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
