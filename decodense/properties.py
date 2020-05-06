@@ -16,15 +16,13 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Union
 
-from .orbitals import population
 from .tools import make_rdm1, write_cube
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              ref: str, prop_type: str, part: str, cube: bool, \
-             **kwargs: Union[List[np.ndarray], List[List[np.ndarray]]]) -> Tuple[Union[np.ndarray, List[np.ndarray]], \
-                                                                                 Union[np.ndarray, None]]:
+             **kwargs: Union[List[np.ndarray], List[List[np.ndarray]]]) -> Union[np.ndarray, List[np.ndarray]]:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -35,9 +33,6 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # compute total 1-RDM (AO basis)
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
-
-        # init pop_atom
-        pop_atom = np.zeros(mol.natm, dtype=np.float64)
 
         # core hamiltonian
         h_core = _h_core(mol)
@@ -90,8 +85,6 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                             prop_atom[k] -= np.einsum('xij,ji->x', ao_dip, rdm1_orb_atom)
                         # add to rdm1_atom
                         rdm1_atom += rdm1_orb_atom
-                # add atomic populations of rdm1_atom
-                pop_atom += population(mol, mol.intor_symmetric('int1e_ovlp'), rdm1_atom)
                 # write rdm1_atom as cube file
                 if cube:
                     write_cube(mol, rdm1_atom, 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
@@ -102,7 +95,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # energy from individual atoms
                     prop_atom[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
 
-            return prop_atom, pop_atom
+            return prop_atom
 
         else: # bonds
 
@@ -144,7 +137,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop_orb[i+1] = prop_orb[i]
                     break
 
-            return prop_orb, None
+            return prop_orb
 
 
 def e_nuc(mol: gto.Mole) -> np.ndarray:

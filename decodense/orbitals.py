@@ -105,9 +105,9 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mocc[j])
                 # population weights of rdm1_orb
-                weights[i][j] = population(pmol if pop == 'iao' else mol, \
-                                           s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
-                                           rdm1_orb)
+                weights[i][j] = _population(pmol if pop == 'iao' else mol, \
+                                            s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
+                                            rdm1_orb)
 
                 # verbose print
                 if 0 < verbose:
@@ -143,7 +143,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
             return rep_idx, centres_unique
 
 
-def population(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
+def _population(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
         this function returns the mulliken populations on the individual atoms
         """
