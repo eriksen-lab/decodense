@@ -39,13 +39,14 @@ class DecompCls(object):
                 self.prop = prop
                 self.cube = cube
                 self.verbose = verbose
-                # set calculation defaults
+                # set internal defaults
                 self.ss: float = 0.
                 self.s: float = 0.
                 self.time: float = 0.
                 self.prop_el: np.ndarray = None
                 self.prop_nuc: np.ndarray = None
                 self.prop_tot: np.ndarray = None
+                self.pop_atom: np.ndarray = None
                 self.weights: np.ndarray = None
 
 

@@ -22,10 +22,9 @@ from .tools import git_version
 
 def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
         res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
+                               'prop_tot': decomp.prop_tot, 'pop_atom': decomp.pop_atom, \
                                'pop': decomp.pop, 'loc': _loc(decomp), 'xc': _xc(decomp), \
                                'ref': _ref(decomp, mol), 'time': decomp.time, 'sym': mol.groupname}
-        if decomp.prop_tot is not None:
-            res['prop_tot'] = decomp.prop_tot
         return res
 
 
@@ -100,25 +99,26 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
             prop_nuc = kwargs['prop_nuc']
             prop_tot = kwargs['prop_tot']
             assert prop_el.ndim == prop_nuc.ndim == prop_tot.ndim == 1, 'wrong choice of property'
+            pop_atom = kwargs['pop_atom']
 
-            string += '----------------------------------------------------\n'
-            string += '{:^52}\n'
-            string += '----------------------------------------------------\n'
-            string += '----------------------------------------------------\n'
-            string += ' atom |  electronic  |    nuclear   |     total\n'
-            string += '----------------------------------------------------\n'
-            string += '----------------------------------------------------\n'
-            form += ('ground-state energy MOs',)
+            string += '--------------------------------------------------------------------\n'
+            string += '{:^70}\n'
+            string += '--------------------------------------------------------------------\n'
+            string += '--------------------------------------------------------------------\n'
+            string += ' atom |  electronic  |    nuclear   |     total    |  eff. charge\n'
+            string += '--------------------------------------------------------------------\n'
+            string += '--------------------------------------------------------------------\n'
+            form += ('ground-state energy',)
 
             for i in range(mol.natm):
-                string += ' {:<5s}|{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_el[i], prop_nuc[i], prop_tot[i],)
+                string += ' {:<5s}|{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>+11.3f}\n'
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_el[i], prop_nuc[i], prop_tot[i], -1. * pop_atom[i])
 
-            string += '----------------------------------------------------\n'
-            string += '----------------------------------------------------\n'
-            string += ' sum  |{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}\n'
-            string += '----------------------------------------------------\n\n'
-            form += (np.sum(prop_el), np.sum(prop_nuc), np.sum(prop_tot),)
+            string += '--------------------------------------------------------------------\n'
+            string += '--------------------------------------------------------------------\n'
+            string += ' sum  |{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>+11.3f}\n'
+            string += '--------------------------------------------------------------------\n\n'
+            form += (np.sum(prop_el), np.sum(prop_nuc), np.sum(prop_tot), -1. * np.sum(pop_atom))
 
         if prop == 'atomization':
 
@@ -126,25 +126,26 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
             prop_atom = kwargs['prop_atom']
             assert prop_tot.ndim == prop_atom.ndim == 1, 'wrong choice of property'
             assert prop_tot.size == prop_atom.size, 'mismatch between lengths of input arrays'
+            pop_atom = kwargs['pop_atom']
 
-            string += '------------------------\n'
-            string += '{:^25}\n'
-            string += '------------------------\n'
-            string += '------------------------\n'
-            string += ' atom |      total\n'
-            string += '------------------------\n'
-            string += '------------------------\n'
-            form += ('atomization energy MOs',)
+            string += '--------------------------------------\n'
+            string += '{:^40}\n'
+            string += '--------------------------------------\n'
+            string += '--------------------------------------\n'
+            string += ' atom |      total   |  eff. charge\n'
+            string += '--------------------------------------\n'
+            string += '--------------------------------------\n'
+            form += ('atomization energy',)
 
             for i in range(mol.natm):
-                string += ' {:<5s}|{:>+12.5f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_tot[i] - prop_atom[i],)
+                string += ' {:<5s}|{:>+12.5f}  |{:>+11.3f}\n'
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_tot[i] - prop_atom[i], -1. * pop_atom[i])
 
-            string += '------------------------\n'
-            string += '------------------------\n'
-            string += ' sum  |{:>+12.5f}\n'
-            string += '------------------------\n\n'
-            form += (np.sum(prop_tot) - np.sum(prop_atom),)
+            string += '--------------------------------------\n'
+            string += '--------------------------------------\n'
+            string += ' sum  |{:>+12.5f}  |{:>+11.3f}\n'
+            string += '--------------------------------------\n\n'
+            form += (np.sum(prop_tot) - np.sum(prop_atom), -1. * np.sum(pop_atom))
 
         elif prop == 'dipole':
 
@@ -152,29 +153,31 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
             prop_nuc = kwargs['prop_nuc']
             prop_tot = kwargs['prop_tot']
             assert prop_el.ndim == prop_nuc.ndim == prop_tot.ndim == 2, 'wrong choice of property'
+            pop_atom = kwargs['pop_atom']
 
-            string += '-------------------------------------------------------------------------------------------------------------------\n'
-            string += '{:^113}\n'
-            string += '-------------------------------------------------------------------------------------------------------------------\n'
-            string += '      |             electronic            |               nuclear             |               total\n'
-            string += ' atom -------------------------------------------------------------------------------------------------------------\n'
-            string += '      |     x     /     y     /     z     |     x     /     y     /     z     |     x     /     y     /     z\n'
-            string += '-------------------------------------------------------------------------------------------------------------------\n'
-            string += '-------------------------------------------------------------------------------------------------------------------\n'
-            form += ('ground-state dipole moment MOs',)
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
+            string += '{:^125}\n'
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
+            string += '      |             electronic            |               nuclear             |                total              |\n'
+            string += ' atom -------------------------------------------------------------------------------------------------------------  eff. charge\n'
+            string += '      |     x     /     y     /     z     |     x     /     y     /     z     |     x     /     y     /     z     |\n'
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
+            form += ('ground-state dipole moment',)
 
             for i in range(mol.natm):
-                string += ' {:<5s}| {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), *prop_el[i] + 1.e-10, *prop_nuc[i] + 1.e-10, *prop_tot[i] + 1.e-10,)
+                string += ' {:<5s}| {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |{:>+11.3f}\n'
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), *prop_el[i] + 1.e-10, *prop_nuc[i] + 1.e-10, *prop_tot[i] + 1.e-10, -1. * pop_atom[i])
 
-            string += '-------------------------------------------------------------------------------------------------------------------\n'
-            string += '-------------------------------------------------------------------------------------------------------------------\n'
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
 
-            string += ' sum  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}\n'
-            string += '-------------------------------------------------------------------------------------------------------------------\n\n'
+            string += ' sum  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |{:>+11.3f}\n'
+            string += '-----------------------------------------------------------------------------------------------------------------------------------\n\n'
             form += (*np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3) + 1.e-10, \
                      *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) + 1.e-10, \
-                     *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) + 1.e-10,)
+                     *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) + 1.e-10, \
+                     -1. * np.sum(pop_atom))
 
         return string.format(*form)
 

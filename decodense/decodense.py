@@ -56,7 +56,8 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
 
         # decompose electronic property
         weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, decomp.verbose)
-        decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, weights, decomp.ref, decomp.prop, decomp.cube)
+        decomp.prop_el, decomp.pop_atom = prop_tot(mol, mf, mo_coeff, mo_occ, weights, \
+                                                   decomp.ref, decomp.prop, decomp.cube)
 
         # collect electronic contributions
         decomp.prop_tot = decomp.prop_el + decomp.prop_nuc

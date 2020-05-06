@@ -66,7 +66,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
-        # init charge weights array
+        # init population weights array
         weights = [np.zeros([mol.alpha.size, mol.natm], dtype=np.float64), np.zeros([mol.beta.size, mol.natm], dtype=np.float64)]
 
         if pop == 'iao':
@@ -76,7 +76,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
 
         if 0 < verbose:
             symbols = [mol.atom_symbol(i) for i in range(mol.natm)]
-            print('\n *** partial charge weights: ***')
+            print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
 
         for i, spin_mo in enumerate((mol.alpha, mol.beta)):
@@ -94,10 +94,10 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 orb = mo[:, j].reshape(mo.shape[0], 1)
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mocc[j])
-                # charge centre weights of rdm1_orb
-                weights[i][j] = _charges(pmol if pop == 'iao' else mol, \
-                                         s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
-                                         rdm1_orb)
+                # population weights of rdm1_orb
+                weights[i][j] = population(pmol if pop == 'iao' else mol, \
+                                           s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
+                                           rdm1_orb)
 
                 if 0 < verbose:
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
@@ -111,19 +111,19 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         return weights
 
 
-def _charges(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
+def population(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
-        this function returns the mulliken charges on the individual atoms
+        this function returns the mulliken populations on the individual atoms
         """
         # mulliken population matrix
         pop = np.einsum('ij,ji->i', rdm1, s)
-        # init charges
-        charges = np.zeros(mol.natm)
+        # init populations
+        populations = np.zeros(mol.natm)
 
         # loop over AOs
         for i, k in enumerate(mol.ao_labels(fmt=None)):
-            charges[k[0]] += pop[i]
+            populations[k[0]] += pop[i]
 
-        return charges
+        return populations
 
 
