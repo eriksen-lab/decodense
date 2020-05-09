@@ -55,7 +55,7 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         decomp.ss, decomp.s = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], mo_coeff[1][:, mol.beta]), s)
 
         # decompose electronic property
-        if decomp.part == 'atoms':
+        if decomp.part in ['atoms', 'eda']:
             weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                    decomp.part, decomp.verbose)[0]
             decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.ref, \

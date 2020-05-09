@@ -58,8 +58,9 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         string += '\n\n system info:\n'
         string += ' ------------\n'
         string += ' basis set          =  {:}\n'
+        string += ' partitioning       =  {:}\n'
         string += ' assignment         =  {:}\n'
-        form += (decomp.basis, decomp.pop,)
+        form += (decomp.basis, decomp.part, decomp.pop,)
         string += ' localization       =  {:}\n'
         form += (_loc(decomp),)
         string += ' xc functional      =  {:}\n'
@@ -92,7 +93,7 @@ def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -
         """
         this function prints the results based on either an atom- or bond-based partitioning
         """
-        if decomp.part == 'atoms':
+        if decomp.part in ['atoms', 'eda']:
             return atoms(decomp, mol, prop, **kwargs)
         else: # bonds
             if prop == 'atomization':

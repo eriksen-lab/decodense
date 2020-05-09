@@ -137,7 +137,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
             centres_unique = np.array([np.unique(centres[i], axis=0) for i in range(2)])
             rep_idx = [[np.where((centres[i] == j).all(axis=1))[0] for j in centres_unique[i]] for i in range(2)]
 
-        if part == 'atoms':
+        if part in ['atoms', 'eda']:
             return weights, None
         else: # bonds
             return rep_idx, centres_unique

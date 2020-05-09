@@ -35,7 +35,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # core hamiltonian
-        h_core = _h_core(mol)
+        kin, nuc, sub_nuc = _h_core(mol)
         # fock potential
         vj, vk = scf.hf.get_jk(mol, rdm1_tot)
 
@@ -70,7 +70,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k in range(mol.natm):
                 # get atom-specific rdm1
                 rdm1_atom = np.zeros_like(rdm1_tot[0])
+                # loop over spins
                 for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+                    # loop over spin-orbitals
                     for l, j in enumerate(spin_mo):
                         # get orbital(s)
                         orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
@@ -80,9 +82,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         rdm1_orb_atom = rdm1_orb * weights[i][l][k]
                         # energy or dipole from individual atoms
                         if prop_type == 'energy':
-                            prop_atom[k] += _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb_atom)
+                            prop_atom[k] += _trace(kin + nuc, rdm1_orb_atom)
+                            prop_atom[k] += _trace(vj[0] + vj[1] - vk[i], rdm1_orb_atom, scaling = .5)
                         elif prop_type == 'dipole':
-                            prop_atom[k] -= np.einsum('xij,ji->x', ao_dip, rdm1_orb_atom)
+                            prop_atom[k] -= _trace(ao_dip, rdm1_orb_atom)
                         # add to rdm1_atom
                         rdm1_atom += rdm1_orb_atom
                 # write rdm1_atom as cube file
@@ -97,6 +100,33 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
             return prop_atom
 
+        elif part == 'eda':
+
+            # init atom-specific energy or dipole array
+            if prop_type == 'energy':
+                prop_atom = np.zeros(mol.natm, dtype=np.float64)
+            elif prop_type == 'dipole':
+                prop_atom = np.zeros([mol.natm, 3], dtype=np.float64)
+
+            # loop over atoms
+            for k in range(mol.natm):
+                # loop over spins
+                for i in range(2):
+                    # get AOs on atom k
+                    select = np.where([atom[0] == k for atom in mol.ao_labels(fmt=None)])[0]
+                    # weighted contribution to rdm1_atom
+                    rdm1_atom = rdm1_tot[i][select]
+                    # energy or dipole from individual atoms
+                    if prop_type == 'energy':
+                        prop_atom[k] += _trace(kin[select], rdm1_atom)
+                        prop_atom[k] += _trace(nuc[select], rdm1_atom, scaling = .5)
+                        prop_atom[k] += _trace(sub_nuc[k], rdm1_tot[i], scaling = .5)
+                        prop_atom[k] += _trace((vj[0] + vj[1] - vk[i])[select], rdm1_atom, scaling = .5)
+                    elif prop_type == 'dipole':
+                        prop_atom[k] -= _trace(ao_dip[:, select], rdm1_atom)
+
+            return prop_atom
+
         else: # bonds
 
             # get weights
@@ -108,8 +138,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             elif prop_type == 'dipole':
                 prop_orb = [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)]
 
-            # loop over orbitals
+            # loop over spins
             for i in range(2):
+                # loop over spin-orbitals
                 for j, k in enumerate(rep_idx[i]):
                     # get orbital(s)
                     orb = mo_coeff[i][:, k].reshape(mo_coeff[i].shape[0], -1)
@@ -123,9 +154,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                             write_cube(mol, rdm1_orb, 'spin_{:s}_rdm1_{:d}'.format('a' if i == 0 else 'b', j))
                     # energy or dipole from individual orbitals
                     if prop_type == 'energy':
-                        prop_orb[i][j] += _e_elec(h_core, vj[0] + vj[1], vk[i], rdm1_orb)
+                        prop_orb[i][j] += _trace(kin + nuc, rdm1_orb)
+                        prop_orb[i][j] += _trace(vj[0] + vj[1] - vk[i], rdm1_orb, scaling = .5)
                     elif prop_type == 'dipole':
-                        prop_orb[i][j] -= np.einsum('xij,ji->x', ao_dip, rdm1_orb)
+                        prop_orb[i][j] -= _trace(ao_dip, rdm1_orb)
                     # additional xc energy contribution
                     if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
                         # orbital-specific rho
@@ -165,11 +197,20 @@ def dip_nuc(mol: gto.Mole) -> np.ndarray:
         return np.einsum('i,ix->ix', charges, coords)
 
 
-def _h_core(mol: gto.Mole) -> np.ndarray:
+def _h_core(mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        this function returns the core hamiltonian
+        this function returns the components of the core hamiltonian
         """
-        return mol.intor_symmetric('int1e_kin') + mol.intor_symmetric('int1e_nuc')
+        coords = mol.atom_coords()
+        charges = mol.atom_charges()
+        kin = mol.intor_symmetric('int1e_kin')
+        sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
+        for k in range(mol.natm):
+            with mol.with_rinv_origin(coords[k]):
+                sub_nuc[k] = mol.intor('int1e_rinv') * -charges[k]
+        nuc = np.sum(sub_nuc, axis=0)
+
+        return kin, nuc, sub_nuc
 
 
 def _xc_ao_deriv(mf: dft.rks.KohnShamDFT) -> Tuple[str, int]:
@@ -211,16 +252,14 @@ def _ao_val(mol: gto.Mole, mf: dft.rks.KohnShamDFT, ao_deriv: int) -> np.ndarray
         return numint.eval_ao(mol, mf.grids.coords, deriv=ao_deriv)
 
 
-def _e_elec(h_core: np.ndarray, vj: np.ndarray, vk: np.ndarray, rdm1: np.ndarray) -> float:
+def _trace(op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.) -> float:
         """
-        this function returns a mean-field energy contribution from given rdm1
+        this function returns the trace between an operator and an rdm1
         """
-        # contribution from core hamiltonian
-        e_core = np.einsum('ij,ji', h_core, rdm1)
-        # contribution from effective potential
-        e_veff = np.einsum('ij,ji', vj - vk, rdm1) * .5
-
-        return e_core + e_veff
+        if op.ndim == 2:
+            return np.einsum('ij,ij', op, rdm1) * scaling
+        else:
+            return np.einsum('xij,ij->x', op, rdm1) * scaling
 
 
 def _e_xc(eps_xc: np.ndarray, grid_weights: np.ndarray, rho: np.ndarray) -> float:
