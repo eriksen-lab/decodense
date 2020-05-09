@@ -73,30 +73,35 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # loop over spins
                 for i, spin_mo in enumerate((mol.alpha, mol.beta)):
                     # loop over spin-orbitals
-                    for l, j in enumerate(spin_mo):
+                    for m, j in enumerate(spin_mo):
                         # get orbital(s)
                         orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
                         # orbital-specific rdm1
                         rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                         # weighted contribution to rdm1_atom
-                        rdm1_orb_atom = rdm1_orb * weights[i][l][k]
-                        # energy or dipole from individual atoms
+                        rdm1_orb_atom = rdm1_orb * weights[i][m][k]
+                        # coulumb and exchange energy associated with given atom
                         if prop_type == 'energy':
-                            prop_atom[k] += _trace(kin + nuc, rdm1_orb_atom)
                             prop_atom[k] += _trace(vj[0] + vj[1] - vk[i], rdm1_orb_atom, scaling = .5)
-                        elif prop_type == 'dipole':
-                            prop_atom[k] -= _trace(ao_dip, rdm1_orb_atom)
                         # add to rdm1_atom
                         rdm1_atom += rdm1_orb_atom
-                # write rdm1_atom as cube file
-                if cube:
-                    write_cube(mol, rdm1_atom, 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
+                # kinetic & nuclear attraction energy or dipole moment associated with given atom
+                if prop_type == 'energy':
+                    prop_atom[k] += _trace(kin, rdm1_atom)
+                    for l in range(mol.natm):
+                        prop_atom[l] += _trace(sub_nuc[l], rdm1_atom, scaling = .5)
+                        prop_atom[k] += _trace(sub_nuc[l], rdm1_atom, scaling = .5)
+                elif prop_type == 'dipole':
+                    prop_atom[k] -= _trace(ao_dip, rdm1_atom)
                 # additional xc energy contribution
                 if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
                     # atom-specific rho
                     rho_atom = numint.eval_rho(mol, ao_value, rdm1_atom, xctype=xc_type)
                     # energy from individual atoms
                     prop_atom[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
+                # write rdm1_atom as cube file
+                if cube:
+                    write_cube(mol, rdm1_atom, 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
 
             return prop_atom
 
@@ -114,22 +119,20 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 for i in range(2):
                     # get AOs on atom k
                     select = np.where([atom[0] == k for atom in mol.ao_labels(fmt=None)])[0]
-                    # weighted contribution to rdm1_atom
-                    rdm1_atom = rdm1_tot[i][select]
-                    # energy or dipole from individual atoms
+                    # total energy or dipole moment associated with given atom
                     if prop_type == 'energy':
-                        prop_atom[k] += _trace(kin[select], rdm1_atom)
-                        prop_atom[k] += _trace(nuc[select], rdm1_atom, scaling = .5)
+                        prop_atom[k] += _trace(kin[select], rdm1_tot[i][select])
+                        prop_atom[k] += _trace(nuc[select], rdm1_tot[i][select], scaling = .5)
                         prop_atom[k] += _trace(sub_nuc[k], rdm1_tot[i], scaling = .5)
-                        prop_atom[k] += _trace((vj[0] + vj[1] - vk[i])[select], rdm1_atom, scaling = .5)
+                        prop_atom[k] += _trace((vj[0] + vj[1] - vk[i])[select], rdm1_tot[i][select], scaling = .5)
                     elif prop_type == 'dipole':
-                        prop_atom[k] -= _trace(ao_dip[:, select], rdm1_atom)
+                        prop_atom[k] -= _trace(ao_dip[:, select], rdm1_tot[i][select])
 
             return prop_atom
 
         else: # bonds
 
-            # get weights
+            # get rep_idx
             rep_idx = kwargs['rep_idx']
 
             # init orbital-specific energy or dipole array
@@ -146,13 +149,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     orb = mo_coeff[i][:, k].reshape(mo_coeff[i].shape[0], -1)
                     # orbital-specific rdm1
                     rdm1_orb = make_rdm1(orb, mo_occ[i][k])
-                    # write rdm1_orb as cube file
-                    if cube:
-                        if mol.spin == 0:
-                            write_cube(mol, rdm1_orb * 2., 'rdm1_{:d}'.format(j))
-                        else:
-                            write_cube(mol, rdm1_orb, 'spin_{:s}_rdm1_{:d}'.format('a' if i == 0 else 'b', j))
-                    # energy or dipole from individual orbitals
+                    # total energy or dipole moment associated with given spin-orbital
                     if prop_type == 'energy':
                         prop_orb[i][j] += _trace(kin + nuc, rdm1_orb)
                         prop_orb[i][j] += _trace(vj[0] + vj[1] - vk[i], rdm1_orb, scaling = .5)
@@ -164,6 +161,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         rho_orb = numint.eval_rho(mol, ao_value, rdm1_orb, xctype=xc_type)
                         # energy from individual orbitals
                         prop_orb[i][j] += _e_xc(eps_xc, mf.grids.weights, rho_orb)
+                    # write rdm1_orb as cube file
+                    if cube:
+                        if mol.spin == 0:
+                            write_cube(mol, rdm1_orb * 2., 'rdm1_{:d}'.format(j))
+                        else:
+                            write_cube(mol, rdm1_orb, 'spin_{:s}_rdm1_{:d}'.format('a' if i == 0 else 'b', j))
                 # closed-shell system
                 if mol.spin == 0:
                     prop_orb[i+1] = prop_orb[i]
