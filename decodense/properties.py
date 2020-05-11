@@ -113,18 +113,20 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
             # loop over atoms
             for k in range(mol.natm):
+                # get AOs on atom k
+                select = np.where([atom[0] == k for atom in mol.ao_labels(fmt=None)])[0]
                 # loop over spins
                 for i in range(2):
-                    # get AOs on atom k
-                    select = np.where([atom[0] == k for atom in mol.ao_labels(fmt=None)])[0]
-                    # total energy or dipole moment associated with given atom
+                    # coulumb & exchange energy associated with given atom
                     if prop_type == 'energy':
-                        prop_atom[k] += _trace(kin[select], rdm1_tot[i][select])
-                        prop_atom[k] += _trace(nuc[select], rdm1_tot[i][select], scaling = .5)
-                        prop_atom[k] += _trace(sub_nuc[k], rdm1_tot[i], scaling = .5)
                         prop_atom[k] += _trace((vj[0] + vj[1] - vk[i])[select], rdm1_tot[i][select], scaling = .5)
-                    elif prop_type == 'dipole':
-                        prop_atom[k] -= _trace(ao_dip[:, select], rdm1_tot[i][select])
+                # kinetic & nuclear attraction energy or dipole moment associated with given atom
+                if prop_type == 'energy':
+                    prop_atom[k] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
+                    prop_atom[k] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                    prop_atom[k] += _trace(sub_nuc[k], np.sum(rdm1_tot, axis=0), scaling = .5)
+                elif prop_type == 'dipole':
+                    prop_atom[k] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
 
             return prop_atom
 
