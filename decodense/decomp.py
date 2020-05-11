@@ -21,7 +21,7 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, basis: str = 'sto3g', loc: str = 'ibo-2', pop: str = 'iao', xc: str = '', part = 'atoms', \
+        def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', xc: str = '', part = 'atoms', \
                      irrep_nelec: Dict[str, int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
                      mom: List[Dict[int, int]] = [], prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
@@ -62,10 +62,10 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid basis. basis set (default: `sto3g`) in decomp and mol objects must match'
         # localization procedure
         assert decomp.loc in ['', 'fb', 'pm', 'ibo-2', 'ibo-4'], \
-            'invalid localization procedure. valid choices: `fb`, `pm`, `ibo-2` (default), and `ibo-4`'
+            'invalid localization procedure. valid choices: none (default), `fb`, `pm`, `ibo-2`, and `ibo-4`'
         # population scheme
         assert decomp.pop in ['mulliken', 'iao'], \
-            'invalid population scheme. valid choices: `mulliken` or `iao` (default)'
+            'invalid population scheme. valid choices: `mulliken` (default) or `iao`'
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'bonds'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `bonds`'
