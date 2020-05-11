@@ -68,8 +68,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
             # loop over atoms
             for k in range(mol.natm):
-                # get atom-specific rdm1
-                rdm1_atom = np.zeros_like(rdm1_tot[0])
+                # atom-specific rdm1
+                rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
                 for i, spin_mo in enumerate((mol.alpha, mol.beta)):
                     # loop over spin-orbitals
@@ -79,24 +79,22 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         # orbital-specific rdm1
                         rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                         # weighted contribution to rdm1_atom
-                        rdm1_orb_atom = rdm1_orb * weights[i][m][k]
-                        # coulumb and exchange energy associated with given atom
-                        if prop_type == 'energy':
-                            prop_atom[k] += _trace(vj[0] + vj[1] - vk[i], rdm1_orb_atom, scaling = .5)
-                        # add to rdm1_atom
-                        rdm1_atom += rdm1_orb_atom
+                        rdm1_atom[i] += rdm1_orb * weights[i][m][k]
+                    # coulumb & exchange energy associated with given atom
+                    if prop_type == 'energy':
+                        prop_atom[k] += _trace(vj[0] + vj[1] - vk[i], rdm1_atom[i], scaling = .5)
                 # kinetic & nuclear attraction energy or dipole moment associated with given atom
                 if prop_type == 'energy':
-                    prop_atom[k] += _trace(kin, rdm1_atom)
+                    prop_atom[k] += _trace(kin, np.sum(rdm1_atom, axis=0))
                     for l in range(mol.natm):
-                        prop_atom[l] += _trace(sub_nuc[l], rdm1_atom, scaling = .5)
-                        prop_atom[k] += _trace(sub_nuc[l], rdm1_atom, scaling = .5)
+                        prop_atom[l] += _trace(sub_nuc[l], np.sum(rdm1_atom, axis=0), scaling = .5)
+                        prop_atom[k] += _trace(sub_nuc[l], np.sum(rdm1_atom, axis=0), scaling = .5)
                 elif prop_type == 'dipole':
-                    prop_atom[k] -= _trace(ao_dip, rdm1_atom)
+                    prop_atom[k] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # additional xc energy contribution
                 if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
                     # atom-specific rho
-                    rho_atom = numint.eval_rho(mol, ao_value, rdm1_atom, xctype=xc_type)
+                    rho_atom = numint.eval_rho(mol, ao_value, np.sum(rdm1_atom, axis=0), xctype=xc_type)
                     # energy from individual atoms
                     prop_atom[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
                 # write rdm1_atom as cube file
@@ -255,7 +253,7 @@ def _ao_val(mol: gto.Mole, mf: dft.rks.KohnShamDFT, ao_deriv: int) -> np.ndarray
         return numint.eval_ao(mol, mf.grids.coords, deriv=ao_deriv)
 
 
-def _trace(op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.) -> float:
+def _trace(op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.) -> Union[float, np.ndarray]:
         """
         this function returns the trace between an operator and an rdm1
         """

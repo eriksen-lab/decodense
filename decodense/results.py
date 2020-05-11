@@ -18,6 +18,7 @@ from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls
 from .tools import git_version
+from .data import AU_TO_DEBYE
 
 
 def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
@@ -171,6 +172,13 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
             assert prop_el.ndim == prop_nuc.ndim == prop_tot.ndim == 2, 'wrong choice of property'
             pop_atom = kwargs['pop_atom']
 
+            if 'unit' in kwargs:
+                unit = kwargs['unit'].lower()
+            else:
+                unit = 'au'
+            assert unit in ['au', 'debye'], 'illegal unit for dipole moments. valid options are: `au` (default) or `debye`'
+            scaling = 1. if unit == 'au' else AU_TO_DEBYE
+
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
             string += '{:^125}\n'
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
@@ -179,20 +187,21 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
             string += '      |     x     /     y     /     z     |     x     /     y     /     z     |     x     /     y     /     z     |\n'
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
-            form += ('ground-state dipole moment',)
+            form += ('ground-state dipole moment (unit: {:})'.format(unit),)
 
             for i in range(mol.natm):
                 string += ' {:<5s}| {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |{:>+11.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), *prop_el[i] + 1.e-10, *prop_nuc[i] + 1.e-10, *prop_tot[i] + 1.e-10, -1. * pop_atom[i])
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), *prop_el[i] + 1.e-10, *prop_nuc[i] + 1.e-10, \
+                                           *prop_tot[i] * scaling + 1.e-10, -1. * pop_atom[i])
 
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
 
             string += ' sum  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |{:>+11.3f}\n'
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n\n'
-            form += (*np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3) + 1.e-10, \
-                     *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) + 1.e-10, \
-                     *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) + 1.e-10, \
+            form += (*np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
+                     *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
+                     *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
                      -1. * np.sum(pop_atom))
 
         return string.format(*form)

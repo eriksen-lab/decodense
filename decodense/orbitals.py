@@ -67,8 +67,11 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
+        # max number of occupied spin-orbs
+        n_spin = max(mol.alpha.size, mol.beta.size)
+
         # init population weights array
-        weights = [np.zeros([mol.alpha.size, mol.natm], dtype=np.float64), np.zeros([mol.beta.size, mol.natm], dtype=np.float64)]
+        weights = [np.zeros([n_spin, mol.natm], dtype=np.float64), np.zeros([n_spin, mol.natm], dtype=np.float64)]
 
         # init population centres array and get threshold
         if part == 'bonds':
