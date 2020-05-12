@@ -13,9 +13,10 @@ import decodense
 
 # decodense variables
 PARAMS = {
+    'irrep_nelec': {'A1': 6, 'B1': 2, 'B2': 2},
     'prop': 'energy',
     'basis': '631g',
-    'xc': 'pbe',
+    'xc': '',
     'loc': 'ibo-2',
     'pop': 'iao',
     'part': 'atoms'
@@ -131,7 +132,8 @@ def main():
                 # perform task
                 if mol_dict is not None:
                     # init molecule
-                    mol = gto.M(verbose = 0, output = None, unit = UNIT, basis = PARAMS['basis'], atom = mol_dict['struct'])
+                    mol = gto.M(verbose = 0, output = None, unit = UNIT, \
+                                basis = PARAMS['basis'], atom = mol_dict['struct'])
                     # decodense calc
                     e_calc = decodense.main(mol, decomp)
                     # send results to master
