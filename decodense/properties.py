@@ -127,6 +127,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop_atom[k] += _trace(sub_nuc[k], np.sum(rdm1_tot, axis=0), scaling = .5)
                 elif prop_type == 'dipole':
                     prop_atom[k] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
+                # additional xc energy contribution
+                if prop_type == 'energy' and isinstance(mf, dft.rks.KohnShamDFT):
+                    # atom-specific rho
+                    rho_atom = numint.eval_rho(mol, ao_value, np.sum(rdm1_tot, axis=0), xctype=xc_type, idx=select)
+                    # energy from individual atoms
+                    prop_atom[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
 
             return prop_atom
 

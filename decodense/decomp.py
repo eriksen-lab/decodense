@@ -69,9 +69,6 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'bonds'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `bonds`'
-        if decomp.part == 'eda':
-            assert decomp.xc == '', \
-                'invalid `xc` argument. eda partitioning is only implemented for hartree-fock theory'
         # irrep_nelec
         assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
             'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
