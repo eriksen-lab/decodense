@@ -129,13 +129,13 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
 
             for i in range(mol.natm):
                 string += ' {:<5s}|{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>+11.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_el[i], prop_nuc[i], prop_tot[i], -1. * pop_atom[i])
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_el[i], prop_nuc[i], prop_tot[i], pop_atom[i])
 
             string += '--------------------------------------------------------------------\n'
             string += '--------------------------------------------------------------------\n'
             string += ' sum  |{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>+11.3f}\n'
             string += '--------------------------------------------------------------------\n\n'
-            form += (np.sum(prop_el), np.sum(prop_nuc), np.sum(prop_tot), -1. * np.sum(pop_atom))
+            form += (np.sum(prop_el), np.sum(prop_nuc), np.sum(prop_tot), np.sum(pop_atom))
 
         if prop == 'atomization':
 
@@ -156,13 +156,13 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
 
             for i in range(mol.natm):
                 string += ' {:<5s}|{:>+12.5f}  |{:>+11.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_tot[i] - prop_atom[i], -1. * pop_atom[i])
+                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_tot[i] - prop_atom[i], pop_atom[i])
 
             string += '--------------------------------------\n'
             string += '--------------------------------------\n'
             string += ' sum  |{:>+12.5f}  |{:>+11.3f}\n'
             string += '--------------------------------------\n\n'
-            form += (np.sum(prop_tot) - np.sum(prop_atom), -1. * np.sum(pop_atom))
+            form += (np.sum(prop_tot) - np.sum(prop_atom), np.sum(pop_atom))
 
         elif prop == 'dipole':
 
@@ -192,7 +192,7 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
             for i in range(mol.natm):
                 string += ' {:<5s}| {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |{:>+11.3f}\n'
                 form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), *prop_el[i] + 1.e-10, *prop_nuc[i] + 1.e-10, \
-                                           *prop_tot[i] * scaling + 1.e-10, -1. * pop_atom[i])
+                                           *prop_tot[i] * scaling + 1.e-10, pop_atom[i])
 
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
             string += '-----------------------------------------------------------------------------------------------------------------------------------\n'
@@ -202,7 +202,7 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
             form += (*np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
                      *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
                      *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
-                     -1. * np.sum(pop_atom))
+                     np.sum(pop_atom))
 
         return string.format(*form)
 
