@@ -15,7 +15,7 @@ import decodense
 PARAMS = {
     'irrep_nelec': {'A1': 6, 'B1': 2, 'B2': 2},
     'prop': 'energy',
-    'basis': '631g',
+    'basis': 'ccpvdz',
     'xc': '',
     'loc': 'ibo-2',
     'pop': 'iao',
@@ -64,7 +64,7 @@ def main():
             # start_idx
             if restart:
                 results = np.array([int(i) for j in sorted(os.listdir(OUTPUT)) for i in re.findall('(\d+)', j)])
-                assert results.size % 3 == 0, 'restart error: invalid number of *_el.npy, *_tot.npy, and *_atom.npy files'
+                assert results.size % 2 == 0, 'restart error: invalid number of *_el.npy and *_tot.npy files'
                 start_idx = np.argmax(np.ediff1d(np.unique(results))) + 1
                 if start_idx == 1:
                     start_idx += np.max(np.unique(results))
@@ -82,8 +82,6 @@ def main():
                 if res is not None:
                     np.save(OUTPUT + str(res['idx']) + '_el', res['prop_el'])
                     np.save(OUTPUT + str(res['idx']) + '_tot', res['prop_tot'])
-                    if PARAMS['prop'] == 'energy':
-                        np.save(OUTPUT + str(res['idx']) + '_atom', res['prop_atom'])
 
                 # send mol_dict to slave
                 comm.send({'idx': mol_idx, \
@@ -107,8 +105,6 @@ def main():
                 if res is not None:
                     np.save(OUTPUT + str(res['idx']) + '_el', res['prop_el'])
                     np.save(OUTPUT + str(res['idx']) + '_tot', res['prop_tot'])
-                    if PARAMS['prop'] == 'energy':
-                        np.save(OUTPUT + str(res['idx']) + '_atom', res['prop_atom'])
 
                 # send exit signal to slave
                 comm.send(None, dest=stat.source, tag=2)
@@ -137,17 +133,8 @@ def main():
                     # decodense calc
                     e_calc = decodense.main(mol, decomp)
                     # send results to master
-                    if PARAMS['prop'] == 'energy':
-                        # atomic energies
-                        e_atom = np.array([decodense.atom_energies[PARAMS['xc'].upper()] \
-                                                                  [PARAMS['basis'].upper()] \
-                                                                  [mol.atom_pure_symbol(atom)] for atom in range(mol.natm)])
-                        comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
-                                   'prop_tot': e_calc['prop_nuc'] + e_calc['prop_el'], \
-                                   'prop_atom': e_calc['prop_nuc'] + e_calc['prop_el'] - e_atom}, dest=0, tag=1)
-                    else:
-                        comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
-                                   'prop_tot': e_calc['prop_nuc'] - e_calc['prop_el']}, dest=0, tag=1)
+                    comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
+                               'prop_tot': e_calc['prop_nuc'] - e_calc['prop_el']}, dest=0, tag=1)
                 else:
                     # exit
                     break
