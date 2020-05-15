@@ -13,7 +13,6 @@ import decodense
 
 # decodense variables
 PARAMS = {
-    'irrep_nelec': {'A1': 6, 'B1': 2, 'B2': 2},
     'prop': 'energy',
     'basis': 'ccpvdz',
     'xc': '',
@@ -133,8 +132,12 @@ def main():
                     # decodense calc
                     e_calc = decodense.main(mol, decomp)
                     # send results to master
-                    comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
-                               'prop_tot': e_calc['prop_nuc'] - e_calc['prop_el']}, dest=0, tag=1)
+                    if PARAMS['prop'] == 'energy':
+                        comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
+                                   'prop_tot': e_calc['prop_nuc'] + e_calc['prop_el']}, dest=0, tag=1)
+                    else:
+                        comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
+                                   'prop_tot': e_calc['prop_nuc'] - e_calc['prop_el']}, dest=0, tag=1)
                 else:
                     # exit
                     break
