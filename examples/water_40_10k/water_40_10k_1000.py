@@ -27,8 +27,8 @@ UNIT = 'ang'
 INPUT = os.getcwd() + '/water_40_10k.mat'
 NUMBER = 1000
 OUTPUT = os.getcwd() + '/{:}_{:}_{:}_{:}_{:}_{:}/'.format(PARAMS['prop'], PARAMS['xc'] if PARAMS['xc'] != '' else 'hf', \
-                                                          PARAMS['basis'], PARAMS['loc'], PARAMS['pop'], \
-                                                          PARAMS['part'], PARAMS['prop'])
+                                                          PARAMS['basis'], PARAMS['loc'] if PARAMS['loc'] != '' else 'can', \
+                                                          PARAMS['pop'], PARAMS['part'], PARAMS['prop'])
 
 def randomize(a, seed):
     np.random.seed(seed)

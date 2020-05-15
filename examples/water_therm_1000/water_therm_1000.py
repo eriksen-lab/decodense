@@ -26,8 +26,8 @@ UNIT = 'ang'
 # input / output
 INPUT = os.getcwd() + '/water_therm_1000.mat'
 OUTPUT = os.getcwd() + '/{:}_{:}_{:}_{:}_{:}_{:}/'.format(PARAMS['prop'], PARAMS['xc'] if PARAMS['xc'] != '' else 'hf', \
-                                                          PARAMS['basis'], PARAMS['loc'], PARAMS['pop'], \
-                                                          PARAMS['part'], PARAMS['prop'])
+                                                          PARAMS['basis'], PARAMS['loc'] if PARAMS['loc'] != '' else 'can', \
+                                                          PARAMS['pop'], PARAMS['part'], PARAMS['prop'])
 
 def main():
         """
