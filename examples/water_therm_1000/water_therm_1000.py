@@ -20,7 +20,7 @@ PARAMS = {
     'pop': 'iao',
     'part': 'atoms'
 }
-UNIT = 'ang'
+UNIT = 'au'
 
 # input / output
 INPUT = os.getcwd() + '/water_therm_1000.mat'
