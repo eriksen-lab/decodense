@@ -13,23 +13,12 @@ __status__ = 'Development'
 import os
 import numpy as np
 import math
-from pyscf import gto, lib
+from pyscf import gto
 from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls
 from .tools import git_version
 from .data import AU_TO_DEBYE
-
-
-def collect_res(decomp: DecompCls, mol: gto.Mole) -> Dict[str, Any]:
-        res: Dict[str, Any] = {'prop_el': decomp.prop_el, 'prop_nuc': decomp.prop_nuc, \
-                               'pop': decomp.pop, 'loc': _loc(decomp), 'xc': _xc(decomp), \
-                               'ref': _ref(decomp, mol), 'time': decomp.time, 'sym': mol.groupname}
-        if decomp.pop_atom is not None:
-            res['pop_atom'] = decomp.pop_atom
-        if decomp.centres is not None:
-            res['centres'] = decomp.centres
-        return res
 
 
 def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
@@ -63,9 +52,9 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         string += ' assignment         =  {:}\n'
         form += (decomp.basis, decomp.part, decomp.pop,)
         string += ' localization       =  {:}\n'
-        form += (_loc(decomp),)
+        form += (_loc(decomp.loc),)
         string += ' xc functional      =  {:}\n'
-        form += (_xc(decomp),)
+        form += (_xc(decomp.xc),)
         if mol is not None:
             string += '\n reference funct.   =  {:}\n'
             string += ' point group        =  {:}\n'
@@ -75,7 +64,7 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
             string += ' spin: <S^2>        =  {:.3f}\n'
             string += ' spin: 2*S + 1      =  {:.3f}\n'
             string += ' basis functions    =  {:d}\n'
-            form += (_ref(decomp, mol), mol.groupname, mol.nelectron, mol.alpha.size, mol.beta.size, \
+            form += (_ref(mol, decomp.ref, decomp.xc), mol.groupname, mol.nelectron, mol.alpha.size, mol.beta.size, \
                      decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
 
         # timing and git version
@@ -90,19 +79,17 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         return string.format(*form)
 
 
-def results(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
+def results(mol: gto.Mole, **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on either an atom- or bond-based partitioning
         """
-        if decomp.part in ['atoms', 'eda']:
-            return atoms(decomp, mol, prop, **kwargs)
-        else: # bonds
-            if prop == 'atomization':
-                raise NotImplementedError('atomization energies are not implemented for bond-wise partitioning')
-            return bonds(decomp, mol, prop, **kwargs)
+        if kwargs['part'] in ['atoms', 'eda']:
+            return atoms(mol, **kwargs)
+        else:
+            return bonds(mol, **kwargs)
 
 
-def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
+def atoms(mol: gto.Mole, **kwargs: np.ndarray) -> str:
         """
         atom-based partitioning
         """
@@ -110,13 +97,19 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
         string: str = ''
         form: Tuple[Any, ...] = ()
 
+        # property of interest
+        prop = kwargs['prop']
+        # effective atomic charges
+        pop_atom = kwargs['pop_atom']
+
+        # ground state energy
         if prop == 'energy':
 
+            # electronic, nuclear, and total contributions to property
             prop_el = kwargs['prop_el']
             prop_nuc = kwargs['prop_nuc']
             prop_tot = prop_el + prop_nuc
             assert prop_el.ndim == prop_nuc.ndim == 1, 'wrong choice of property'
-            pop_atom = kwargs['pop_atom']
 
             string += '--------------------------------------------------------------------\n'
             string += '{:^70}\n'
@@ -137,41 +130,41 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
             string += '--------------------------------------------------------------------\n\n'
             form += (np.sum(prop_el), np.sum(prop_nuc), np.sum(prop_tot), np.sum(pop_atom))
 
-        if prop == 'atomization':
+            # atomization energy
+            if 'prop_atom' in kwargs:
 
-            prop_tot = kwargs['prop_el'] + kwargs['prop_nuc']
-            prop_atom = kwargs['prop_atom']
-            assert prop_tot.ndim == prop_atom.ndim == 1, 'wrong choice of property'
-            assert prop_tot.size == prop_atom.size, 'mismatch between lengths of input arrays'
-            pop_atom = kwargs['pop_atom']
+                prop_atom = kwargs['prop_atom']
+                assert prop_atom.size == prop_tot.size, 'mismatch between lengths of input arrays'
 
-            string += '--------------------------------------\n'
-            string += '{:^40}\n'
-            string += '--------------------------------------\n'
-            string += '--------------------------------------\n'
-            string += ' atom |      total   |  eff. charge\n'
-            string += '--------------------------------------\n'
-            string += '--------------------------------------\n'
-            form += ('atomization energy',)
+                string += '--------------------------------------\n'
+                string += '{:^40}\n'
+                string += '--------------------------------------\n'
+                string += '--------------------------------------\n'
+                string += ' atom |      total   |  eff. charge\n'
+                string += '--------------------------------------\n'
+                string += '--------------------------------------\n'
+                form += ('atomization energy',)
 
-            for i in range(mol.natm):
-                string += ' {:<5s}|{:>+12.5f}  |{:>+11.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_tot[i] - prop_atom[i], pop_atom[i])
+                for i in range(mol.natm):
+                    string += ' {:<5s}|{:>+12.5f}  |{:>+11.3f}\n'
+                    form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), prop_tot[i] - prop_atom[i], pop_atom[i])
 
-            string += '--------------------------------------\n'
-            string += '--------------------------------------\n'
-            string += ' sum  |{:>+12.5f}  |{:>+11.3f}\n'
-            string += '--------------------------------------\n\n'
-            form += (np.sum(prop_tot) - np.sum(prop_atom), np.sum(pop_atom))
+                string += '--------------------------------------\n'
+                string += '--------------------------------------\n'
+                string += ' sum  |{:>+12.5f}  |{:>+11.3f}\n'
+                string += '--------------------------------------\n\n'
+                form += (np.sum(prop_tot) - np.sum(prop_atom), np.sum(pop_atom))
 
+        # dipole moment
         elif prop == 'dipole':
 
+            # electronic, nuclear, and total contributions to property
             prop_el = kwargs['prop_el']
             prop_nuc = kwargs['prop_nuc']
             prop_tot = prop_el + prop_nuc
             assert prop_el.ndim == prop_nuc.ndim == prop_tot.ndim == 2, 'wrong choice of property'
-            pop_atom = kwargs['pop_atom']
 
+            # dipole unit
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
@@ -207,7 +200,7 @@ def atoms(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
         return string.format(*form)
 
 
-def bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> str:
+def bonds(mol: gto.Mole, **kwargs: np.ndarray) -> str:
         """
         bond-based partitioning
         """
@@ -215,15 +208,19 @@ def bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
         string: str = ''
         form: Tuple[Any, ...] = ()
 
-        # inter-atomic distance array
-        dist = gto.mole.inter_distance(mol) * lib.param.BOHR
+        # property of interest
+        prop = kwargs['prop']
+        # bond centres
+        centres = kwargs['centres']
+        # bond lengths
+        dist = kwargs['dist']
 
         if prop == 'energy':
 
+            # electronic and nuclear contributions to property
             prop_el = kwargs['prop_el']
             prop_nuc = kwargs['prop_nuc']
             assert prop_el[0].ndim == 1, 'wrong choice of property'
-            centres = kwargs['centres']
 
             string += '--------------------------------------------------------\n'
             string += '{:^55}\n'
@@ -263,10 +260,10 @@ def bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
 
         elif prop == 'dipole':
 
+            # electronic and nuclear contributions to property
             prop_el = kwargs['prop_el']
             prop_nuc = kwargs['prop_nuc']
             assert prop_el[0].ndim == 2, 'wrong choice of property'
-            centres = kwargs['centres']
 
             string += '----------------------------------------------------------------------------\n'
             string += '{:^75}\n'
@@ -316,38 +313,37 @@ def bonds(decomp: DecompCls, mol: gto.Mole, prop: str, **kwargs: np.ndarray) -> 
         return string.format(*form)
 
 
-def _ref(decomp: DecompCls, mol: gto.Mole) -> str:
+def _ref(mol: gto.Mole, ref: str, xc: str) -> str:
         """
         this functions returns the correct (formatted) reference function
         """
-        if decomp.ref == 'restricted':
+        if ref == 'restricted':
             if mol.spin == 0:
-                ref = 'RHF' if decomp.xc == '' else 'RKS'
+                return 'RHF' if xc == '' else 'RKS'
             else:
-                ref = 'ROHF' if decomp.xc == '' else 'ROKS'
+                return 'ROHF' if xc == '' else 'ROKS'
         else:
-            ref = 'UHF' if decomp.xc == '' else 'UKS'
-        return ref
+            return 'UHF' if xc == '' else 'UKS'
 
 
-def _loc(decomp: DecompCls) -> str:
+def _loc(loc: str) -> str:
         """
         this functions returns the correct (formatted) localization
         """
-        if decomp.loc == '':
+        if loc == '':
             return 'none'
         else:
-            return decomp.loc
+            return loc
 
 
-def _xc(decomp: DecompCls) -> str:
+def _xc(xc: str) -> str:
         """
         this functions returns the correct (formatted) xc functional
         """
-        if decomp.xc == '':
+        if xc == '':
             return 'none'
         else:
-            return decomp.xc
+            return xc
 
 
 def _time(time: float) -> str:

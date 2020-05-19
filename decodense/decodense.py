@@ -11,14 +11,13 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import gto, scf
+from pyscf import lib, gto, scf
 from mpi4py import MPI
 from typing import Dict, Tuple, Any
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot, e_nuc, dip_nuc
-from .results import collect_res
 from .tools import mf_calc, dim, make_rdm1
 
 
@@ -54,7 +53,10 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         # determine spin
         decomp.ss, decomp.s = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], mo_coeff[1][:, mol.beta]), s)
 
-        # decompose electronic property
+        # inter-atomic distance array
+        decomp.dist = gto.mole.inter_distance(mol) * lib.param.BOHR
+
+        # decompose property
         if decomp.part in ['atoms', 'eda']:
             weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                    decomp.part, decomp.verbose)[0]
@@ -70,6 +72,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         # collect time
         decomp.time = MPI.Wtime() - time
 
-        return collect_res(decomp, mol)
+        return decomp.__dict__
 
 
