@@ -89,7 +89,7 @@ def main():
                 # retrieve results
                 if res is not None:
                     res_el[res['idx']] = res['prop_el']
-                    res_nuc[res['idx']] = res['nuc']
+                    res_nuc[res['idx']] = res['prop_nuc']
                     if res['idx'] % RST_FREQ == 0:
                         # save results
                         np.save(OUTPUT + 'elec', res_el)
@@ -116,7 +116,7 @@ def main():
                 # save results
                 if res is not None:
                     res_el[res['idx']] = res['prop_el']
-                    res_nuc[res['idx']] = res['nuc']
+                    res_nuc[res['idx']] = res['prop_nuc']
                     if res['idx'] % RST_FREQ == 0:
                         np.save(OUTPUT + 'elec', res_el)
                         np.save(OUTPUT + 'nuc', res_nuc)
@@ -153,7 +153,7 @@ def main():
                     # decodense calc
                     res = decodense.main(mol, decomp)
                     # send results to master
-                    comm.send({'idx': mol_dict['idx'], 'nuc': res['nuc'], 'prop_el': res['prop_el']}, dest=0, tag=1)
+                    comm.send({'idx': mol_dict['idx'], 'nuc': res['prop_nuc'], 'prop_el': res['prop_el']}, dest=0, tag=1)
                 else:
                     # exit
                     break
