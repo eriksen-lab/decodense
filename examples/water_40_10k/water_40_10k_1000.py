@@ -15,12 +15,13 @@ import decodense
 PARAMS = {
     'prop': 'energy',
     'basis': 'ccpvdz',
-    'xc': '',
+    'xc': 'pbe0',
     'loc': 'ibo-2',
     'pop': 'iao',
     'part': 'atoms'
 }
 UNIT = 'au'
+RST_FREQ = 50
 
 # input / output
 INPUT = os.getcwd() + '/water_40_10k.mat'
@@ -32,6 +33,7 @@ OUTPUT = os.getcwd() + '/{:}_{:}_{:}_{:}_{:}_{:}/'.format(PARAMS['prop'], PARAMS
 def randomize(a, seed):
     np.random.seed(seed)
     return a[np.random.permutation(a.shape[0])]
+
 
 def main():
         """
@@ -69,12 +71,12 @@ def main():
 
             # start_idx
             if restart:
-                results = np.array([int(i) for j in sorted(os.listdir(OUTPUT)) for i in re.findall('(\d+)', j)])
-                assert results.size % 2 == 0, 'restart error: invalid number of *_el.npy and *_tot.npy files'
-                start_idx = np.argmax(np.ediff1d(np.unique(results))) + 1
-                if start_idx == 1:
-                    start_idx += np.max(np.unique(results))
+                res_el = np.load(OUTPUT + 'elec.npy')
+                res_nuc = np.load(OUTPUT + 'nuc.npy')
+                start_idx = np.argmax(res_el[:, 0] == 0.)
             else:
+                res_el = np.zeros([n_tasks, 3], dtype=np.float64)
+                res_nuc = np.zeros([n_tasks, 3], dtype=np.float64)
                 start_idx = 0
 
             # loop over molecules in data set
@@ -84,21 +86,25 @@ def main():
                 comm.Probe(source=MPI.ANY_SOURCE, tag=1, status=stat)
                 # receive slave results
                 res = comm.recv(source=stat.source, tag=1)
-                # save results
+                # retrieve results
                 if res is not None:
-                    np.save(OUTPUT + str(res['idx']) + '_el', res['prop_el'])
-                    np.save(OUTPUT + str(res['idx']) + '_tot', res['prop_tot'])
+                    res_el[res['idx']] = res['prop_el']
+                    res_nuc[res['idx']] = res['nuc']
+                    if res['idx'] % RST_FREQ == 0:
+                        # save results
+                        np.save(OUTPUT + 'elec', res_el)
+                        np.save(OUTPUT + 'nuc', res_nuc)
+                        # print status
+                        prog = (res['idx'] + 1) / n_tasks
+                        status = int(round(50 * prog))
+                        remainder = (50 - status)
+                        print(' STATUS:   [{:}]   ---  {:>6.2f} %'.format('#' * status + '-' * remainder, prog * 100.))
+
 
                 # send mol_dict to slave
                 comm.send({'idx': mol_idx, \
                            'struct': [[int(z), mol_geo[i]] for i, z in enumerate(data['Z'][mol_idx]) if 0. < z]}, \
                           dest=stat.source, tag=2)
-
-                # print status
-                prog = (mol_idx + 1) / n_tasks
-                status = int(round(50 * prog))
-                remainder = (50 - status)
-                print(' STATUS:   [{:}]   ---  {:>6.2f} %'.format('#' * status + '-' * remainder, prog * 100.))
 
             # done with all tasks
             while n_slaves > 0:
@@ -109,14 +115,22 @@ def main():
                 res = comm.recv(source=stat.source, tag=1)
                 # save results
                 if res is not None:
-                    np.save(OUTPUT + str(res['idx']) + '_el', res['prop_el'])
-                    np.save(OUTPUT + str(res['idx']) + '_tot', res['prop_tot'])
+                    res_el[res['idx']] = res['prop_el']
+                    res_nuc[res['idx']] = res['nuc']
+                    if res['idx'] % RST_FREQ == 0:
+                        np.save(OUTPUT + 'elec', res_el)
+                        np.save(OUTPUT + 'nuc', res_nuc)
 
                 # send exit signal to slave
                 comm.send(None, dest=stat.source, tag=2)
                 # remove slave
                 n_slaves -= 1
 
+            # save final results
+            np.save(OUTPUT + 'elec', res_el)
+            np.save(OUTPUT + 'nuc', res_nuc)
+            # print final status
+            print(' STATUS:   [{:}]   ---  {:>6.2f} %'.format('#' * 50 + '-' * 0, 100.))
             # write final info
             with open(OUTPUT + 'info.txt', 'w') as f_info:
                 f_info.write(decodense.info(decomp))
@@ -137,14 +151,9 @@ def main():
                     mol = gto.M(verbose = 0, output = None, unit = UNIT, \
                                 basis = PARAMS['basis'], atom = mol_dict['struct'])
                     # decodense calc
-                    e_calc = decodense.main(mol, decomp)
+                    res = decodense.main(mol, decomp)
                     # send results to master
-                    if PARAMS['prop'] == 'energy':
-                        comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
-                                   'prop_tot': e_calc['prop_nuc'] + e_calc['prop_el']}, dest=0, tag=1)
-                    else:
-                        comm.send({'idx': mol_dict['idx'], 'prop_el': e_calc['prop_el'], \
-                                   'prop_tot': e_calc['prop_nuc'] - e_calc['prop_el']}, dest=0, tag=1)
+                    comm.send({'idx': mol_dict['idx'], 'nuc': res['nuc'], 'prop_el': res['prop_el']}, dest=0, tag=1)
                 else:
                     # exit
                     break
