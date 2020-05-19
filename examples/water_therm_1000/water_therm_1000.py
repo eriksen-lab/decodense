@@ -145,7 +145,7 @@ def main():
                     # decodense calc
                     res = decodense.main(mol, decomp)
                     # send results to master
-                    comm.send({'idx': mol_dict['idx'], 'nuc': res['prop_nuc'], 'prop_el': res['prop_el']}, dest=0, tag=1)
+                    comm.send({'idx': mol_dict['idx'], 'prop_nuc': res['prop_nuc'], 'prop_el': res['prop_el']}, dest=0, tag=1)
                 else:
                     # exit
                     break
