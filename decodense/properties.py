@@ -86,9 +86,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # kinetic & nuclear attraction energy or dipole moment associated with given atom
                 if prop_type == 'energy':
                     prop_atom[k] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    for l in range(mol.natm):
-                        prop_atom[l] += _trace(sub_nuc[l], np.sum(rdm1_atom, axis=0), scaling = .5)
-                        prop_atom[k] += _trace(sub_nuc[l], np.sum(rdm1_atom, axis=0), scaling = .5)
+                    prop_atom[k] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                    prop_atom[k] += _trace(sub_nuc[k], np.sum(rdm1_tot, axis=0), scaling = .5)
                 elif prop_type == 'dipole':
                     prop_atom[k] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # additional xc energy contribution
@@ -210,9 +209,9 @@ def _h_core(mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         this function returns the components of the core hamiltonian
         """
+        kin = mol.intor_symmetric('int1e_kin')
         coords = mol.atom_coords()
         charges = mol.atom_charges()
-        kin = mol.intor_symmetric('int1e_kin')
         sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
         for k in range(mol.natm):
             with mol.with_rinv_origin(coords[k]):

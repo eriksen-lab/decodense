@@ -21,6 +21,7 @@ PARAMS = {
     'part': 'atoms'
 }
 UNIT = 'au'
+N_ATOMS = 3
 RST_FREQ = 50
 
 # input / output
@@ -67,8 +68,8 @@ def main():
                 res_nuc = np.load(OUTPUT + 'nuc.npy')
                 start_idx = np.argmax(res_el[:, 0] == 0.)
             else:
-                res_el = np.zeros([n_tasks, 3], dtype=np.float64)
-                res_nuc = np.zeros([n_tasks, 3], dtype=np.float64)
+                res_el = np.zeros([n_tasks, N_ATOMS], dtype=np.float64)
+                res_nuc = np.zeros([n_tasks, N_ATOMS], dtype=np.float64)
                 start_idx = 0
 
             # loop over molecules in data set

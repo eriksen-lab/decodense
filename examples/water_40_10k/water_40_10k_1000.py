@@ -25,6 +25,7 @@ RST_FREQ = 50
 
 # input / output
 INPUT = os.getcwd() + '/water_40_10k.mat'
+N_ATOMS = 120
 NUMBER = 1000
 OUTPUT = os.getcwd() + '/{:}_{:}_{:}_{:}_{:}_{:}/'.format(PARAMS['prop'], PARAMS['xc'] if PARAMS['xc'] != '' else 'hf', \
                                                           PARAMS['basis'], PARAMS['loc'] if PARAMS['loc'] != '' else 'can', \
@@ -75,8 +76,8 @@ def main():
                 res_nuc = np.load(OUTPUT + 'nuc.npy')
                 start_idx = np.argmax(res_el[:, 0] == 0.)
             else:
-                res_el = np.zeros([n_tasks, 3], dtype=np.float64)
-                res_nuc = np.zeros([n_tasks, 3], dtype=np.float64)
+                res_el = np.zeros([n_tasks, N_ATOMS], dtype=np.float64)
+                res_nuc = np.zeros([n_tasks, N_ATOMS], dtype=np.float64)
                 start_idx = 0
 
             # loop over molecules in data set
