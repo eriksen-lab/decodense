@@ -91,7 +91,7 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], con
         else:
             # dft calc
             if ref == 'restricted':
-                mf = dft.ROKS(mol)
+                mf = dft.RKS(mol)
             elif ref == 'unrestricted':
                 mf = dft.UKS(mol)
             mf.xc = xc
