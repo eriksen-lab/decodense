@@ -17,7 +17,7 @@ from typing import Dict, Tuple, Any
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
-from .properties import prop_tot, e_nuc, dip_nuc
+from .properties import prop_tot
 from .tools import mf_calc, dim, make_rdm1
 
 
@@ -34,12 +34,6 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         # mf calculation
         mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, \
                                        decomp.conv_tol, decomp.verbose, decomp.mom)
-
-        # nuclear property
-        if decomp.prop == 'energy':
-            decomp.prop_nuc = e_nuc(mol)
-        elif decomp.prop == 'dipole':
-            decomp.prop_nuc = dip_nuc(mol)
 
         # molecular dimensions
         mol.alpha, mol.beta = dim(mol, mo_occ)
@@ -60,14 +54,15 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         if decomp.part in ['atoms', 'eda']:
             weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                    decomp.part, decomp.verbose)[0]
-            decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.ref, \
-                                      decomp.prop, decomp.part, decomp.cube, weights = weights)
-            decomp.pop_atom = np.sum(weights[0] + weights[1], axis=0)
+            decomp.prop_el, decomp.prop_nuc, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
+                                                                           decomp.ref, decomp.prop, decomp.part, \
+                                                                           decomp.cube, weights = weights)
         elif decomp.part == 'bonds':
             rep_idx, decomp.centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                                    decomp.part, decomp.verbose, thres = decomp.thres)
-            decomp.prop_el = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.ref, \
-                                      decomp.prop, decomp.part, decomp.cube, rep_idx = rep_idx)
+            decomp.prop_el, decomp.prop_nuc, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
+                                                                           decomp.ref, decomp.prop, decomp.part, \
+                                                                           decomp.cube, rep_idx = rep_idx)
 
         # collect time
         decomp.time = MPI.Wtime() - time
