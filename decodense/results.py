@@ -251,7 +251,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 string += '{:^56}\n'
                 string += '-' * 56 + '\n'
                 form += ('alpha-spin',) if i == 0 else ('beta-spin',)
-                for j in range(prop_el[i].size):
+                for j in range(centres[i].shape[0]):
                     core = centres[i][j, 0] == centres[i][j, 1]
                     string += '  {:>2d}  |{:>+12.5f}   |    {:<11s}|  {:>9s}\n'
                     form += (j, prop_el[i][j] * scaling, \
@@ -302,7 +302,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 string += '{:^76}\n'
                 string += '-' * 76 + '\n'
                 form += ('alpha-spin',) if i == 0 else ('beta-spin',)
-                for j in range(prop_el[i].shape[0]):
+                for j in range(centres[i].shape[0]):
                     core = centres[i][j, 0] == centres[i][j, 1]
                     string += '  {:>2d}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |    {:<11s}|  {:>9s}\n'
                     form += (j, *prop_el[i][j] * scaling + 1.e-10, \

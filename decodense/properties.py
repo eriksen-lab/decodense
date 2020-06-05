@@ -180,7 +180,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         else:
                             write_cube(mol, rdm1_orb, 'spin_{:s}_rdm1_{:d}'.format('a' if i == 0 else 'b', j))
                 # closed-shell system
-                if mol.spin == 0:
+                if ref == 'restricted' and mol.spin == 0:
                     prop_el[i+1] = prop_el[i]
                     break
 

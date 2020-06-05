@@ -88,10 +88,13 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # mom
         assert isinstance(decomp.mom, list), \
             'invalid mom argument. must be a list of dictionaries'
+        if 0 < len(decomp.mom):
+            assert decomp.ref == 'unrestricted', \
+                'invalid mom argument. only implemented for unrestricted references'
         assert all([isinstance(i, int) for j in decomp.mom for i in j.keys()]), \
-            'invalid mom argument. dictionaries keys (0/1 for alpha/beta) must be ints'
+            'invalid mom argument. dictionaries keys (MO indices) must be ints'
         assert all([isinstance(i, float) and i in [0., 1., 2.] for j in decomp.mom for i in j.values()]), \
-            'invalid mom argument. dictionaries values must be floats with a value of 0., 1., or 2.'
+            'invalid mom argument. dictionaries values (occupations) must be floats with a value of 0., 1., or 2.'
         assert len(decomp.mom) <= 2, \
             'invalid mom argument. must be a list of at max two dictionaries'
         # property
