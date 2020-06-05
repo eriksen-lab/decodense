@@ -18,7 +18,7 @@ from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls
 from .tools import git_version
-from .data import AU_TO_DEBYE
+from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 
 
 def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
@@ -107,6 +107,22 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # scalar property
         if prop_el.ndim == prop_nuc.ndim == 1:
 
+            if 'unit' in kwargs:
+                unit = kwargs['unit'].lower()
+            else:
+                unit = 'au'
+            assert unit in ['au', 'kcal_mol', 'ev', 'kj_mol'], 'illegal unit for energies. ' \
+                                                               'valid options are: ' \
+                                                               '`au` (default), `kcal_mol`, ' \
+                                                               '`ev`, and `kj_mol`.'
+            scaling = 1.
+            if unit == 'kcal_mol':
+                scaling = AU_TO_KCAL_MOL
+            elif unit == 'ev':
+                scaling = AU_TO_EV
+            elif unit == 'kj_mol':
+                scaling = AU_TO_KJ_MOL
+
             string += '-' * 69 + '\n'
             string += '{:^69}\n'
             string += '-' * 69 + '\n'
@@ -114,31 +130,37 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += ' atom |  electronic  |    nuclear   |     total    |  part. charge\n'
             string += '-' * 69 + '\n'
             string += '-' * 69 + '\n'
-            form += (header,)
+            form += ('{:} (unit: {:})'.format(header, unit),)
 
             for i in range(mol.natm):
                 string += ' {:<5s}|{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>+11.3f}\n'
                 form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
-                                           prop_el[i], prop_nuc[i], prop_tot[i], \
+                                           prop_el[i] * scaling, \
+                                           prop_nuc[i] * scaling, \
+                                           prop_tot[i] * scaling, \
                                            mol.atom_charge(i) - charge_atom[i],)
 
             string += '-' * 69 + '\n'
             string += '-' * 69 + '\n'
             string += ' sum  |{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>11.3f}\n'
             string += '-' * 69 + '\n\n'
-            form += (np.sum(prop_el), np.sum(prop_nuc), np.sum(prop_tot), 0.)
+            form += (np.sum(prop_el) * scaling, \
+                     np.sum(prop_nuc) * scaling, \
+                     np.sum(prop_tot) * scaling, \
+                     0.)
 
         # tensor property
         elif prop_el.ndim == prop_nuc.ndim == 2:
 
-            # dipole unit
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
                 unit = 'au'
-            assert unit in ['au', 'debye'], 'illegal unit for dipole moments.' \
-                                            ' valid options are: `au` (default) or `debye`'
-            scaling = 1. if unit == 'au' else AU_TO_DEBYE
+            assert unit in ['au', 'debye'], 'illegal unit for dipole moments. ' \
+                                            'valid options are: `au` (default) or `debye`.'
+            scaling = 1.
+            if unit == 'debye':
+                scaling = AU_TO_DEBYE
 
             string += '-' * 131 + '\n'
             string += '{:^131}\n'
@@ -201,12 +223,28 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # scalar property
         if prop_el[0].ndim == prop_nuc.ndim == 1:
 
+            if 'unit' in kwargs:
+                unit = kwargs['unit'].lower()
+            else:
+                unit = 'au'
+            assert unit in ['au', 'kcal_mol', 'ev', 'kj_mol'], 'illegal unit for energies. ' \
+                                                               'valid options are: ' \
+                                                               '`au` (default), `kcal_mol`, ' \
+                                                               '`ev`, and `kj_mol`.'
+            scaling = 1.
+            if unit == 'kcal_mol':
+                scaling = AU_TO_KCAL_MOL
+            elif unit == 'ev':
+                scaling = AU_TO_EV
+            elif unit == 'kj_mol':
+                scaling = AU_TO_KJ_MOL
+
             string += '-' * 56 + '\n'
             string += '{:^56}\n'
             string += '-' * 56 + '\n'
             string += '  MO  |   electronic  |    atom(s)    |   bond length\n'
             string += '-' * 56 + '\n'
-            form += (header,)
+            form += ('{:} (unit: {:})'.format(header, unit),)
 
             for i in range(2):
                 string += '-' * 56 + '\n'
@@ -216,7 +254,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 for j in range(prop_el[i].size):
                     core = centres[i][j, 0] == centres[i][j, 1]
                     string += '  {:>2d}  |{:>+12.5f}   |    {:<11s}|  {:>9s}\n'
-                    form += (j, prop_el[i][j], \
+                    form += (j, prop_el[i][j] * scaling, \
                              '{:s}{:d}'.format(mol.atom_symbol(centres[0][j, 0]), centres[i][j, 0]) if core \
                              else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0], \
                                                              mol.atom_symbol(centres[i][j, 1]), centres[i][j, 1]), \
@@ -225,29 +263,30 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += '-' * 56 + '\n'
             string += '-' * 56 + '\n'
             string += ' sum  |{:>+12.5f}   |\n'
-            form += (np.sum(prop_el[0]) + np.sum(prop_el[1]),)
+            form += ((np.sum(prop_el[0]) + np.sum(prop_el[1])) * scaling,)
 
             string += '-' * 23 + '\n'
             string += ' nuc  |{:>+12.5f}   |\n'
-            form += (np.sum(prop_nuc),)
+            form += (np.sum(prop_nuc) * scaling,)
 
             string += '-' * 23 + '\n'
             string += '-' * 23 + '\n'
             string += ' tot  |{:>12.5f}   |\n'
             string += '-' * 23 + '\n\n'
-            form += (np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc),)
+            form += ((np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc)) * scaling,)
 
         # tensor property
         elif prop_el[0].ndim == prop_nuc.ndim == 2:
 
-            # dipole unit
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
                 unit = 'au'
-            assert unit in ['au', 'debye'], 'illegal unit for dipole moments.' \
-                                            ' valid options are: `au` (default) or `debye`'
-            scaling = 1. if unit == 'au' else AU_TO_DEBYE
+            assert unit in ['au', 'debye'], 'illegal unit for dipole moments. ' \
+                                            'valid options are: `au` (default) or `debye`.'
+            scaling = 1.
+            if unit == 'debye':
+                scaling = AU_TO_DEBYE
 
             string += '-' * 76 + '\n'
             string += '{:^76}\n'
