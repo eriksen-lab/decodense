@@ -82,6 +82,7 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], con
         """
         this function returns the results of a mean-field (hf or ks-dft) calculation
         """
+        # mf method
         if xc == '':
             # hf calc
             if ref == 'restricted':
@@ -95,16 +96,18 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], con
             elif ref == 'unrestricted':
                 mf = dft.UKS(mol)
             mf.xc = xc
+
+        # defaults
         mf.max_cycle = MAX_CYCLE
         mf.irrep_nelec = irrep_nelec
         mf.conv_tol = conv_tol
         mf.verbose = verbose
+
         mf.kernel()
         assert mf.converged, 'mean-field calculation not converged'
 
-        # maximum occpuation method
         if mom:
-            # save ground state mo coefficients and update occupations
+            # maximum occpuation method
             mo = mf.mo_coeff
             occ = mf.mo_occ
             # loop through mom dictionary
@@ -119,7 +122,6 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], con
             mf.kernel(rdm1)
             assert mf.converged, 'maximum occupation method mean-field calculation not converged'
 
-        # restricted references
         if ref == 'restricted':
             mo_coeff = np.asarray((mf.mo_coeff,) * 2)
             mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
@@ -136,10 +138,7 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        alpha = np.where(mo_occ[0] > 0.)[0]
-        beta = np.where(mo_occ[1] > 0.)[0]
-
-        return alpha, beta
+        return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:

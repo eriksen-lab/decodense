@@ -21,9 +21,11 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', xc: str = '', part = 'atoms', \
-                     irrep_nelec: Dict[str, int] = {}, ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
-                     mom: List[Dict[int, int]] = [], prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
+        def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', \
+                     xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
+                     ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
+                     mom: List[Dict[int, int]] = [], prop: str = 'energy', \
+                     cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """

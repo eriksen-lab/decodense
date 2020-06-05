@@ -16,47 +16,40 @@ from typing import List, Tuple, Dict, Union, Any
 
 from .tools import make_rdm1
 
+LOC_CONV = 1.e-10
+
 
 def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], \
              s: np.ndarray, ref: str, variant: str) -> np.ndarray:
         """
         this function returns a set of localized MOs of a specific variant
         """
-        # init localizer
-        if variant == 'fb':
-            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+        # loop over spins
+        for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+
+            if variant == 'fb':
                 # foster-boys procedure
                 loc = lo.Boys(mol, mo_coeff[i][:, spin_mo])
-                loc.conv_tol = 1.e-10
+                loc.conv_tol = LOC_CONV
                 # FB MOs
                 mo_coeff[i][:, spin_mo] = loc.kernel()
-                # closed-shell reference
-                if ref == 'restricted' and mol.spin == 0:
-                    mo_coeff[i+1][:, spin_mo] = mo_coeff[i][:, spin_mo]
-                    break
-        elif variant == 'pm':
-            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+            elif variant == 'pm':
                 # pipek-mezey procedure
                 loc = lo.PM(mol, mo_coeff[i][:, spin_mo])
-                loc.conv_tol = 1.e-10
+                loc.conv_tol = LOC_CONV
                 # PM MOs
                 mo_coeff[i][:, spin_mo] = loc.kernel()
-                # closed-shell reference
-                if ref == 'restricted' and mol.spin == 0:
-                    mo_coeff[i+1][:, spin_mo] = mo_coeff[i][:, spin_mo]
-                    break
-        elif 'ibo' in variant:
-            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+            elif 'ibo' in variant:
                 # orthogonalized IAOs
                 iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo])
                 iao = lo.vec_lowdin(iao, s)
                 # IBOs
                 mo_coeff[i][:, spin_mo] = lo.ibo.ibo(mol, mo_coeff[i][:, spin_mo], iaos=iao, \
-                                                    grad_tol = 1.e-10, exponent=int(variant[-1]), verbose=0)
-                # closed-shell reference
-                if ref == 'restricted' and mol.spin == 0:
-                    mo_coeff[i+1][:, spin_mo] = mo_coeff[i][:, spin_mo]
-                    break
+                                                    grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
+            # closed-shell reference
+            if ref == 'restricted' and mol.spin == 0:
+                mo_coeff[i+1][:, spin_mo] = mo_coeff[i][:, spin_mo]
+                break
 
         return mo_coeff
 
@@ -103,6 +96,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
 
             # loop over spin-orbitals
             for j in range(spin_mo.size):
+
                 # get orbital
                 orb = mo[:, j].reshape(mo.shape[0], 1)
                 # orbital-specific rdm1
@@ -142,7 +136,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
 
         if part in ['atoms', 'eda']:
             return weights, None
-        else: # bonds
+        else:
             return rep_idx, centres_unique
 
 
