@@ -20,6 +20,8 @@ from .decomp import DecompCls
 from .tools import git_version
 from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 
+TOLERANCE = 1.e-10
+
 
 def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
         """
@@ -93,9 +95,8 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         """
         atom-based partitioning
         """
-        # init string & form
+        # init string
         string: str = ''
-        form: Tuple[Any, ...] = ()
 
         # electronic, nuclear, and total contributions to property
         prop_el = kwargs['prop_el']
@@ -106,6 +107,9 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
 
         # scalar property
         if prop_el.ndim == prop_nuc.ndim == 1:
+
+            length = 69
+            divider = '-' * length + '\n'
 
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
@@ -123,34 +127,37 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             elif unit == 'kj_mol':
                 scaling = AU_TO_KJ_MOL
 
-            string += '-' * 69 + '\n'
-            string += '{:^69}\n'
-            string += '-' * 69 + '\n'
-            string += '-' * 69 + '\n'
-            string += ' atom |  electronic  |    nuclear   |     total    |  part. charge\n'
-            string += '-' * 69 + '\n'
-            string += '-' * 69 + '\n'
-            form += ('{:} (unit: {:})'.format(header, unit),)
+            string += divider
+            string += f'{f"{header} (unit: {unit})":^{length}}\n'
+            string += divider
+            string += divider
+            string += f'{"atom":^6}|{"electronic":^14}|{"nuclear":^14}|{"total":^14}|{"part. charge":^16}\n'
+            string += divider
+            string += divider
 
             for i in range(mol.natm):
-                string += ' {:<5s}|{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>+11.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
-                                           prop_el[i] * scaling, \
-                                           prop_nuc[i] * scaling, \
-                                           prop_tot[i] * scaling, \
-                                           mol.atom_charge(i) - charge_atom[i],)
+                string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
+                          f'{prop_el[i] * scaling:>+12.5f}  |' \
+                          f'{prop_nuc[i] * scaling:>+12.5f}  |' \
+                          f'{prop_tot[i] * scaling:>+12.5f}  |' \
+                          f'{mol.atom_charge(i) - charge_atom[i]:>+11.3f}\n'
 
-            string += '-' * 69 + '\n'
-            string += '-' * 69 + '\n'
-            string += ' sum  |{:>+12.5f}  |{:>+12.5f}  |{:>+12.5f}  |{:>11.3f}\n'
-            string += '-' * 69 + '\n\n'
-            form += (np.sum(prop_el) * scaling, \
-                     np.sum(prop_nuc) * scaling, \
-                     np.sum(prop_tot) * scaling, \
-                     0.)
+            string += divider
+            string += divider
+            string += f'{"sum":^6}|' \
+                      f'{np.sum(prop_el) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_nuc) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_tot) * scaling:>+12.5f}  |' \
+                      f'{0.:>11.3f}\n'
+            string += divider + '\n'
 
         # tensor property
         elif prop_el.ndim == prop_nuc.ndim == 2:
+
+            length = 131
+            divider = '-' * length + '\n'
+            length_2 = 35
+            divider_2 = '-' * length_2
 
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
@@ -162,55 +169,60 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             if unit == 'debye':
                 scaling = AU_TO_DEBYE
 
-            string += '-' * 131 + '\n'
-            string += '{:^131}\n'
-            string += '-' * 131 + '\n'
+            string += divider
+            string += f'{f"{header} (unit: {unit})":^{length}}\n'
+            string += divider
             string += f'      |{"electronic":^35}|{"nuclear":^35}|{"total":^35}|\n'
-            string += ' atom ' + '-' * 109 + '  part. charge\n'
+            string += f'{"atom":^6}|' + divider_2 + '|' + divider_2 + '|' + divider_2 + f'|{"part. charge":^16}\n'
             string += '      |' \
                       f'{"x":^11}/{"y":^11}/{"z":^11}|' \
                       f'{"x":^11}/{"y":^11}/{"z":^11}|' \
                       f'{"x":^11}/{"y":^11}/{"z":^11}|\n'
-            string += '-' * 131 + '\n'
-            string += '-' * 131 + '\n'
-            form += ('{:} (unit: {:})'.format(header, unit),)
+            string += divider
+            string += divider
 
             for i in range(mol.natm):
-                string += ' {:<5s}|' \
-                          ' {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |' \
-                          ' {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |' \
-                          ' {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |' \
-                          '{:>+11.3f}\n'
-                form += ('{:s}{:d}'.format(mol.atom_symbol(i), i), \
-                                           *prop_el[i] * scaling + 1.e-10, \
-                                           *prop_nuc[i] * scaling + 1.e-10, \
-                                           *prop_tot[i] * scaling + 1.e-10, \
-                                           mol.atom_charge(i) - charge_atom[i],)
+                string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
+                          f' {prop_el[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_el[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_el[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f' {prop_nuc[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_nuc[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_nuc[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f' {prop_tot[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_tot[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_tot[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f'{mol.atom_charge(i) - charge_atom[i]:>+11.3f}\n'
 
-            string += '-' * 131 + '\n'
-            string += '-' * 131 + '\n'
+            string += divider
+            string += divider
 
-            string += ' sum  |' \
-                      ' {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |' \
-                      ' {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |' \
-                      ' {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |' \
-                      '{:>11.3f}\n'
-            string += '-' * 131 + '\n\n'
-            form += (*np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
-                     *np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
-                     *np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3) * scaling + 1.e-10, \
-                     0.)
+            sum_el = np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3)
+            sum_nuc = np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)
+            sum_tot = np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3)
 
-        return string.format(*form)
+            string += f'{"sum":^6}|' \
+                      f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_el[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_el[2] * scaling + TOLERANCE:>+8.3f}  |' \
+                      f' {sum_nuc[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_nuc[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_nuc[2] * scaling + TOLERANCE:>+8.3f}  |' \
+                      f' {sum_tot[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_tot[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_tot[2] * scaling + TOLERANCE:>+8.3f}  |' \
+                      f'{0.:>11.3f}\n'
+            string += divider + '\n'
+
+        return string
 
 
 def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         """
         bond-based partitioning
         """
-        # init string & form
+        # init string
         string: str = ''
-        form: Tuple[Any, ...] = ()
 
         # bond centres
         centres = kwargs['centres']
@@ -223,6 +235,11 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # scalar property
         if prop_el[0].ndim == prop_nuc.ndim == 1:
 
+            length = 56
+            divider = '-' * length + '\n'
+            length_2 = 23
+            divider_2 = '-' * length_2 + '\n'
+
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
@@ -239,44 +256,50 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             elif unit == 'kj_mol':
                 scaling = AU_TO_KJ_MOL
 
-            string += '-' * 56 + '\n'
-            string += '{:^56}\n'
-            string += '-' * 56 + '\n'
-            string += '  MO  |   electronic  |    atom(s)    |   bond length\n'
-            string += '-' * 56 + '\n'
-            form += ('{:} (unit: {:})'.format(header, unit),)
+            string += divider
+            string += f'{f"{header} (unit: {unit})":^{length}}\n'
+            string += divider
+            string += f'{"MO":^6}|{"electronic":^15}|{"atom(s)":^15}|{"bond length":^17}\n'
+            string += divider
 
-            for i in range(2):
-                string += '-' * 56 + '\n'
-                string += '{:^56}\n'
-                string += '-' * 56 + '\n'
-                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
+            for i, spin in enumerate(('alpha-spin', 'beta-spin')):
+                string += divider
+                string += f'{spin:^{length}}\n'
+                string += divider
                 for j in range(centres[i].shape[0]):
+                    atom = f'{mol.atom_symbol(centres[i][j, 0]):s}{centres[i][j, 0]:d}'
                     core = centres[i][j, 0] == centres[i][j, 1]
-                    string += '  {:>2d}  |{:>+12.5f}   |    {:<11s}|  {:>9s}\n'
-                    form += (j, prop_el[i][j] * scaling, \
-                             '{:s}{:d}'.format(mol.atom_symbol(centres[0][j, 0]), centres[i][j, 0]) if core \
-                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0], \
-                                                             mol.atom_symbol(centres[i][j, 1]), centres[i][j, 1]), \
-                             '' if core else '{:>.3f}'.format(dist[centres[i][j, 0], centres[i][j, 1]]),)
+                    if core:
+                        string += f'  {j:>2d}  |' \
+                                  f'{prop_el[i][j] * scaling:>+12.5f}   |' \
+                                  f'    {atom:<11s}|\n'
+                    else:
+                        atom += f'-{mol.atom_symbol(centres[i][j, 1]):s}{centres[i][j, 1]:d}'
+                        rr = f'{dist[centres[i][j, 0], centres[i][j, 1]]:.3f}'
+                        string += f'  {j:>2d}  |' \
+                                  f'{prop_el[i][j] * scaling:>+12.5f}   |' \
+                                  f'    {atom:<11s}|' \
+                                  f'  {rr:>9s}\n'
 
-            string += '-' * 56 + '\n'
-            string += '-' * 56 + '\n'
-            string += ' sum  |{:>+12.5f}   |\n'
-            form += ((np.sum(prop_el[0]) + np.sum(prop_el[1])) * scaling,)
+            string += divider
+            string += divider
+            string += f'{"sum":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1])) * scaling:>+12.5f}   |\n'
 
-            string += '-' * 23 + '\n'
-            string += ' nuc  |{:>+12.5f}   |\n'
-            form += (np.sum(prop_nuc) * scaling,)
+            string += divider_2
+            string += f'{"nuc":^6}|{np.sum(prop_nuc) * scaling:>+12.5f}   |\n'
 
-            string += '-' * 23 + '\n'
-            string += '-' * 23 + '\n'
-            string += ' tot  |{:>12.5f}   |\n'
-            string += '-' * 23 + '\n\n'
-            form += ((np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc)) * scaling,)
+            string += divider_2
+            string += divider_2
+            string += f'{"tot":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc)) * scaling:>12.5f}   |\n'
+            string += divider_2 + '\n'
 
         # tensor property
         elif prop_el[0].ndim == prop_nuc.ndim == 2:
+
+            length = 76
+            divider = '-' * length + '\n'
+            length_2 = 35
+            divider_2 = '-' * length_2
 
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
@@ -288,50 +311,65 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             if unit == 'debye':
                 scaling = AU_TO_DEBYE
 
-            string += '-' * 76 + '\n'
-            string += '{:^76}\n'
-            string += '-' * 76 + '\n'
-            string += f'  MO  |{"electronic":^35}|{"atom(s)":^15}|   bond length\n'
-            string += '-' * 76 + '\n'
-            string += f'      |{"x":^11}/{"y":^11}/{"z":^11}|\n'
-            string += '-' * 76 + '\n'
-            form += ('{:} (unit: {:})'.format(header, unit),)
+            string += divider
+            string += f'{f"{header} (unit: {unit})":^{length}}\n'
+            string += divider
+            string += f'{"":^6}|{"electronic":^35}|{"":^15}|\n'
+            string += f'{"MO":^6}|' + divider_2 + f'|{"atom(s)":^15}|' + f'{"bond length":^17}\n'
+            string += f'{"":^6}|{"x":^11}/{"y":^11}/{"z":^11}|{"":^15}|\n'
+            string += divider
 
-            for i in range(2):
-                string += '-' * 76 + '\n'
-                string += '{:^76}\n'
-                string += '-' * 76 + '\n'
-                form += ('alpha-spin',) if i == 0 else ('beta-spin',)
+            for i, spin in enumerate(('alpha-spin', 'beta-spin')):
+                string += divider
+                string += f'{spin:^{length}}\n'
+                string += divider
                 for j in range(centres[i].shape[0]):
+                    atom = f'{mol.atom_symbol(centres[i][j, 0]):s}{centres[i][j, 0]:d}'
                     core = centres[i][j, 0] == centres[i][j, 1]
-                    string += '  {:>2d}  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |    {:<11s}|  {:>9s}\n'
-                    form += (j, *prop_el[i][j] * scaling + 1.e-10, \
-                             '{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0]) if core \
-                             else '{:s}{:d}-{:s}{:d}'.format(mol.atom_symbol(centres[i][j, 0]), centres[i][j, 0], \
-                                                             mol.atom_symbol(centres[i][j, 1]), centres[i][j, 1]), \
-                             '' if core else '{:>.3f}'.format(dist[centres[i][j, 0], centres[i][j, 1]]),)
+                    if core:
+                        string += f'  {j:>2d}  |' \
+                                  f' {prop_el[i][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop_el[i][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop_el[i][j][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                                  f'    {atom:<11s}|\n'
+                    else:
+                        atom += f'-{mol.atom_symbol(centres[i][j, 1]):s}{centres[i][j, 1]:d}'
+                        rr = f'{dist[centres[i][j, 0], centres[i][j, 1]]:.3f}'
+                        string += f'  {j:>2d}  |' \
+                                  f' {prop_el[i][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop_el[i][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop_el[i][j][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                                  f'    {atom:<11s}|' \
+                                  f'  {rr:>9s}\n'
 
-            string += '-' * 76 + '\n'
-            string += '-' * 76 + '\n'
+            string += divider
+            string += divider
 
-            string += ' sum  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
-            form += (*(np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
-                       np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3)) * scaling + 1.e-10,)
+            sum_el = (np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
+                      np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3))
+            sum_nuc = np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)
 
-            string += '-' * 76 + '\n'
-            string += ' nuc  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
-            form += (*np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3) * scaling + 1.e-10,)
+            string += f'{"sum":^6}|' \
+                      f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_el[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_el[2] * scaling + TOLERANCE:>+8.3f}  |\n'
 
-            string += '-' * 76 + '\n'
-            string += '-' * 76 + '\n'
+            string += divider
+            string += f'{"nuc":^6}|' \
+                      f' {sum_nuc[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_nuc[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_nuc[2] * scaling + TOLERANCE:>+8.3f}  |\n'
 
-            string += ' tot  | {:>+8.3f}  / {:>+8.3f}  / {:>+8.3f}  |\n'
-            string += '-' * 76 + '\n\n'
-            form += (*(np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
-                       np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3) + \
-                       np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)) * scaling + 1.e-10,)
+            string += divider
+            string += divider
 
-        return string.format(*form)
+            string += f'{"tot":^6}|' \
+                      f' {(sum_el[0] + sum_nuc[0]) * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {(sum_el[1] + sum_nuc[1]) * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {(sum_el[2] + sum_nuc[2]) * scaling + TOLERANCE:>+8.3f}  |\n'
+            string += divider + '\n'
+
+        return string
 
 
 def _ref(mol: gto.Mole, ref: str, xc: str) -> str:
