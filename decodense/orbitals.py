@@ -109,7 +109,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 # verbose print
                 if 0 < verbose:
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
-                        print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', j, weights[i][j]))
+                        print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', spin_mo[j], weights[i][j]))
 
                 if part == 'bonds':
                     # get sorted indices
