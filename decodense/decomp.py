@@ -50,7 +50,8 @@ class DecompCls(object):
                 self.prop_el: np.ndarray = None
                 self.prop_nuc: np.ndarray = None
                 self.prop_tot: np.ndarray = None
-                self.pop_atom: np.ndarray = None
+                self.charge_atom: np.ndarray = None
+                self.dist: np.ndarray = None
                 self.weights: np.ndarray = None
                 self.centres: np.ndarray = None
 
