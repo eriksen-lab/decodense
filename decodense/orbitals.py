@@ -115,9 +115,9 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                     # get sorted indices
                     max_idx = np.argsort(weights[i][j])[::-1]
                     # compute population centres
-                    if np.abs(weights[i][j][max_idx[0]]) / np.abs((weights[i][j][max_idx[0]] + weights[i][j][max_idx[1]])) > thres:
+                    if np.abs(weights[i][j][max_idx[0]]) > thres:
                         # core orbital or lone pair
-                        centres[i][j] = np.sort(np.array([max_idx[0], max_idx[0]], dtype=np.int))
+                        centres[i][j] = np.array([max_idx[0], max_idx[0]], dtype=np.int)
                     else:
                         # valence orbitals
                         centres[i][j] = np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
