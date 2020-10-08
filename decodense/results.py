@@ -140,7 +140,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f'{prop_el[i] * scaling:>+12.5f}  |' \
                           f'{prop_nuc[i] * scaling:>+12.5f}  |' \
                           f'{prop_tot[i] * scaling:>+12.5f}  |' \
-                          f'{mol.atom_charge(i) - charge_atom[i]:>+11.3f}\n'
+                          f'{charge_atom[i]:>+11.3f}\n'
 
             string += divider
             string += divider
@@ -192,7 +192,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f' {prop_tot[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
                           f' {prop_tot[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
                           f' {prop_tot[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
-                          f'{mol.atom_charge(i) - charge_atom[i]:>+11.3f}\n'
+                          f'{charge_atom[i]:>+11.3f}\n'
 
             string += divider
             string += divider

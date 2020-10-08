@@ -38,9 +38,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # effective atomic charges
         if 'weights' in kwargs:
             weights = kwargs['weights']
-            charge_atom = np.sum(weights[0] + weights[1], axis=0)
+            charge_atom = mol.atom_charges() - np.sum(weights[0] + weights[1], axis=0)
         else:
-            charge_atom = mol.atom_charges()
+            charge_atom = 0.
 
         # nuclear property
         if prop_type == 'energy':
