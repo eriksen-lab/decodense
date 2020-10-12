@@ -122,14 +122,8 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], con
             mf.kernel(rdm1)
             assert mf.converged, 'maximum occupation method mean-field calculation not converged'
 
-        if ref == 'restricted':
-            mo_coeff = np.asarray((mf.mo_coeff,) * 2)
-            mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
-            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
-            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
-        else:
-            mo_coeff = mf.mo_coeff
-            mo_occ = mf.mo_occ
+        # format mf information
+        mo_coeff, mo_occ = format_mf(mf, ref)
 
         return mf, mo_coeff, mo_occ
 
@@ -139,6 +133,21 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         determine molecular dimensions
         """
         return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
+
+
+def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], ref: str) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        format mf information (mo coefficients & occupations)
+        """
+        if ref == 'restricted':
+            mo_coeff = np.asarray((mf.mo_coeff,) * 2)
+            mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
+            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
+            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+        else:
+            mo_coeff = mf.mo_coeff
+            mo_occ = mf.mo_occ
+        return mo_coeff, mo_occ
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:

@@ -18,7 +18,7 @@ from typing import Dict, Tuple, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import mf_calc, dim, make_rdm1
+from .tools import mf_calc, dim, make_rdm1, format_mf
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
@@ -37,7 +37,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, \
                                            decomp.conv_tol, decomp.verbose, decomp.mom)
         else:
-            mo_coeff, mo_occ = mf.mo_coeff, mf.mo_occ
+            mo_coeff, mo_occ = format_mf(mf, decomp.ref)
 
         # molecular dimensions
         mol.alpha, mol.beta = dim(mol, mo_occ)
