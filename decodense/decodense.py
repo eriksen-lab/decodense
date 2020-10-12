@@ -11,9 +11,9 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import lib, gto, scf
+from pyscf import lib, gto, scf, dft
 from mpi4py import MPI
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Union, Any
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
@@ -21,7 +21,8 @@ from .properties import prop_tot
 from .tools import mf_calc, dim, make_rdm1
 
 
-def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
+def main(mol: gto.Mole, decomp: DecompCls, \
+         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT] = None) -> Dict[str, Any]:
         """
         main decodense program
         """
@@ -32,8 +33,11 @@ def main(mol: gto.Mole, decomp: DecompCls) -> Dict[str, Any]:
         time = MPI.Wtime()
 
         # mf calculation
-        mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, \
-                                       decomp.conv_tol, decomp.verbose, decomp.mom)
+        if mf is None:
+            mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, \
+                                           decomp.conv_tol, decomp.verbose, decomp.mom)
+        else:
+            mo_coeff, mo_occ = mf.mo_coeff, mf.mo_occ
 
         # molecular dimensions
         mol.alpha, mol.beta = dim(mol, mo_occ)
