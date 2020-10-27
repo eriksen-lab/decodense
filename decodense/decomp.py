@@ -47,9 +47,8 @@ class DecompCls(object):
                 self.ss: float = 0.
                 self.s: float = 0.
                 self.time: float = 0.
-                self.prop_el: np.ndarray = None
-                self.prop_nuc: np.ndarray = None
-                self.prop_tot: np.ndarray = None
+                self.res: Dict[str, np.ndarray] = {'kin': None, 'coul': None, 'exch': None, 'xc': None, \
+                                                   'nuc_att': None, 'nuc_rep': None, 'el': None, 'tot': None}
                 self.charge_atom: np.ndarray = None
                 self.dist: np.ndarray = None
                 self.weights: np.ndarray = None

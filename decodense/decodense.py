@@ -58,15 +58,15 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.part in ['atoms', 'eda']:
             weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                    decomp.part, decomp.verbose)[0]
-            decomp.prop_el, decomp.prop_nuc, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                                                           decomp.ref, decomp.prop, decomp.part, \
-                                                                           decomp.cube, weights = weights)
+            decomp.res, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
+                                                      decomp.ref, decomp.prop, decomp.part, \
+                                                      decomp.cube, weights = weights)
         elif decomp.part == 'bonds':
             rep_idx, decomp.centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                                    decomp.part, decomp.verbose, thres = decomp.thres)
-            decomp.prop_el, decomp.prop_nuc, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                                                           decomp.ref, decomp.prop, decomp.part, \
-                                                                           decomp.cube, rep_idx = rep_idx)
+            decomp.res, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
+                                                      decomp.ref, decomp.prop, decomp.part, \
+                                                      decomp.cube, rep_idx = rep_idx)
 
         # collect time
         decomp.time = MPI.Wtime() - time

@@ -45,7 +45,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], \
                 iao = lo.vec_lowdin(iao, s)
                 # IBOs
                 mo_coeff[i][:, spin_mo] = lo.ibo.ibo(mol, mo_coeff[i][:, spin_mo], iaos=iao, \
-                                                    grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
+                                                     grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
             # closed-shell reference
             if ref == 'restricted' and mol.spin == 0:
                 mo_coeff[i+1][:, spin_mo] = mo_coeff[i][:, spin_mo]

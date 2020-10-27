@@ -98,17 +98,23 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # init string
         string: str = ''
 
-        # electronic, nuclear, and total contributions to property
-        prop_el = kwargs['prop_el']
-        prop_nuc = kwargs['prop_nuc']
-        prop_tot = prop_el + prop_nuc
+        # electronic, structlear, and total contributions to property
+        res = kwargs['res']
+        prop_coul = res['coul']
+        prop_exch = res['exch']
+        prop_kin = res['kin']
+        prop_rdm_att = res['rdm_att']
+        prop_xc = res['xc']
+        prop_el = res['el']
+        prop_struct = res['struct']
+        prop_tot = prop_el + prop_struct
         # effective atomic charges
         charge_atom = kwargs['charge_atom']
 
         # scalar property
-        if prop_el.ndim == prop_nuc.ndim == 1:
+        if prop_el.ndim == prop_struct.ndim == 1:
 
-            length = 69
+            length = 149
             divider = '-' * length + '\n'
 
             if 'unit' in kwargs:
@@ -131,28 +137,39 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
             string += divider
-            string += f'{"atom":^6}|{"electronic":^14}|{"nuclear":^14}|{"total":^14}|{"part. charge":^16}\n'
+            string += f'{"atom":^6}|{"coulomb":^14}|{"exchange":^14}|{"kinetic":^14}|{"nuc. attr.":^14}|{"xc":^14}||'
+            string += f'{"electronic":^14}||{"structural":^14}|||{"total":^14}|||{"part. charge":^16}\n'
             string += divider
             string += divider
 
             for i in range(mol.natm):
                 string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
-                          f'{prop_el[i] * scaling:>+12.5f}  |' \
-                          f'{prop_nuc[i] * scaling:>+12.5f}  |' \
-                          f'{prop_tot[i] * scaling:>+12.5f}  |' \
+                          f'{prop_coul[i] * scaling:>+12.5f}  |' \
+                          f'{prop_exch[i] * scaling:>+12.5f}  |' \
+                          f'{prop_kin[i] * scaling:>+12.5f}  |' \
+                          f'{prop_rdm_att[i] * scaling:>+12.5f}  |' \
+                          f'{prop_xc[i] * scaling:>+12.5f}  ||' \
+                          f'{prop_el[i] * scaling:>+12.5f}  ||' \
+                          f'{prop_struct[i] * scaling:>+12.5f}  |||' \
+                          f'{prop_tot[i] * scaling:>+12.5f}  |||' \
                           f'{charge_atom[i]:>+11.3f}\n'
 
             string += divider
             string += divider
             string += f'{"sum":^6}|' \
-                      f'{np.sum(prop_el) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop_nuc) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop_tot) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_coul) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_exch) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_kin) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_rdm_att) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop_xc) * scaling:>+12.5f}  ||' \
+                      f'{np.sum(prop_el) * scaling:>+12.5f}  ||' \
+                      f'{np.sum(prop_struct) * scaling:>+12.5f}  |||' \
+                      f'{np.sum(prop_tot) * scaling:>+12.5f}  |||' \
                       f'{0.:>11.3f}\n'
             string += divider + '\n'
 
         # tensor property
-        elif prop_el.ndim == prop_nuc.ndim == 2:
+        elif prop_el.ndim == prop_struct.ndim == 2:
 
             length = 131
             divider = '-' * length + '\n'
@@ -172,7 +189,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
-            string += f'      |{"electronic":^35}|{"nuclear":^35}|{"total":^35}|\n'
+            string += f'      |{"electronic":^35}|{"structural":^35}|{"total":^35}|\n'
             string += f'{"atom":^6}|' + divider_2 + '|' + divider_2 + '|' + divider_2 + f'|{"part. charge":^16}\n'
             string += '      |' \
                       f'{"x":^11}/{"y":^11}/{"z":^11}|' \
@@ -186,9 +203,9 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f' {prop_el[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
                           f' {prop_el[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
                           f' {prop_el[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
-                          f' {prop_nuc[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_nuc[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_nuc[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f' {prop_struct[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_struct[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop_struct[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
                           f' {prop_tot[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
                           f' {prop_tot[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
                           f' {prop_tot[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
@@ -198,16 +215,16 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
 
             sum_el = np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3)
-            sum_nuc = np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)
+            sum_struct = np.fromiter(map(math.fsum, prop_struct.T), dtype=np.float64, count=3)
             sum_tot = np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3)
 
             string += f'{"sum":^6}|' \
                       f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_el[1] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_el[2] * scaling + TOLERANCE:>+8.3f}  |' \
-                      f' {sum_nuc[0] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_nuc[1] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_nuc[2] * scaling + TOLERANCE:>+8.3f}  |' \
+                      f' {sum_struct[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_struct[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_struct[2] * scaling + TOLERANCE:>+8.3f}  |' \
                       f' {sum_tot[0] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_tot[1] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_tot[2] * scaling + TOLERANCE:>+8.3f}  |' \
@@ -228,12 +245,13 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         centres = kwargs['centres']
         # bond lengths
         dist = kwargs['dist']
-        # electronic and nuclear contributions to property
-        prop_el = kwargs['prop_el']
-        prop_nuc = kwargs['prop_nuc']
+        # electronic and structlear contributions to property
+        res = kwargs['res']
+        prop_el = res['el']
+        prop_struct = res['struct']
 
         # scalar property
-        if prop_el[0].ndim == prop_nuc.ndim == 1:
+        if prop_el[0].ndim == prop_struct.ndim == 1:
 
             length = 56
             divider = '-' * length + '\n'
@@ -286,15 +304,15 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{"sum":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1])) * scaling:>+12.5f}   |\n'
 
             string += divider_2
-            string += f'{"nuc":^6}|{np.sum(prop_nuc) * scaling:>+12.5f}   |\n'
+            string += f'{"struct":^6}|{np.sum(prop_struct) * scaling:>+12.5f}   |\n'
 
             string += divider_2
             string += divider_2
-            string += f'{"tot":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_nuc)) * scaling:>12.5f}   |\n'
+            string += f'{"tot":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_struct)) * scaling:>12.5f}   |\n'
             string += divider_2 + '\n'
 
         # tensor property
-        elif prop_el[0].ndim == prop_nuc.ndim == 2:
+        elif prop_el[0].ndim == prop_struct.ndim == 2:
 
             length = 76
             divider = '-' * length + '\n'
@@ -347,7 +365,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
 
             sum_el = (np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
                       np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3))
-            sum_nuc = np.fromiter(map(math.fsum, prop_nuc.T), dtype=np.float64, count=3)
+            sum_struct = np.fromiter(map(math.fsum, prop_struct.T), dtype=np.float64, count=3)
 
             string += f'{"sum":^6}|' \
                       f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
@@ -355,18 +373,18 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f' {sum_el[2] * scaling + TOLERANCE:>+8.3f}  |\n'
 
             string += divider
-            string += f'{"nuc":^6}|' \
-                      f' {sum_nuc[0] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_nuc[1] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_nuc[2] * scaling + TOLERANCE:>+8.3f}  |\n'
+            string += f'{"struct":^6}|' \
+                      f' {sum_struct[0] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_struct[1] * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {sum_struct[2] * scaling + TOLERANCE:>+8.3f}  |\n'
 
             string += divider
             string += divider
 
             string += f'{"tot":^6}|' \
-                      f' {(sum_el[0] + sum_nuc[0]) * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {(sum_el[1] + sum_nuc[1]) * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {(sum_el[2] + sum_nuc[2]) * scaling + TOLERANCE:>+8.3f}  |\n'
+                      f' {(sum_el[0] + sum_struct[0]) * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {(sum_el[1] + sum_struct[1]) * scaling + TOLERANCE:>+8.3f}  /' \
+                      f' {(sum_el[2] + sum_struct[2]) * scaling + TOLERANCE:>+8.3f}  |\n'
             string += divider + '\n'
 
         return string
