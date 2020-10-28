@@ -232,8 +232,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         return {'coul': prop_coul, 'exch': prop_exch, \
                 'kin': prop_kin, 'rdm_att': prop_nuc_att, 'xc': prop_xc, \
                 'nuc_att': prop_nuc_att, 'nuc_rep': prop_nuc_rep, \
-                'el': prop_el, 'struct': prop_struct}, \
-                charge_atom
+                'el': prop_el, 'struct': prop_struct, 'charge_atom': charge_atom}
 
 
 def _e_nuc(mol: gto.Mole) -> np.ndarray:

@@ -85,10 +85,10 @@ def results(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on either an atom- or bond-based partitioning
         """
-        if kwargs['part'] in ['atoms', 'eda']:
-            return atoms(mol, header, **kwargs)
-        else:
+        if 'centres' in kwargs:
             return bonds(mol, header, **kwargs)
+        else:
+            return atoms(mol, header, **kwargs)
 
 
 def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
@@ -99,14 +99,13 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         string: str = ''
 
         # electronic, structlear, and total contributions to property
-        res = kwargs['res']
-        prop_coul = res['coul']
-        prop_exch = res['exch']
-        prop_kin = res['kin']
-        prop_rdm_att = res['rdm_att']
-        prop_xc = res['xc']
-        prop_el = res['el']
-        prop_struct = res['struct']
+        prop_coul = kwargs['coul']
+        prop_exch = kwargs['exch']
+        prop_kin = kwargs['kin']
+        prop_rdm_att = kwargs['rdm_att']
+        prop_xc = kwargs['xc']
+        prop_el = kwargs['el']
+        prop_struct = kwargs['struct']
         prop_tot = prop_el + prop_struct
         # effective atomic charges
         charge_atom = kwargs['charge_atom']
@@ -246,9 +245,8 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # bond lengths
         dist = kwargs['dist']
         # electronic and structlear contributions to property
-        res = kwargs['res']
-        prop_el = res['el']
-        prop_struct = res['struct']
+        prop_el = kwargs['el']
+        prop_struct = kwargs['struct']
 
         # scalar property
         if prop_el[0].ndim == prop_struct.ndim == 1:

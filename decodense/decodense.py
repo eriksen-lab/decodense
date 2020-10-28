@@ -48,29 +48,35 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.loc != '':
             mo_coeff = loc_orbs(mol, mo_coeff, s, decomp.ref, decomp.loc)
 
-        # determine spin
-        decomp.ss, decomp.s = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], mo_coeff[1][:, mol.beta]), s)
-
         # inter-atomic distance array
-        decomp.dist = gto.mole.inter_distance(mol) * lib.param.BOHR
+        dist = gto.mole.inter_distance(mol) * lib.param.BOHR
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
             weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                    decomp.part, decomp.verbose)[0]
-            decomp.res, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                                      decomp.ref, decomp.prop, decomp.part, \
-                                                      decomp.cube, weights = weights)
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
+                                  decomp.ref, decomp.prop, decomp.part, \
+                                  decomp.cube, weights = weights)
         elif decomp.part == 'bonds':
-            rep_idx, decomp.centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
+            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                                    decomp.part, decomp.verbose, thres = decomp.thres)
-            decomp.res, decomp.charge_atom = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                                      decomp.ref, decomp.prop, decomp.part, \
-                                                      decomp.cube, rep_idx = rep_idx)
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
+                                  decomp.ref, decomp.prop, decomp.part, \
+                                  decomp.cube, rep_idx = rep_idx)
+
+        # determine spin
+        decomp.res['ss'], decomp.res['s'] = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], \
+                                                                 mo_coeff[1][:, mol.beta]), s)
 
         # collect time
-        decomp.time = MPI.Wtime() - time
+        decomp.res['time'] = MPI.Wtime() - time
 
-        return decomp.__dict__
+        # collect centres & dist
+        if decomp.part == 'bonds':
+            decomp.res['centres'] = centres
+            decomp.res['dist'] = dist
+
+        return decomp.res
 
 
