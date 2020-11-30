@@ -22,17 +22,16 @@ from .tools import make_rdm1, write_cube
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              ref: str, prop_type: str, part: str, cube: bool, \
-             **kwargs: Union[List[np.ndarray], List[List[np.ndarray]]]) -> Tuple[Dict[str, Union[np.ndarray, List[np.ndarray]]], \
-                                                                                 np.ndarray]:
+             **kwargs: Union[List[np.ndarray], List[List[np.ndarray]]]) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
 
-        # ao dipole integrals with gauge origin at (0.0, 0.0, 0.0)
+        # ao dipole integrals with specified gauge origin
         if prop_type == 'dipole':
-            with mol.with_common_origin([0.0, 0.0, 0.0]):
+            with mol.with_common_origin(kwargs['dipole_origin']):
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
 
         # compute total 1-RDM (AO basis)
