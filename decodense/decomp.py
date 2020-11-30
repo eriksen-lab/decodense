@@ -24,8 +24,8 @@ class DecompCls(object):
         def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', \
                      xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
                      ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
-                     mom: List[Dict[int, int]] = [], prop: str = 'energy', \
-                     cube: bool = False, verbose: int = 0) -> None:
+                     mom: List[Dict[int, int]] = [], grid_level: int = 3, \
+                     prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -40,6 +40,7 @@ class DecompCls(object):
                 self.conv_tol = conv_tol
                 self.thres = thres
                 self.mom = mom
+                self.grid_level = grid_level
                 self.prop = prop
                 self.cube = cube
                 self.verbose = verbose
@@ -79,9 +80,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid reference. valid choices: `restricted` (default) and `unrestricted`'
         # mf convergence tolerance
         assert isinstance(decomp.conv_tol, float), \
-            'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-12)'
+            'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-10)'
         assert 0. < decomp.conv_tol, \
-            'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-12)'
+            'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-10)'
         # bond partitioning threshold
         assert isinstance(decomp.thres, float), \
             'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
@@ -99,6 +100,11 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid mom argument. dictionaries values (occupations) must be floats with a value of 0., 1., or 2.'
         assert len(decomp.mom) <= 2, \
             'invalid mom argument. must be a list of at max two dictionaries'
+        # ks-dft grid level
+        assert isinstance(decomp.grid_level, int), \
+            'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
+        assert 0 < decomp.grid_level, \
+            'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'

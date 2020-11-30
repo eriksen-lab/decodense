@@ -77,7 +77,8 @@ def git_version() -> str:
         return GIT_REVISION
 
 
-def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], conv_tol: float, verbose: int, \
+def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], \
+            conv_tol: float, grid_level: int, verbose: int, \
             mom: List[Dict[int, int]]) -> Tuple[Union[scf.hf.SCF, dft.rks.KohnShamDFT], np.ndarray, np.ndarray]:
         """
         this function returns the results of a mean-field (hf or ks-dft) calculation
@@ -101,6 +102,8 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], con
         mf.max_cycle = MAX_CYCLE
         mf.irrep_nelec = irrep_nelec
         mf.conv_tol = conv_tol
+        if xc != '':
+            mf.grids.level = grid_level
         mf.verbose = verbose
 
         mf.kernel()

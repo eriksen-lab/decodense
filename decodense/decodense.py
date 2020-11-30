@@ -36,7 +36,8 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         # mf calculation
         if mf is None:
             mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, \
-                                           decomp.conv_tol, decomp.verbose, decomp.mom)
+                                           decomp.conv_tol, decomp.grid_level, \
+                                           decomp.verbose, decomp.mom)
         else:
             mo_coeff, mo_occ = format_mf(mf, decomp.ref)
 

@@ -57,6 +57,11 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
         form += (_format(decomp.loc),)
         string += ' xc functional      =  {:}\n'
         form += (_format(decomp.xc),)
+        string += ' conv. tolerance    =  {:}\n'
+        form += (_format(decomp.conv_tol),)
+        if decomp.xc != '':
+            string += ' ks-dft grid level  =  {:}\n'
+            form += (_format(decomp.grid_level),)
         if mol is not None:
             string += '\n reference funct.   =  {:}\n'
             string += ' point group        =  {:}\n'
