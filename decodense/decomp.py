@@ -45,9 +45,6 @@ class DecompCls(object):
                 self.cube = cube
                 self.verbose = verbose
                 # set internal defaults
-                self.ss: float = 0.
-                self.s: float = 0.
-                self.time: float = 0.
                 self.res: Dict[str, np.ndarray] = {'kin': None, 'coul': None, 'exch': None, 'xc': None, \
                                                    'nuc_att': None, 'nuc_rep': None, 'el': None, 'tot': None}
                 self.charge_atom: np.ndarray = None

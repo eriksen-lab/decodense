@@ -23,7 +23,7 @@ from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 TOLERANCE = 1.e-10
 
 
-def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None, float] = None) -> str:
+def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) -> str:
         """
         this function prints basic info
         """
@@ -68,17 +68,21 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, time: Union[None,
             string += ' electrons          =  {:d}\n'
             string += ' alpha electrons    =  {:d}\n'
             string += ' beta electrons     =  {:d}\n'
-            string += ' spin: <S^2>        =  {:.3f}\n'
-            string += ' spin: 2*S + 1      =  {:.3f}\n'
             string += ' basis functions    =  {:d}\n'
-            form += (_ref(mol, decomp.ref, decomp.xc), mol.groupname, mol.nelectron, mol.alpha.size, mol.beta.size, \
-                     decomp.ss + 1.e-6, decomp.s + 1.e-6, mol.nao_nr(),)
+            form += (_ref(mol, decomp.ref, decomp.xc), mol.groupname, mol.nelectron, \
+                     mol.alpha.size, mol.beta.size, mol.nao_nr(),)
+            if 'ss' in kwargs:
+                string += ' spin: <S^2>        =  {:.3f}\n'
+                form += (kwargs['ss'] + 1.e-6,)
+            if 's' in kwargs:
+                string += ' spin: 2*S + 1      =  {:.3f}\n'
+                form += (kwargs['s'] + 1.e-6,)
 
         # timing and git version
-        if time is not None:
+        if 'time' in kwargs:
             string += '\n total time         =  {:}\n'
             string += '\n git version: {:}\n\n'
-            form += (_time(time), git_version(),)
+            form += (_time(kwargs['time']), git_version(),)
         else:
             string += '\n git version: {:}\n\n'
             form += (git_version(),)
