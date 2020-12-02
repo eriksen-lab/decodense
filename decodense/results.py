@@ -49,10 +49,11 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         # system info
         string += '\n\n system info:\n'
         string += ' ------------\n'
+        string += ' property           =  {:}\n'
         string += ' basis set          =  {:}\n'
         string += ' partitioning       =  {:}\n'
         string += ' assignment         =  {:}\n'
-        form += (decomp.basis, decomp.part, decomp.pop,)
+        form += (decomp.prop, decomp.basis, decomp.part, decomp.pop,)
         string += ' localization       =  {:}\n'
         form += (_format(decomp.loc),)
         string += ' xc functional      =  {:}\n'
