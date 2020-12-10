@@ -285,7 +285,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
-            string += f'{"MO":^6}|{"electronic":^15}|{"atom(s)":^15}|{"bond length":^17}\n'
+            string += f'{"MO":^6}|{"electronic":^15}|{"atom(s)":^15}|{"bond length/Ang":^17}\n'
             string += divider
 
             for i, spin in enumerate(('alpha-spin', 'beta-spin')):
@@ -341,7 +341,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
             string += f'{"":^6}|{"electronic":^35}|{"":^15}|\n'
-            string += f'{"MO":^6}|' + divider_2 + f'|{"atom(s)":^15}|' + f'{"bond length":^17}\n'
+            string += f'{"MO":^6}|' + divider_2 + f'|{"atom(s)":^15}|' + f'{"bond length/Ang":^17}\n'
             string += f'{"":^6}|{"x":^11}/{"y":^11}/{"z":^11}|{"":^15}|\n'
             string += divider
 
