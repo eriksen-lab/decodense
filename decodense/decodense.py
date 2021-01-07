@@ -13,7 +13,7 @@ __status__ = 'Development'
 import numpy as np
 from pyscf import lib, gto, scf, dft
 from mpi4py import MPI
-from typing import Dict, Tuple, Union, Any
+from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
@@ -22,7 +22,7 @@ from .tools import mf_calc, dim, make_rdm1, format_mf
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
-         dipole_origin: Union[None, np.ndarray] = [0.] * 3, \
+         dipole_origin: Union[List[float], np.ndarray] = [0.] * 3, \
          mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT] = None) -> Dict[str, Any]:
         """
         main decodense program

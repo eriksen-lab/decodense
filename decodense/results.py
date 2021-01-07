@@ -411,7 +411,7 @@ def _ref(mol: gto.Mole, ref: str, xc: str) -> str:
             return 'UHF' if xc == '' else 'UKS'
 
 
-def _format(opt: str) -> str:
+def _format(opt: Any) -> str:
         """
         this functions returns the correct formatting
         """

@@ -14,7 +14,7 @@ import numpy as np
 from pyscf import gto, scf, dft
 from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, Any
 
 from .tools import make_rdm1, write_cube
 
@@ -22,7 +22,7 @@ from .tools import make_rdm1, write_cube
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              ref: str, prop_type: str, part: str, cube: bool, \
-             **kwargs: Union[List[np.ndarray], List[List[np.ndarray]]]) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
