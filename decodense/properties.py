@@ -130,7 +130,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop_struct[k] = prop_nuc_att[k] + prop_nuc_rep[k]
                 # write rdm1_atom as cube file
                 if cube:
-                    write_cube(mol, rdm1_atom, 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
+                    write_cube(mol, np.sum(rdm1_atom, axis=0), 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
 
         elif part == 'eda':
 
