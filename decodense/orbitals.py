@@ -63,9 +63,6 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         # max number of occupied spin-orbs
         n_spin = max(mol.alpha.size, mol.beta.size)
 
-        # init population weights array
-        weights = [np.zeros([n_spin, mol.natm], dtype=np.float64), np.zeros([n_spin, mol.natm], dtype=np.float64)]
-
         # init population centres array and get threshold
         if part == 'bonds':
             centres = [np.zeros([mol.alpha.size, 2], dtype=np.int), np.zeros([mol.beta.size, 2], dtype=np.int)]
@@ -73,12 +70,16 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
 
         # mol object projected into minao basis
         if pop == 'iao':
-            pmol = mol.copy()
-            pmol.build(False, False, basis='minao')
+            pmol = lo.iao.reference_mol(mol)
+        else:
+            pmol = mol
+
+        # init population weights array
+        weights = [np.zeros([n_spin, pmol.natm], dtype=np.float64), np.zeros([n_spin, pmol.natm], dtype=np.float64)]
 
         # verbose print
         if 0 < verbose:
-            symbols = [mol.atom_symbol(i) for i in range(mol.natm)]
+            symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
 

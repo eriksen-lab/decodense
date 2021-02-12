@@ -13,7 +13,7 @@ __status__ = 'Development'
 import os
 import numpy as np
 import math
-from pyscf import gto
+from pyscf import gto, lo
 from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls
@@ -95,10 +95,11 @@ def results(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on either an atom- or bond-based partitioning
         """
+        pmol = lo.iao.reference_mol(mol)
         if 'centres' in kwargs:
-            return bonds(mol, header, **kwargs)
+            return bonds(pmol, header, **kwargs)
         else:
-            return atoms(mol, header, **kwargs)
+            return atoms(pmol, header, **kwargs)
 
 
 def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:

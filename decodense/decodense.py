@@ -58,14 +58,16 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                    decomp.part, decomp.verbose)[0]
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                  decomp.ref, decomp.prop, decomp.part, \
+                                  decomp.ref, decomp.pop, \
+                                  decomp.prop, decomp.part, \
                                   decomp.cube, weights = weights, \
                                   dipole_origin = dipole_origin)
         elif decomp.part == 'bonds':
             rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
                                                    decomp.part, decomp.verbose, thres = decomp.thres)
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                  decomp.ref, decomp.prop, decomp.part, \
+                                  decomp.ref, decomp.pop, \
+                                  decomp.prop, decomp.part, \
                                   decomp.cube, rep_idx = rep_idx, \
                                   dipole_origin = dipole_origin)
 

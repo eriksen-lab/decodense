@@ -11,7 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import gto, scf, dft
+from pyscf import gto, scf, dft, lo
 from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
@@ -21,7 +21,7 @@ from .tools import make_rdm1, write_cube
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             ref: str, prop_type: str, part: str, cube: bool, \
+             ref: str, pop: str, prop_type: str, part: str, cube: bool, \
              **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -37,18 +37,24 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # compute total 1-RDM (AO basis)
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
+        # mol object projected into minao basis
+        if pop == 'iao':
+            pmol = lo.iao.reference_mol(mol)
+        else:
+            pmol = mol
+
         # effective atomic charges
         if 'weights' in kwargs:
             weights = kwargs['weights']
-            charge_atom = mol.atom_charges() - np.sum(weights[0] + weights[1], axis=0)
+            charge_atom = pmol.atom_charges() - np.sum(weights[0] + weights[1], axis=0)
         else:
             charge_atom = 0.
 
         # nuclear repulsion property
         if prop_type == 'energy':
-            prop_nuc_rep = _e_nuc(mol)
+            prop_nuc_rep = _e_nuc(pmol)
         elif prop_type == 'dipole':
-            prop_nuc_rep = _dip_nuc(mol)
+            prop_nuc_rep = _dip_nuc(pmol)
 
         # core hamiltonian
         kin, nuc, sub_nuc = _h_core(mol)
@@ -75,26 +81,26 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
             # init atom-specific energy or dipole arrays
             if prop_type == 'energy':
-                prop_coul = np.zeros(mol.natm, dtype=np.float64)
-                prop_exch = np.zeros(mol.natm, dtype=np.float64)
-                prop_kin = np.zeros(mol.natm, dtype=np.float64)
-                prop_rdm_att = np.zeros(mol.natm, dtype=np.float64)
-                prop_xc = np.zeros(mol.natm, dtype=np.float64)
-                prop_el = np.zeros(mol.natm, dtype=np.float64)
-                prop_nuc_att = np.zeros(mol.natm, dtype=np.float64)
-                prop_struct = np.zeros(mol.natm, dtype=np.float64)
+                prop_coul = np.zeros(pmol.natm, dtype=np.float64)
+                prop_exch = np.zeros(pmol.natm, dtype=np.float64)
+                prop_kin = np.zeros(pmol.natm, dtype=np.float64)
+                prop_rdm_att = np.zeros(pmol.natm, dtype=np.float64)
+                prop_xc = np.zeros(pmol.natm, dtype=np.float64)
+                prop_el = np.zeros(pmol.natm, dtype=np.float64)
+                prop_nuc_att = np.zeros(pmol.natm, dtype=np.float64)
+                prop_struct = np.zeros(pmol.natm, dtype=np.float64)
             elif prop_type == 'dipole':
                 prop_coul = None
                 prop_exch = None
                 prop_kin = None
                 prop_rdm_att = None
                 prop_xc = None
-                prop_el = np.zeros([mol.natm, 3], dtype=np.float64)
+                prop_el = np.zeros([pmol.natm, 3], dtype=np.float64)
                 prop_nuc_att = None
                 prop_struct = prop_nuc_rep
 
             # loop over atoms
-            for k in range(mol.natm):
+            for k in range(pmol.natm):
                 # atom-specific rdm1
                 rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
@@ -136,26 +142,26 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
             # init atom-specific energy or dipole arrays
             if prop_type == 'energy':
-                prop_coul = np.zeros(mol.natm, dtype=np.float64)
-                prop_exch = np.zeros(mol.natm, dtype=np.float64)
-                prop_kin = np.zeros(mol.natm, dtype=np.float64)
-                prop_rdm_att = np.zeros(mol.natm, dtype=np.float64)
-                prop_xc = np.zeros(mol.natm, dtype=np.float64)
-                prop_el = np.zeros(mol.natm, dtype=np.float64)
-                prop_nuc_att = np.zeros(mol.natm, dtype=np.float64)
-                prop_struct = np.zeros(mol.natm, dtype=np.float64)
+                prop_coul = np.zeros(pmol.natm, dtype=np.float64)
+                prop_exch = np.zeros(pmol.natm, dtype=np.float64)
+                prop_kin = np.zeros(pmol.natm, dtype=np.float64)
+                prop_rdm_att = np.zeros(pmol.natm, dtype=np.float64)
+                prop_xc = np.zeros(pmol.natm, dtype=np.float64)
+                prop_el = np.zeros(pmol.natm, dtype=np.float64)
+                prop_nuc_att = np.zeros(pmol.natm, dtype=np.float64)
+                prop_struct = np.zeros(pmol.natm, dtype=np.float64)
             elif prop_type == 'dipole':
                 prop_coul = None
                 prop_exch = None
                 prop_kin = None
                 prop_rdm_att = None
                 prop_xc = None
-                prop_el = np.zeros([mol.natm, 3], dtype=np.float64)
+                prop_el = np.zeros([pmol.natm, 3], dtype=np.float64)
                 prop_nuc_att = None
                 prop_struct = prop_nuc_rep
 
             # loop over atoms
-            for k in range(mol.natm):
+            for k in range(pmol.natm):
                 # get AOs on atom k
                 select = np.where([atom[0] == k for atom in mol.ao_labels(fmt=None)])[0]
                 # loop over spins
@@ -220,9 +226,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # write rdm1_orb as cube file
                     if cube:
                         if mol.spin == 0:
-                            write_cube(mol, rdm1_orb * 2., 'rdm1_{:d}'.format(j))
+                            write_cube(pmol, rdm1_orb * 2., 'rdm1_{:d}'.format(j))
                         else:
-                            write_cube(mol, rdm1_orb, 'spin_{:s}_rdm1_{:d}'.format('a' if i == 0 else 'b', j))
+                            write_cube(pmol, rdm1_orb, 'spin_{:s}_rdm1_{:d}'.format('a' if i == 0 else 'b', j))
                 # closed-shell system
                 if ref == 'restricted' and mol.spin == 0:
                     prop_el[i+1] = prop_el[i]
