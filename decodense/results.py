@@ -16,7 +16,7 @@ import math
 from pyscf import gto, lo
 from typing import Dict, Tuple, List, Union, Any
 
-from .decomp import DecompCls
+from .decomp import PROP_KEYS, DecompCls
 from .tools import git_version
 from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 
@@ -109,24 +109,24 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # init string
         string: str = ''
 
-        # electronic, structlear, and total contributions to property
-        prop_coul = kwargs['coul']
-        prop_exch = kwargs['exch']
-        prop_kin = kwargs['kin']
-        prop_rdm_att = kwargs['rdm_att']
-        prop_xc = kwargs['xc']
-        prop_el = kwargs['el']
-        prop_struct = kwargs['struct']
-        prop_tot = prop_el + prop_struct
+        # electronic, structural, and total contributions to property
+        prop = {prop_key: kwargs[prop_key] for prop_key in PROP_KEYS[-2:]}
+        prop['tot'] = prop['el'] + prop['struct']
         # effective atomic charges
         charge_atom = kwargs['charge_atom']
 
         # scalar property
-        if prop_el.ndim == prop_struct.ndim == 1:
+        if prop['el'].ndim == prop['struct'].ndim == 1:
 
+            # remaining energetic contributions
+            for prop_key in PROP_KEYS[:-2]:
+                prop[prop_key] = kwargs[prop_key]
+
+            # formatting
             length = 149
             divider = '-' * length + '\n'
 
+            # units
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
@@ -143,6 +143,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             elif unit == 'kj_mol':
                 scaling = AU_TO_KJ_MOL
 
+            # headers
             string += divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
@@ -152,40 +153,44 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
             string += divider
 
+            # individual contributions
             for i in range(mol.natm):
                 string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
-                          f'{prop_coul[i] * scaling:>+12.5f}  |' \
-                          f'{prop_exch[i] * scaling:>+12.5f}  |' \
-                          f'{prop_kin[i] * scaling:>+12.5f}  |' \
-                          f'{prop_rdm_att[i] * scaling:>+12.5f}  |' \
-                          f'{prop_xc[i] * scaling:>+12.5f}  ||' \
-                          f'{prop_el[i] * scaling:>+12.5f}  ||' \
-                          f'{prop_struct[i] * scaling:>+12.5f}  |||' \
-                          f'{prop_tot[i] * scaling:>+12.5f}  |||' \
+                          f'{prop["coul"][i] * scaling:>+12.5f}  |' \
+                          f'{prop["exch"][i] * scaling:>+12.5f}  |' \
+                          f'{prop["kin"][i] * scaling:>+12.5f}  |' \
+                          f'{prop["rdm_att"][i] * scaling:>+12.5f}  |' \
+                          f'{prop["xc"][i] * scaling:>+12.5f}  ||' \
+                          f'{prop["el"][i] * scaling:>+12.5f}  ||' \
+                          f'{prop["struct"][i] * scaling:>+12.5f}  |||' \
+                          f'{prop["tot"][i] * scaling:>+12.5f}  |||' \
                           f'{charge_atom[i]:>+11.3f}\n'
+            string += divider
+            string += divider
 
-            string += divider
-            string += divider
+            # total contributions
             string += f'{"sum":^6}|' \
-                      f'{np.sum(prop_coul) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop_exch) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop_kin) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop_rdm_att) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop_xc) * scaling:>+12.5f}  ||' \
-                      f'{np.sum(prop_el) * scaling:>+12.5f}  ||' \
-                      f'{np.sum(prop_struct) * scaling:>+12.5f}  |||' \
-                      f'{np.sum(prop_tot) * scaling:>+12.5f}  |||' \
+                      f'{np.sum(prop["coul"]) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop["exch"]) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop["kin"]) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop["rdm_att"]) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop["xc"]) * scaling:>+12.5f}  ||' \
+                      f'{np.sum(prop["el"]) * scaling:>+12.5f}  ||' \
+                      f'{np.sum(prop["struct"]) * scaling:>+12.5f}  |||' \
+                      f'{np.sum(prop["tot"]) * scaling:>+12.5f}  |||' \
                       f'{0.:>11.3f}\n'
             string += divider + '\n'
 
         # tensor property
-        elif prop_el.ndim == prop_struct.ndim == 2:
+        elif prop['el'].ndim == prop['struct'].ndim == 2:
 
+            # formatting
             length = 131
             divider = '-' * length + '\n'
             length_2 = 35
             divider_2 = '-' * length_2
 
+            # units
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
@@ -196,6 +201,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             if unit == 'debye':
                 scaling = AU_TO_DEBYE
 
+            # headers
             string += divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
@@ -208,26 +214,26 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
             string += divider
 
+            # individual contributions
             for i in range(mol.natm):
                 string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
-                          f' {prop_el[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_el[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_el[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
-                          f' {prop_struct[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_struct[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_struct[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
-                          f' {prop_tot[i][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_tot[i][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop_tot[i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f' {prop["el"][i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop["el"][i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop["el"][i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f' {prop["struct"][i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop["struct"][i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop["struct"][i][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                          f' {prop["tot"][i][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop["tot"][i][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                          f' {prop["tot"][i][2] * scaling + TOLERANCE:>+8.3f}  |' \
                           f'{charge_atom[i]:>+11.3f}\n'
-
             string += divider
             string += divider
 
-            sum_el = np.fromiter(map(math.fsum, prop_el.T), dtype=np.float64, count=3)
-            sum_struct = np.fromiter(map(math.fsum, prop_struct.T), dtype=np.float64, count=3)
-            sum_tot = np.fromiter(map(math.fsum, prop_tot.T), dtype=np.float64, count=3)
-
+            # total contributions
+            sum_el = np.fromiter(map(math.fsum, prop['el'].T), dtype=np.float64, count=3)
+            sum_struct = np.fromiter(map(math.fsum, prop['struct'].T), dtype=np.float64, count=3)
+            sum_tot = np.fromiter(map(math.fsum, prop['tot'].T), dtype=np.float64, count=3)
             string += f'{"sum":^6}|' \
                       f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_el[1] * scaling + TOLERANCE:>+8.3f}  /' \

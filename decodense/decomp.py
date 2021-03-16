@@ -17,6 +17,9 @@ from pyscf import gto
 from typing import List, Dict
 
 
+# property keys
+PROP_KEYS = ['coul', 'exch', 'kin', 'rdm_att', 'xc', 'nuc_att', 'el', 'struct']
+
 class DecompCls(object):
         """
         this class contains all decomp attributes

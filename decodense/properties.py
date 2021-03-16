@@ -17,6 +17,7 @@ from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
 from .tools import make_rdm1, write_cube
+from .decomp import PROP_KEYS
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
@@ -33,6 +34,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if prop_type == 'dipole':
             with mol.with_common_origin(kwargs['dipole_origin']):
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
+        else:
+            ao_dip = None
 
         # compute total 1-RDM (AO basis)
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
@@ -61,6 +64,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # fock potential
         vj, vk = scf.hf.get_jk(mol, rdm1_tot)
 
+        # calculate xc energy density
         if dft_calc:
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf)
@@ -76,117 +80,31 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                        numint.eval_rho(mol, ao_value, rdm1_tot[1], xctype=xc_type))
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=0 if isinstance(rho, np.ndarray) else -1)[0]
+        else:
+            xc_type = ''
+            ao_value = eps_xc = None
 
-        if part == 'atoms':
-
-            # init atom-specific energy or dipole arrays
-            if prop_type == 'energy':
-                prop_coul = np.zeros(pmol.natm, dtype=np.float64)
-                prop_exch = np.zeros(pmol.natm, dtype=np.float64)
-                prop_kin = np.zeros(pmol.natm, dtype=np.float64)
-                prop_rdm_att = np.zeros(pmol.natm, dtype=np.float64)
-                prop_xc = np.zeros(pmol.natm, dtype=np.float64)
-                prop_el = np.zeros(pmol.natm, dtype=np.float64)
-                prop_nuc_att = np.zeros(pmol.natm, dtype=np.float64)
-                prop_struct = np.zeros(pmol.natm, dtype=np.float64)
-            elif prop_type == 'dipole':
-                prop_coul = None
-                prop_exch = None
-                prop_kin = None
-                prop_rdm_att = None
-                prop_xc = None
-                prop_el = np.zeros([pmol.natm, 3], dtype=np.float64)
-                prop_nuc_att = None
-                prop_struct = prop_nuc_rep
-
-            # loop over atoms
-            for k in range(pmol.natm):
-                # atom-specific rdm1
-                rdm1_atom = np.zeros_like(rdm1_tot)
-                # loop over spins
-                for i, spin_mo in enumerate((mol.alpha, mol.beta)):
-                    # loop over spin-orbitals
-                    for m, j in enumerate(spin_mo):
-                        # get orbital(s)
-                        orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
-                        # orbital-specific rdm1
-                        rdm1_orb = make_rdm1(orb, mo_occ[i][j])
-                        # weighted contribution to rdm1_atom
-                        rdm1_atom[i] += rdm1_orb * weights[i][m][k]
-                    # coulumb & exchange energy associated with given atom
-                    if prop_type == 'energy':
-                        prop_coul[k] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
-                        prop_exch[k] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
-                # kinetic & nuclear/rdm attraction energies or dipole moment associated with given atom
-                if prop_type == 'energy':
-                    prop_kin[k] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    prop_rdm_att[k] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
-                    prop_nuc_att[k] += _trace(sub_nuc[k], np.sum(rdm1_tot, axis=0), scaling = .5)
-                elif prop_type == 'dipole':
-                    prop_el[k] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
-                # additional xc energy contribution
-                if prop_type == 'energy' and dft_calc:
-                    # atom-specific rho
-                    rho_atom = numint.eval_rho(mol, ao_value, np.sum(rdm1_atom, axis=0), xctype=xc_type)
-                    # energy from individual atoms
-                    prop_xc[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
-                # sum up electronic and structural contributions
-                if prop_type == 'energy':
-                    prop_el[k] = prop_coul[k] + prop_exch[k] + prop_kin[k] + prop_rdm_att[k] + prop_xc[k]
-                    prop_struct[k] = prop_nuc_att[k] + prop_nuc_rep[k]
-                # write rdm1_atom as cube file
-                if cube:
-                    write_cube(mol, np.sum(rdm1_atom, axis=0), 'atom_{:s}_rdm1_{:d}'.format(mol.atom_symbol(k).lower(), k))
-
-        elif part == 'eda':
+        if part in ['atoms', 'eda']:
 
             # init atom-specific energy or dipole arrays
             if prop_type == 'energy':
-                prop_coul = np.zeros(pmol.natm, dtype=np.float64)
-                prop_exch = np.zeros(pmol.natm, dtype=np.float64)
-                prop_kin = np.zeros(pmol.natm, dtype=np.float64)
-                prop_rdm_att = np.zeros(pmol.natm, dtype=np.float64)
-                prop_xc = np.zeros(pmol.natm, dtype=np.float64)
-                prop_el = np.zeros(pmol.natm, dtype=np.float64)
-                prop_nuc_att = np.zeros(pmol.natm, dtype=np.float64)
-                prop_struct = np.zeros(pmol.natm, dtype=np.float64)
+                prop = {prop_key: np.zeros(pmol.natm, dtype=np.float64) for prop_key in PROP_KEYS}
             elif prop_type == 'dipole':
-                prop_coul = None
-                prop_exch = None
-                prop_kin = None
-                prop_rdm_att = None
-                prop_xc = None
-                prop_el = np.zeros([pmol.natm, 3], dtype=np.float64)
-                prop_nuc_att = None
-                prop_struct = prop_nuc_rep
+                prop = {prop_key: np.zeros([pmol.natm, 3], dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
 
             # loop over atoms
             for k in range(pmol.natm):
-                # get AOs on atom k
-                select = np.where([atom[0] == k for atom in mol.ao_labels(fmt=None)])[0]
-                # loop over spins
-                for i in range(2):
-                    # coulumb & exchange energy associated with given atom
-                    if prop_type == 'energy':
-                        prop_coul[k] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
-                        prop_exch[k] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
-                # kinetic & nuclear/rdm attraction energies or dipole moment associated with given atom
-                if prop_type == 'energy':
-                    prop_kin[k] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    prop_rdm_att[k] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                    prop_nuc_att[k] += _trace(sub_nuc[k], np.sum(rdm1_tot, axis=0), scaling = .5)
-                elif prop_type == 'dipole':
-                    prop_el[k] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
-                # additional xc energy contribution
-                if prop_type == 'energy' and dft_calc:
-                    # atom-specific rho
-                    rho_atom = numint.eval_rho(mol, ao_value, np.sum(rdm1_tot, axis=0), xctype=xc_type, idx=select)
-                    # energy from individual atoms
-                    prop_xc[k] += _e_xc(eps_xc, mf.grids.weights, rho_atom)
-                # sum up electronic and structural contributions
-                if prop_type == 'energy':
-                    prop_el[k] = prop_coul[k] + prop_exch[k] + prop_kin[k] + prop_nuc_att[k] + prop_xc[k]
-                    prop_struct[k] = prop_nuc_att[k] + prop_nuc_rep[k]
+                if part == 'atoms':
+                    res = prop_atom(mol, rdm1_tot, mo_coeff, mo_occ, \
+                                    weights, dft_calc, cube, prop_type, \
+                                    mf, vj, vk, kin, nuc, sub_nuc, prop_nuc_rep, \
+                                    ao_value, eps_xc, xc_type, ao_dip, k)
+                elif part == 'eda':
+                    res = prop_eda(mol, rdm1_tot, mo_coeff, dft_calc, prop_type, \
+                                   mf, vj, vk, kin, nuc, sub_nuc, prop_nuc_rep, \
+                                   ao_value, eps_xc, xc_type, ao_dip, k)
+                for key, val in res.items():
+                    prop[key][k] = val
 
         else: # bonds
 
@@ -234,10 +152,101 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop_el[i+1] = prop_el[i]
                     break
 
-        return {'coul': prop_coul, 'exch': prop_exch, \
-                'kin': prop_kin, 'rdm_att': prop_nuc_att, 'xc': prop_xc, \
-                'nuc_att': prop_nuc_att, 'nuc_rep': prop_nuc_rep, \
-                'el': prop_el, 'struct': prop_struct, 'charge_atom': charge_atom}
+        return {**prop, 'charge_atom': charge_atom}
+
+
+def prop_atom(mol: gto.Mole, rdm1_tot: np.ndarray, mo_coeff: np.ndarray, mo_occ: np.ndarray, \
+              weights: List[np.ndarray], dft_calc: bool, cube: bool, prop_type: str, \
+              mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], vj: np.ndarray, vk: np.ndarray, \
+              kin: np.ndarray, nuc: np.ndarray, sub_nuc: np.ndarray, prop_nuc_rep: np.ndarray, \
+              ao_value: Union[None, np.ndarray], eps_xc: Union[None, np.ndarray], \
+              xc_type: str, ao_dip: Union[None, np.ndarray], orb_idx: int) -> Dict[str, Any]:
+        """
+        this function returns atom-wise energy/dipole contributions
+        """
+        # init results
+        if prop_type == 'energy':
+            res = {prop_key: 0. for prop_key in PROP_KEYS}
+        elif prop_type == 'dipole':
+            res = {prop_key: np.zeros(3, dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
+        # atom-specific rdm1
+        rdm1_atom = np.zeros_like(rdm1_tot)
+        # loop over spins
+        for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+            # loop over spin-orbitals
+            for m, j in enumerate(spin_mo):
+                # get orbital(s)
+                orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
+                # orbital-specific rdm1
+                rdm1_orb = make_rdm1(orb, mo_occ[i][j])
+                # weighted contribution to rdm1_atom
+                rdm1_atom[i] += rdm1_orb * weights[i][m][orb_idx]
+            # coulumb & exchange energy associated with given atom
+            if prop_type == 'energy':
+                res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
+                res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
+        # kinetic & nuclear/rdm attraction energies associated with given atom
+        if prop_type == 'energy':
+            res['kin'] = _trace(kin, np.sum(rdm1_atom, axis=0))
+            res['rdm_att'] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+            res['nuc_att'] = _trace(sub_nuc[orb_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+            # additional xc energy contribution
+            if dft_calc:
+                # atom-specific rho
+                rho_atom = numint.eval_rho(mol, ao_value, np.sum(rdm1_atom, axis=0), xctype=xc_type)
+                # energy from individual atoms
+                res['xc'] = _e_xc(eps_xc, mf.grids.weights, rho_atom)
+        # sum up electronic and structural contributions
+        if prop_type == 'energy':
+            res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
+            res['struct'] = res['nuc_att'] + prop_nuc_rep[orb_idx]
+        elif prop_type == 'dipole':
+            res['el'] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
+            res['struct'] = prop_nuc_rep[orb_idx]
+        # write rdm1_atom as cube file
+        if cube:
+            write_cube(mol, np.sum(rdm1_atom, axis=0), f'atom_{mol.atom_symbol(orb_idx).lower():s}_rdm1_{orb_idx:d}')
+        return res
+
+
+def prop_eda(mol: gto.Mole, rdm1_tot: np.ndarray, mo_coeff: np.ndarray, dft_calc: bool, prop_type: str, \
+             mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], vj: np.ndarray, vk: np.ndarray, \
+             kin: np.ndarray, nuc: np.ndarray, sub_nuc: np.ndarray, prop_nuc_rep: np.ndarray, \
+             ao_value: Union[None, np.ndarray], eps_xc: Union[None, np.ndarray], \
+             xc_type: str, ao_dip: Union[None, np.ndarray], orb_idx: int) -> Dict[str, Any]:
+        """
+        this function returns EDA energy/dipole contributions
+        """
+        # init results
+        if prop_type == 'energy':
+            res = {prop_key: 0. for prop_key in PROP_KEYS}
+        elif prop_type == 'dipole':
+            res = {prop_key: np.zeros(3, dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
+        # get AOs on atom k
+        select = np.where([atom[0] == orb_idx for atom in mol.ao_labels(fmt=None)])[0]
+        # common energy contributions associated with given atom
+        if prop_type == 'energy':
+            # loop over spins
+            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+                res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
+                res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+            res['kin'] = _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
+            res['rdm_att'] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+            res['nuc_att'] = _trace(sub_nuc[orb_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+            # additional xc energy contribution
+            if dft_calc:
+                # atom-specific rho
+                rho_atom = numint.eval_rho(mol, ao_value, np.sum(rdm1_tot, axis=0), xctype=xc_type, idx=select)
+                # energy from individual atoms
+                res['xc'] = _e_xc(eps_xc, mf.grids.weights, rho_atom)
+        # sum up electronic and structural contributions
+        if prop_type == 'energy':
+            res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
+            res['struct'] = res['nuc_att'] + prop_nuc_rep[orb_idx]
+        elif prop_type == 'dipole':
+            res['el'] = -_trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select]) # type:ignore
+            res['struct'] = prop_nuc_rep[orb_idx]
+        return res
 
 
 def _e_nuc(mol: gto.Mole) -> np.ndarray:
