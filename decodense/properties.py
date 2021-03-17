@@ -19,13 +19,13 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .tools import make_rdm1, write_cube
+from .tools import make_rdm1
 from .decomp import PROP_KEYS
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             ref: str, pop: str, prop_type: str, part: str, multiproc: bool, cube: bool, \
+             ref: str, pop: str, prop_type: str, part: str, multiproc: bool, \
              **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -99,7 +99,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 f = partial(prop_atom, alpha=mol.alpha, beta=mol.beta, \
                             nbas=mol.nbas, ao_loc=mol.ao_loc_nr(), rdm1_tot=rdm1_tot, \
                             mo_coeff=mo_coeff, mo_occ=mo_occ, weights=weights, \
-                            dft_calc=dft_calc, cube=cube, prop_type=prop_type, \
+                            dft_calc=dft_calc, prop_type=prop_type, \
                             grid_weights=mf.grids.weights, vj=vj, vk=vk, kin=kin, \
                             nuc=nuc, sub_nuc=sub_nuc, prop_nuc_rep=prop_nuc_rep, \
                             ao_value=ao_value, eps_xc=eps_xc, xc_type=xc_type, ao_dip=ao_dip)
@@ -135,7 +135,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # choose kernel function
             f = partial(prop_bonds, nbas=mol.nbas, ao_loc=mol.ao_loc_nr(), \
                         mo_coeff=mo_coeff, mo_occ=mo_occ, \
-                        dft_calc=dft_calc, cube=cube, prop_type=prop_type, \
+                        dft_calc=dft_calc, prop_type=prop_type, \
                         grid_weights=mf.grids.weights, vj=vj, vk=vk, kin=kin, \
                         nuc=nuc, ao_value=ao_value, eps_xc=eps_xc, \
                         xc_type=xc_type, ao_dip=ao_dip)
@@ -157,7 +157,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
 def prop_atom(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, nbas: int, ao_loc: List[int], \
               rdm1_tot: np.ndarray, mo_coeff: np.ndarray, mo_occ: np.ndarray, \
-              weights: List[np.ndarray], dft_calc: bool, cube: bool, prop_type: str, \
+              weights: List[np.ndarray], dft_calc: bool, prop_type: str, \
               grid_weights: np.ndarray, vj: np.ndarray, vk: np.ndarray, \
               kin: np.ndarray, nuc: np.ndarray, sub_nuc: np.ndarray, prop_nuc_rep: np.ndarray, \
               ao_value: Union[None, np.ndarray], eps_xc: Union[None, np.ndarray], \
@@ -205,9 +205,6 @@ def prop_atom(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, nbas: int, ao_
         elif prop_type == 'dipole':
             res['el'] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
             res['struct'] = prop_nuc_rep[atom_idx]
-#        # write rdm1_atom as cube file
-#        if cube:
-#            write_cube(mol, np.sum(rdm1_atom, axis=0), f'atom_{mol.atom_symbol(atom_idx).lower():s}_rdm1_{atom_idx:d}')
         return res
 
 
@@ -255,7 +252,7 @@ def prop_eda(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, nbas: int, ao_l
 
 def prop_bonds(spin_idx: int, orb_idx: int, nbas: int, ao_loc: List[int], \
                mo_coeff: np.ndarray, mo_occ: np.ndarray, dft_calc: bool, \
-               cube: bool, prop_type: str, grid_weights: np.ndarray, \
+               prop_type: str, grid_weights: np.ndarray, \
                vj: np.ndarray, vk: np.ndarray, kin: np.ndarray, nuc: np.ndarray, \
                ao_value: Union[None, np.ndarray], eps_xc: Union[None, np.ndarray], \
                xc_type: str, ao_dip: Union[None, np.ndarray]) -> Dict[str, Any]:
@@ -281,12 +278,6 @@ def prop_bonds(spin_idx: int, orb_idx: int, nbas: int, ao_loc: List[int], \
                 res['el'] += _e_xc(eps_xc, grid_weights, rho_orb)
         elif prop_type == 'dipole':
             res['el'] = -_trace(ao_dip, rdm1_orb)
-#        # write rdm1_orb as cube file
-#        if cube:
-#            if mol.spin == 0:
-#                write_cube(pmol, rdm1_orb * 2., f'rdm1_{orb_idx:d}')
-#            else:
-#                write_cube(pmol, rdm1_orb, f'spin_{"a" if spin_idx == 0 else "b":s}_rdm1_{orb_idx:d}')
         return res
 
 

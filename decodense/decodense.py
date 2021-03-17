@@ -18,7 +18,7 @@ from typing import Dict, Tuple, List, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import mf_calc, dim, make_rdm1, format_mf
+from .tools import mf_calc, dim, make_rdm1, format_mf, write_cube
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
@@ -60,7 +60,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
                                   decomp.ref, decomp.pop, \
                                   decomp.prop, decomp.part, \
-                                  decomp.multiproc, decomp.cube, weights = weights, \
+                                  decomp.multiproc, weights = weights, \
                                   dipole_origin = dipole_origin)
         elif decomp.part == 'bonds':
             rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
@@ -68,8 +68,14 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
                                   decomp.ref, decomp.pop, \
                                   decomp.prop, decomp.part, \
-                                  decomp.multiproc, decomp.cube, rep_idx = rep_idx, \
+                                  decomp.multiproc, rep_idx = rep_idx, \
                                   dipole_origin = dipole_origin)
+
+        # write cube files
+        if decomp.cube:
+            write_cube(mol, decomp.part, mo_coeff, mo_occ, \
+                       weights if decomp.part == 'atoms' else None, \
+                       rep_idx if decomp.part == 'bonds' else None)
 
         # determine spin
         decomp.res['ss'], decomp.res['s'] = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], \

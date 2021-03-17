@@ -28,7 +28,8 @@ class DecompCls(object):
                      xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
                      ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
                      mom: List[Dict[int, int]] = [], grid_level: int = 3, \
-                     multiproc: bool = False, prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
+                     multiproc: bool = False, prop: str = 'energy', \
+                     cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
