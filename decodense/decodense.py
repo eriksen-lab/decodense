@@ -60,7 +60,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
                                   decomp.ref, decomp.pop, \
                                   decomp.prop, decomp.part, \
-                                  decomp.cube, weights = weights, \
+                                  decomp.multiproc, decomp.cube, weights = weights, \
                                   dipole_origin = dipole_origin)
         elif decomp.part == 'bonds':
             rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
@@ -68,7 +68,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
                                   decomp.ref, decomp.pop, \
                                   decomp.prop, decomp.part, \
-                                  decomp.cube, rep_idx = rep_idx, \
+                                  decomp.multiproc, decomp.cube, rep_idx = rep_idx, \
                                   dipole_origin = dipole_origin)
 
         # determine spin

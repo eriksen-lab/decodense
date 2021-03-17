@@ -28,7 +28,7 @@ class DecompCls(object):
                      xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
                      ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
                      mom: List[Dict[int, int]] = [], grid_level: int = 3, \
-                     prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
+                     multiproc: bool = False, prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -44,6 +44,7 @@ class DecompCls(object):
                 self.thres = thres
                 self.mom = mom
                 self.grid_level = grid_level
+                self.multiproc = multiproc
                 self.prop = prop
                 self.cube = cube
                 self.verbose = verbose
@@ -105,6 +106,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
         assert 0 < decomp.grid_level, \
             'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
+        # multiprocessing
+        assert isinstance(decomp.multiproc, bool), \
+            'invalid multiprocessing argument. must be a bool'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'
