@@ -186,7 +186,7 @@ def prop_atom(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, nbas: int, ao_
             if prop_type == 'energy':
                 res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
                 res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
-        # kinetic & nuclear/rdm attraction energies associated with given atom
+        # common energy contributions associated with given atom
         if prop_type == 'energy':
             res['kin'] = _trace(kin, np.sum(rdm1_atom, axis=0))
             res['rdm_att'] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
@@ -205,6 +205,7 @@ def prop_atom(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, nbas: int, ao_
         elif prop_type == 'dipole':
             res['el'] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
             res['struct'] = prop_nuc_rep[atom_idx]
+
         return res
 
 
@@ -247,6 +248,7 @@ def prop_eda(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, nbas: int, ao_l
         elif prop_type == 'dipole':
             res['el'] = -_trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select]) # type:ignore
             res['struct'] = prop_nuc_rep[atom_idx]
+
         return res
 
 
@@ -273,11 +275,12 @@ def prop_bonds(spin_idx: int, orb_idx: int, nbas: int, ao_loc: List[int], \
             if dft_calc:
                 # orbital-specific rho
                 rho_orb = numint.eval_rho(None, ao_value, rdm1_orb, \
-                                           xctype=xc_type, nbas=nbas, ao_loc=ao_loc)
+                                          xctype=xc_type, nbas=nbas, ao_loc=ao_loc)
                 # energy from individual orbitals
                 res['el'] += _e_xc(eps_xc, grid_weights, rho_orb)
         elif prop_type == 'dipole':
             res['el'] = -_trace(ao_dip, rdm1_orb)
+
         return res
 
 
