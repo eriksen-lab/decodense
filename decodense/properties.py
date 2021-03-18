@@ -14,7 +14,7 @@ import numpy as np
 import multiprocessing as mp
 from functools import partial
 from itertools import starmap
-from pyscf import gto, scf, dft, lo
+from pyscf import gto, scf, dft, lo, lib
 from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
@@ -114,7 +114,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             domain = np.arange(pmol.natm)
             # execute kernel
             if multiproc:
-                with mp.Pool() as pool:
+                n_threads = lib.num_threads()
+                with mp.Pool(processes=n_threads) as pool:
                     res = pool.map(f, domain)
             else:
                 res = list(map(f, domain))
@@ -143,7 +144,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             domain = [(i, j) for i, _ in enumerate((mol.alpha, mol.beta)) for j in rep_idx[i]]
             # execute kernel
             if multiproc:
-                with mp.Pool() as pool:
+                n_threads = lib.num_threads()
+                with mp.Pool(processes=n_threads) as pool:
                     res = pool.starmap(f, domain)
             else:
                 res = list(starmap(f, domain))
