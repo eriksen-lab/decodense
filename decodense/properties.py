@@ -221,6 +221,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             domain = np.arange(pmol.natm)
             # execute kernel
             if multiproc:
+                numint.ENFORCE_NUMPY = True
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
                     res = pool.map(f, domain)
@@ -246,6 +247,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             domain = np.array([(i, j) for i, _ in enumerate((mol.alpha, mol.beta)) for j in rep_idx[i]])
             # execute kernel
             if multiproc:
+                numint.ENFORCE_NUMPY = True
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
                     res = pool.starmap(f, domain)
