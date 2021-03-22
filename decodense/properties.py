@@ -12,7 +12,6 @@ __status__ = 'Development'
 
 import numpy as np
 import multiprocessing as mp
-from functools import partial
 from itertools import starmap
 from pyscf import gto, scf, dft, lo, lib
 from pyscf.dft import numint
@@ -82,20 +81,29 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             ao_value = _ao_val(mol, mf, ao_deriv)
             # rho corresponding to total 1-RDM
             if np.allclose(rdm1_tot[0], rdm1_tot[1]):
-                rho = numint.eval_rho(mol, ao_value, rdm1_tot[0] * 2., xctype=xc_type)
+                c0_tot, c1_tot = _make_rho_int(ao_value, rdm1_tot[0] * 2., xc_type)
+                rho_tot = _make_rho(c0_tot, c1_tot, ao_value, xc_type)
             else:
-                rho = (numint.eval_rho(mol, ao_value, rdm1_tot[0], xctype=xc_type), \
-                       numint.eval_rho(mol, ao_value, rdm1_tot[1], xctype=xc_type))
+                c0_tot, c1_tot = zip(_make_rho_int(ao_value, rdm1_tot[0], xc_type), \
+                                     _make_rho_int(ao_value, rdm1_tot[1], xc_type))
+                rho = (_make_rho(c0_tot[0], c1_tot[0], ao_value, xc_type), \
+                       _make_rho(c0_tot[1], c1_tot[1], ao_value, xc_type))
+                c0_tot, c1_tot = np.sum(c0_tot, axis=0), np.sum(c1_tot, axis=0)
             # evaluate xc energy density
-            eps_xc = dft.libxc.eval_xc(mf.xc, rho, spin=0 if isinstance(rho, np.ndarray) else -1)[0]
+            eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # grid weights
             grid_weights = mf.grids.weights
         else:
             xc_type = ''
             grid_weights = ao_value = eps_xc = None
 
-        def prop_atom(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, \
-                      nbas: int, ao_loc: List[int]) -> Dict[str, Any]:
+        # dimensions
+        alpha = mol.alpha
+        beta = mol.beta
+        if part == 'eda':
+            ao_labels = mol.ao_labels(fmt=None)
+
+        def prop_atom(atom_idx: int) -> Dict[str, Any]:
                 """
                 this function returns atom-wise energy/dipole contributions
                 """
@@ -128,8 +136,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
-                        rho_atom = numint.eval_rho(None, ao_value, np.sum(rdm1_atom, axis=0), \
-                                                   xctype=xc_type, nbas=nbas, ao_loc=ao_loc)
+                        c0_atom, c1_atom = _make_rho_int(ao_value, np.sum(rdm1_atom, axis=0), xc_type)
+                        rho_atom = _make_rho(c0_atom, c1_atom, ao_value, xc_type)
                         # energy from individual atoms
                         res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
                 # sum up electronic and structural contributions
@@ -141,8 +149,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     res['struct'] = prop_nuc_rep[atom_idx]
                 return res
 
-        def prop_eda(atom_idx: int, alpha: np.ndarray, beta: np.ndarray, \
-                     nbas: int, ao_loc: List[int], ao_labels: List[Any]) -> Dict[str, Any]:
+        def prop_eda(atom_idx: int) -> Dict[str, Any]:
                 """
                 this function returns EDA energy/dipole contributions
                 """
@@ -165,8 +172,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
-                        rho_atom = numint.eval_rho(None, ao_value, np.sum(rdm1_tot, axis=0), \
-                                                   xctype=xc_type, nbas=nbas, ao_loc=ao_loc, idx=select)
+                        rho_atom = _make_rho(c0_tot[:, select], \
+                                             c1_tot if c1_tot is None else c1_tot[:, :, select], \
+                                             ao_value[:, :, select], xc_type)
                         # energy from individual atoms
                         res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
                 # sum up electronic and structural contributions
@@ -178,7 +186,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     res['struct'] = prop_nuc_rep[atom_idx]
                 return res
 
-        def prop_bonds(spin_idx: int, orb_idx: int, nbas: int, ao_loc: List[int]) -> Dict[str, Any]:
+        def prop_bonds(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
                 """
                 this function returns bond-wise energy/dipole contributions
                 """
@@ -195,8 +203,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # orbital-specific rho
-                        rho_orb = numint.eval_rho(None, ao_value, rdm1_orb, \
-                                                  xctype=xc_type, nbas=nbas, ao_loc=ao_loc)
+                        c0_orb, c1_orb = _make_rho_int(ao_value, rdm1_orb, xc_type)
+                        rho_orb = _make_rho(c0_orb, c1_orb, ao_value, xc_type)
                         # energy from individual orbitals
                         res['el'] += _e_xc(eps_xc, grid_weights, rho_orb)
                 elif prop_type == 'dipole':
@@ -210,23 +218,15 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 prop = {prop_key: np.zeros(pmol.natm, dtype=np.float64) for prop_key in PROP_KEYS}
             elif prop_type == 'dipole':
                 prop = {prop_key: np.zeros([pmol.natm, 3], dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
-            # choose kernel function
-            if part == 'atoms':
-                f = partial(prop_atom, alpha=mol.alpha, beta=mol.beta, \
-                            nbas=mol.nbas, ao_loc=mol.ao_loc_nr())
-            elif part == 'eda':
-                f = partial(prop_eda, alpha=mol.alpha, beta=mol.beta, \
-                            nbas=mol.nbas, ao_loc=mol.ao_loc_nr(), ao_labels=mol.ao_labels(fmt=None))
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
             if multiproc:
-                numint.ENFORCE_NUMPY = True
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
-                    res = pool.map(f, domain)
+                    res = pool.map(prop_atom if part == 'atoms' else prop_eda, domain)
             else:
-                res = list(map(f, domain))
+                res = list(map(prop_atom if part == 'atoms' else prop_eda, domain))
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
@@ -241,18 +241,15 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             elif prop_type == 'dipole':
                 prop = {'el': [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)], \
                         'struct': prop_nuc_rep}
-            # choose kernel function
-            f = partial(prop_bonds, nbas=mol.nbas, ao_loc=mol.ao_loc_nr())
             # domain
             domain = np.array([(i, j) for i, _ in enumerate((mol.alpha, mol.beta)) for j in rep_idx[i]])
             # execute kernel
             if multiproc:
-                numint.ENFORCE_NUMPY = True
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
-                    res = pool.starmap(f, domain)
+                    res = pool.starmap(prop_bonds, domain)
             else:
-                res = list(starmap(f, domain))
+                res = list(starmap(prop_bonds, domain))
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
@@ -314,6 +311,69 @@ def _xc_ao_deriv(mf: dft.rks.KohnShamDFT) -> Tuple[str, int]:
         elif xc_type == 'MGGA':
             ao_deriv = 2
         return xc_type, ao_deriv
+
+
+def _make_rho_int(ao_value: np.ndarray, \
+                  rdm1: np.ndarray, xc_type: str) -> Tuple[np.ndarray, Union[None, np.ndarray]]:
+        """
+        this function returns the rho intermediates (c0, c1) needed in _make_rho()
+        (adpated from: dft/numint.py:eval_rho() in PySCF)
+        """
+        # determine dimensions based on xctype
+        xctype = xc_type.upper()
+        if xctype == 'LDA' or xctype == 'HF':
+            ngrids, nao = ao_value.shape
+        else:
+            ngrids, nao = ao_value[0].shape
+        # compute rho intermediate based on xctype
+        if xctype == 'LDA' or xctype == 'HF':
+            c0 = np.dot(ao_value, rdm1)
+            c1 = None
+        elif xctype in ('GGA', 'NLC'):
+            c0 = np.dot(ao_value[0], rdm1)
+            c1 = None
+        else: # meta-GGA
+            c0 = np.dot(ao_value[0], rdm1)
+            c1 = np.empty((3, ngrids, nao), dtype=np.float64)
+            for i in range(1, 4):
+                c1[i-1] = np.dot(ao_value[i], rdm1.T)
+        return c0, c1
+
+
+def _make_rho(c0: np.ndarray, c1: np.ndarray, \
+              ao_value: np.ndarray, xc_type: str) -> np.ndarray:
+        """
+        this function returns rho
+        (adpated from: dft/numint.py:eval_rho() in PySCF)
+        """
+        # determine dimensions based on xctype
+        xctype = xc_type.upper()
+        if xctype == 'LDA' or xctype == 'HF':
+            ngrids = ao_value.shape[0]
+        else:
+            ngrids = ao_value[0].shape[0]
+        # compute rho intermediate based on xctype
+        if xctype == 'LDA' or xctype == 'HF':
+            rho = np.einsum('pi,pi->p', ao_value, c0)
+        elif xctype in ('GGA', 'NLC'):
+            rho = np.empty((4, ngrids), dtype=np.float64)
+            rho = np.einsum('pi,pi->p', c0, ao_value[0])
+            for i in range(1, 4):
+                rho[i] = np.einsum('pi,pi->p', c0, ao_value[i]) * 2.
+        else: # meta-GGA
+            rho = np.empty((6, ngrids), dtype=np.float64)
+            rho[0] = np.einsum('pi,pi->p', ao_value[0], c0)
+            rho[5] = 0.
+            for i in range(1, 4):
+                rho[i] = np.einsum('pi,pi->p', c0, ao_value[i]) * 2.
+                rho[5] += np.einsum('pi,pi->p', c1[i-1], ao_value[i])
+            XX, YY, ZZ = 4, 7, 9
+            ao_value_2 = ao_value[XX] + ao_value[YY] + ao_value[ZZ]
+            rho[4] = np.einsum('pi,pi->p', c0, ao_value_2)
+            rho[4] += rho[5]
+            rho[4] *= 2.
+            rho[5] *= .5
+        return rho
 
 
 def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
