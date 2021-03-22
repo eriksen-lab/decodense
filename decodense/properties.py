@@ -357,7 +357,7 @@ def _make_rho(c0: np.ndarray, c1: np.ndarray, \
             rho = np.einsum('pi,pi->p', ao_value, c0)
         elif xctype in ('GGA', 'NLC'):
             rho = np.empty((4, ngrids), dtype=np.float64)
-            rho = np.einsum('pi,pi->p', c0, ao_value[0])
+            rho[0] = np.einsum('pi,pi->p', c0, ao_value[0])
             for i in range(1, 4):
                 rho[i] = np.einsum('pi,pi->p', c0, ao_value[i]) * 2.
         else: # meta-GGA
