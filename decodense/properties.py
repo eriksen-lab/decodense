@@ -86,9 +86,11 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             else:
                 c0_tot, c1_tot = zip(_make_rho_int(ao_value, rdm1_tot[0], xc_type), \
                                      _make_rho_int(ao_value, rdm1_tot[1], xc_type))
-                rho = (_make_rho(c0_tot[0], c1_tot[0], ao_value, xc_type), \
-                       _make_rho(c0_tot[1], c1_tot[1], ao_value, xc_type))
-                c0_tot, c1_tot = np.sum(c0_tot, axis=0), np.sum(c1_tot, axis=0)
+                rho_tot = (_make_rho(c0_tot[0], c1_tot[0], ao_value, xc_type), \
+                           _make_rho(c0_tot[1], c1_tot[1], ao_value, xc_type))
+                c0_tot = np.sum(c0_tot, axis=0)
+                if c1_tot[0] is not None:
+                    c1_tot = np.sum(c1_tot, axis=0)
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # grid weights
