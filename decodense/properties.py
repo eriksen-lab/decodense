@@ -226,9 +226,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             if multiproc:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
-                    res = pool.map(prop_atom if part == 'atoms' else prop_eda, domain)
+                    res = pool.map(prop_atom if part == 'atoms' else prop_eda, domain) # type:ignore
             else:
-                res = list(map(prop_atom if part == 'atoms' else prop_eda, domain))
+                res = list(map(prop_atom if part == 'atoms' else prop_eda, domain)) # type:ignore
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
@@ -249,9 +249,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             if multiproc:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
-                    res = pool.starmap(prop_bonds, domain)
+                    res = pool.starmap(prop_bonds, domain) # type:ignore
             else:
-                res = list(starmap(prop_bonds, domain))
+                res = list(starmap(prop_bonds, domain)) # type:ignore
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():

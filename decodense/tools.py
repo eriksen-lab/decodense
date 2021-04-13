@@ -19,9 +19,7 @@ from pyscf import gto, scf, dft
 from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
-
 MAX_CYCLE = 100
-
 
 class Logger(object):
         """
@@ -204,5 +202,4 @@ def write_cube(mol: gto.Mole, part: str, mo_coeff: np.ndarray, mo_occ: np.ndarra
                                                 rdm1_orb)
         else:
             raise RuntimeError('invalid choice of partitioning in write_cube() function.')
-
 

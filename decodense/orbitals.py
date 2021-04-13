@@ -10,8 +10,9 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import multiprocessing as mp
 import numpy as np
-from pyscf import gto, scf, dft, lo
+from pyscf import gto, scf, dft, lo, lib
 from typing import List, Tuple, Dict, Union, Any
 
 from .tools import make_rdm1
@@ -55,18 +56,16 @@ def loc_orbs(mol: gto.Mole, mo_coeff: Tuple[np.ndarray, np.ndarray], \
 
 
 def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.ndarray], \
-                 mo_occ: np.ndarray, ref: str, pop: str, part: str, verbose: int, \
+                 mo_occ: np.ndarray, ref: str, pop: str, part: str, multiproc: bool, verbose: int, \
                  **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
+        # declare nested kernel function in global scope
+        global get_weights
+
         # max number of occupied spin-orbs
         n_spin = max(mol.alpha.size, mol.beta.size)
-
-        # init population centres array and get threshold
-        if part == 'bonds':
-            centres = [np.zeros([mol.alpha.size, 2], dtype=np.int), np.zeros([mol.beta.size, 2], dtype=np.int)]
-            thres = kwargs['thres']
 
         # mol object projected into minao basis
         if pop == 'iao':
@@ -74,14 +73,31 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
         else:
             pmol = mol
 
+        # number of atoms
+        natm = pmol.natm
+
+        # AO labels
+        ao_labels = pmol.ao_labels(fmt=None)
+
+        # overlap matrix
+        if pop == 'mulliken':
+            ovlp = s
+        else:
+            ovlp = np.eye(pmol.nao_nr())
+
+        def get_weights(orb_idx: int):
+            """
+            this function computes the full set of population weights
+            """
+            # get orbital
+            orb = mo[:, orb_idx].reshape(mo.shape[0], 1)
+            # orbital-specific rdm1
+            rdm1_orb = make_rdm1(orb, mocc[orb_idx])
+            # population weights of rdm1_orb
+            return _population(natm, ao_labels, ovlp, rdm1_orb)
+
         # init population weights array
         weights = [np.zeros([n_spin, pmol.natm], dtype=np.float64), np.zeros([n_spin, pmol.natm], dtype=np.float64)]
-
-        # verbose print
-        if 0 < verbose:
-            symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
-            print('\n *** partial population weights: ***')
-            print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
 
         # loop over spin
         for i, spin_mo in enumerate((mol.alpha, mol.beta)):
@@ -95,24 +111,40 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                 mo = np.einsum('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
             mocc = mo_occ[i][spin_mo]
 
-            # loop over spin-orbitals
-            for j in range(spin_mo.size):
+            # domain
+            domain = np.arange(spin_mo.size)
+            # execute kernel
+            if multiproc:
+                n_threads = min(domain.size, lib.num_threads())
+                with mp.Pool(processes=n_threads) as pool:
+                    weights[i] = pool.map(get_weights, domain) # type:ignore
+            else:
+                weights[i] = list(map(get_weights, domain)) # type:ignore
 
-                # get orbital
-                orb = mo[:, j].reshape(mo.shape[0], 1)
-                # orbital-specific rdm1
-                rdm1_orb = make_rdm1(orb, mocc[j])
-                # population weights of rdm1_orb
-                weights[i][j] = _population(pmol if pop == 'iao' else mol, \
-                                            s if pop == 'mulliken' else np.eye(rdm1_orb.shape[0]), \
-                                            rdm1_orb)
+            # closed-shell reference
+            if ref == 'restricted' and mol.spin == 0:
+                weights[i+1] = weights[i]
+                break
 
-                # verbose print
-                if 0 < verbose:
+        # verbose print
+        if 0 < verbose:
+            symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
+            print('\n *** partial population weights: ***')
+            print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
+            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+                for j in domain:
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
                         print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', spin_mo[j], weights[i][j]))
 
-                if part == 'bonds':
+        # bond-wise partitioning
+        if part == 'bonds':
+            # init population centres array and get threshold
+            centres = [np.zeros([mol.alpha.size, 2], dtype=np.int), np.zeros([mol.beta.size, 2], dtype=np.int)]
+            thres = kwargs['thres']
+            # loop over spin
+            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+                # loop over orbitals
+                for j in domain:
                     # get sorted indices
                     max_idx = np.argsort(weights[i][j])[::-1]
                     # compute population centres
@@ -122,16 +154,11 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
                     else:
                         # valence orbitals
                         centres[i][j] = np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
-
-            # closed-shell reference
-            if ref == 'restricted' and mol.spin == 0:
-                weights[i+1] = weights[i]
-                if part == 'bonds':
+                # closed-shell reference
+                if ref == 'restricted' and mol.spin == 0:
                     centres[i+1] = centres[i]
-                break
-
-        # unique and repetitive centres
-        if part == 'bonds':
+                    break
+            # unique and repetitive centres
             centres_unique = np.array([np.unique(centres[i], axis=0) for i in range(2)])
             rep_idx = [[np.where((centres[i] == j).all(axis=1))[0] for j in centres_unique[i]] for i in range(2)]
 
@@ -141,17 +168,17 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
             return rep_idx, centres_unique
 
 
-def _population(mol: gto.Mole, s: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
+def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
         this function returns the mulliken populations on the individual atoms
         """
         # mulliken population matrix
-        pop = np.einsum('ij,ji->i', rdm1, s)
+        pop = np.einsum('ij,ji->i', rdm1, ovlp)
         # init populations
-        populations = np.zeros(mol.natm)
+        populations = np.zeros(natm)
 
         # loop over AOs
-        for i, k in enumerate(mol.ao_labels(fmt=None)):
+        for i, k in enumerate(ao_labels):
             populations[k[0]] += pop[i]
 
         return populations
