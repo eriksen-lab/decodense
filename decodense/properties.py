@@ -70,7 +70,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # core hamiltonian
         kin, nuc, sub_nuc = _h_core(mol)
         # fock potential
-        vj, vk = scf.hf.get_jk(mol, rdm1_tot)
+        vj, vk = mf.get_jk(mol=mol, dm=rdm1_tot)
 
         # calculate xc energy density
         if dft_calc:
