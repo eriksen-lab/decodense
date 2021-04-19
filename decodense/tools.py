@@ -14,6 +14,7 @@ import sys
 import os
 import copy
 import numpy as np
+import opt_einsum as oe
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft
 from pyscf import tools as pyscf_tools
@@ -155,7 +156,7 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         """
         this function returns an 1-RDM (in ao basis) corresponding to given mo(s)
         """
-        return np.einsum('ip,jp->ij', occup * mo, mo)
+        return oe.contract('ip,jp->ij', occup * mo, mo)
 
 
 def write_cube(mol: gto.Mole, part: str, mo_coeff: np.ndarray, mo_occ: np.ndarray, \

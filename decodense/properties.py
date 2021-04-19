@@ -11,6 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
+import opt_einsum as oe
 import multiprocessing as mp
 from itertools import starmap
 from pyscf import gto, scf, dft, lo, lib
@@ -269,7 +270,7 @@ def _e_nuc(mol: gto.Mole) -> np.ndarray:
         # internuclear distances (with self-repulsion removed)
         dist = gto.inter_distance(mol)
         dist[np.diag_indices_from(dist)] = 1e200
-        return np.einsum('i,ij,j->i', charges, 1. / dist, charges) * .5
+        return oe.contract('i,ij,j->i', charges, 1. / dist, charges) * .5
 
 
 def _dip_nuc(mol: gto.Mole) -> np.ndarray:
@@ -279,7 +280,7 @@ def _dip_nuc(mol: gto.Mole) -> np.ndarray:
         # coordinates and charges of nuclei
         coords = mol.atom_coords()
         charges = mol.atom_charges()
-        return np.einsum('i,ix->ix', charges, coords)
+        return oe.contract('i,ix->ix', charges, coords)
 
 
 def _h_core(mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -329,16 +330,16 @@ def _make_rho_int(ao_value: np.ndarray, \
             ngrids, nao = ao_value[0].shape
         # compute rho intermediate based on xctype
         if xctype == 'LDA' or xctype == 'HF':
-            c0 = np.dot(ao_value, rdm1)
+            c0 = oe.contract('ik,kj->ij', ao_value, rdm1)
             c1 = None
         elif xctype in ('GGA', 'NLC'):
-            c0 = np.dot(ao_value[0], rdm1)
+            c0 = oe.contract('ik,kj->ij', ao_value[0], rdm1)
             c1 = None
         else: # meta-GGA
-            c0 = np.dot(ao_value[0], rdm1)
+            c0 = oe.contract('ik,kj->ij', ao_value[0], rdm1)
             c1 = np.empty((3, ngrids, nao), dtype=np.float64)
             for i in range(1, 4):
-                c1[i-1] = np.dot(ao_value[i], rdm1.T)
+                c1[i-1] = oe.contract('ik,jk->ij', ao_value[i], rdm1)
         return c0, c1
 
 
@@ -356,22 +357,22 @@ def _make_rho(c0: np.ndarray, c1: np.ndarray, \
             ngrids = ao_value[0].shape[0]
         # compute rho intermediate based on xctype
         if xctype == 'LDA' or xctype == 'HF':
-            rho = np.einsum('pi,pi->p', ao_value, c0)
+            rho = oe.contract('pi,pi->p', ao_value, c0)
         elif xctype in ('GGA', 'NLC'):
             rho = np.empty((4, ngrids), dtype=np.float64)
-            rho[0] = np.einsum('pi,pi->p', c0, ao_value[0])
+            rho[0] = oe.contract('pi,pi->p', c0, ao_value[0])
             for i in range(1, 4):
-                rho[i] = np.einsum('pi,pi->p', c0, ao_value[i]) * 2.
+                rho[i] = oe.contract('pi,pi->p', c0, ao_value[i]) * 2.
         else: # meta-GGA
             rho = np.empty((6, ngrids), dtype=np.float64)
-            rho[0] = np.einsum('pi,pi->p', ao_value[0], c0)
+            rho[0] = oe.contract('pi,pi->p', ao_value[0], c0)
             rho[5] = 0.
             for i in range(1, 4):
-                rho[i] = np.einsum('pi,pi->p', c0, ao_value[i]) * 2.
-                rho[5] += np.einsum('pi,pi->p', c1[i-1], ao_value[i])
+                rho[i] = oe.contract('pi,pi->p', c0, ao_value[i]) * 2.
+                rho[5] += oe.contract('pi,pi->p', c1[i-1], ao_value[i])
             XX, YY, ZZ = 4, 7, 9
             ao_value_2 = ao_value[XX] + ao_value[YY] + ao_value[ZZ]
-            rho[4] = np.einsum('pi,pi->p', c0, ao_value_2)
+            rho[4] = oe.contract('pi,pi->p', c0, ao_value_2)
             rho[4] += rho[5]
             rho[4] *= 2.
             rho[5] *= .5
@@ -406,15 +407,15 @@ def _trace(op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.) -> Union[float
         this function returns the trace between an operator and an rdm1
         """
         if op.ndim == 2:
-            return np.einsum('ij,ij', op, rdm1) * scaling
+            return oe.contract('ij,ij', op, rdm1) * scaling
         else:
-            return np.einsum('xij,ij->x', op, rdm1) * scaling
+            return oe.contract('xij,ij->x', op, rdm1) * scaling
 
 
 def _e_xc(eps_xc: np.ndarray, grid_weights: np.ndarray, rho: np.ndarray) -> float:
         """
         this function returns a contribution to the exchange-correlation energy from given rmd1 (via rho)
         """
-        return np.einsum('i,i,i->', eps_xc, rho if rho.ndim == 1 else rho[0], grid_weights)
+        return oe.contract('i,i,i->', eps_xc, rho if rho.ndim == 1 else rho[0], grid_weights)
 
 

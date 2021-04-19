@@ -12,6 +12,7 @@ __status__ = 'Development'
 
 import multiprocessing as mp
 import numpy as np
+import opt_einsum as oe
 from pyscf import gto, scf, dft, lo, lib
 from typing import List, Tuple, Dict, Union, Any
 
@@ -108,7 +109,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: Tuple[np.ndarray, np.nd
             elif pop == 'iao':
                 iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo])
                 iao = lo.vec_lowdin(iao, s)
-                mo = np.einsum('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
+                mo = oe.contract('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
             mocc = mo_occ[i][spin_mo]
 
             # domain
@@ -173,7 +174,7 @@ def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.nda
         this function returns the mulliken populations on the individual atoms
         """
         # mulliken population matrix
-        pop = np.einsum('ij,ji->i', rdm1, ovlp)
+        pop = oe.contract('ij,ji->i', rdm1, ovlp)
         # init populations
         populations = np.zeros(natm)
 
