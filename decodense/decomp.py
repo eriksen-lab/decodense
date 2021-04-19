@@ -14,7 +14,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto
-from typing import List, Dict
+from typing import List, Dict, Union
 
 
 # property keys
@@ -28,6 +28,7 @@ class DecompCls(object):
                      xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
                      ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
                      mom: List[Dict[int, int]] = [], grid_level: int = 3, \
+                     df_basis: Union[None, str] = None, \
                      multiproc: bool = False, prop: str = 'energy', \
                      cube: bool = False, verbose: int = 0) -> None:
                 """
@@ -45,6 +46,7 @@ class DecompCls(object):
                 self.thres = thres
                 self.mom = mom
                 self.grid_level = grid_level
+                self.df_basis = df_basis
                 self.multiproc = multiproc
                 self.prop = prop
                 self.cube = cube
@@ -107,6 +109,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
         assert 0 < decomp.grid_level, \
             'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
+        # density fitting basis
+        assert isinstance(decomp.df_basis, str), \
+            'invalid density fitting basis. must be a string'
         # multiprocessing
         assert isinstance(decomp.multiproc, bool), \
             'invalid multiprocessing argument. must be a bool'
