@@ -14,7 +14,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto
-from typing import List, Dict, Union
+from typing import List, Dict
 
 
 # property keys
@@ -27,8 +27,7 @@ class DecompCls(object):
         def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', \
                      xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
                      ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
-                     mom: List[Dict[int, int]] = [], grid_level: int = 3, \
-                     df_basis: Union[None, str] = None, \
+                     mom: List[Dict[int, int]] = [], grid_level: int = 3, df_basis: str = '', \
                      multiproc: bool = False, prop: str = 'energy', \
                      cube: bool = False, verbose: int = 0) -> None:
                 """

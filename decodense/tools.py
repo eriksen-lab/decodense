@@ -78,7 +78,7 @@ def git_version() -> str:
 
 def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], \
             conv_tol: float, grid_level: int, verbose: int, \
-            mom: List[Dict[int, int]], df_basis: Union[None, str]) -> Tuple[Union[scf.hf.SCF, dft.rks.KohnShamDFT], np.ndarray, np.ndarray]:
+            mom: List[Dict[int, int]], df_basis: str) -> Tuple[Union[scf.hf.SCF, dft.rks.KohnShamDFT], np.ndarray, np.ndarray]:
         """
         this function returns the results of a mean-field (hf or ks-dft) calculation
         """
@@ -98,7 +98,7 @@ def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], \
             mf.xc = xc
 
         # density fitting
-        if df_basis is not None:
+        if df_basis != '':
             mf = mf.density_fit()
             mf.with_df.auxbasis = df_basis
 
