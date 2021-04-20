@@ -75,30 +75,29 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # calculate xc energy density
         if dft_calc:
             # xc-type and ao_deriv
-            xc_type, ao_deriv = _xc_ao_deriv(mf)
+            xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, rdm1_tot, vk)
+            vk = _vk_dft(mol, mf, mf.xc, rdm1_tot, vk)
             # ao function values on given grid
-            ao_value = _ao_val(mol, mf, ao_deriv)
-            # rho corresponding to total 1-RDM
-            if np.allclose(rdm1_tot[0], rdm1_tot[1]):
-                c0_tot, c1_tot = _make_rho_int(ao_value, rdm1_tot[0] * 2., xc_type)
-                rho_tot = _make_rho(c0_tot, c1_tot, ao_value, xc_type)
-            else:
-                c0_tot, c1_tot = zip(_make_rho_int(ao_value, rdm1_tot[0], xc_type), \
-                                     _make_rho_int(ao_value, rdm1_tot[1], xc_type))
-                rho_tot = (_make_rho(c0_tot[0], c1_tot[0], ao_value, xc_type), \
-                           _make_rho(c0_tot[1], c1_tot[1], ao_value, xc_type))
-                c0_tot = np.sum(c0_tot, axis=0)
-                if c1_tot[0] is not None:
-                    c1_tot = np.sum(c1_tot, axis=0)
-            # evaluate xc energy density
-            eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
+            ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
             grid_weights = mf.grids.weights
+            # compute all intermediates
+            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_tot, xc_type)
+            # evaluate xc energy density
+            eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
+            # nlc (vv10)
+            if mf.nlc.upper() == 'VV10':
+                nlc_pars = dft.libxc.nlc_coeff(mf.xc)
+                ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
+                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, rdm1_tot, 'GGA')
+                eps_xc_nlc = numint._vv10nlc(rho_tot, mf.grids.coords, rho_vv10, \
+                                             mf.nlcgrids.weights, mf.nlcgrids.coords, nlc_pars)[0]
+            else:
+                eps_xc_nlc = None
         else:
             xc_type = ''
-            grid_weights = ao_value = eps_xc = None
+            grid_weights = ao_value = eps_xc = eps_xc_nlc = c0_tot = c1_tot = None
 
         # dimensions
         alpha = mol.alpha
@@ -139,10 +138,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
-                        c0_atom, c1_atom = _make_rho_int(ao_value, np.sum(rdm1_atom, axis=0), xc_type)
-                        rho_atom = _make_rho(c0_atom, c1_atom, ao_value, xc_type)
+                        _, _, rho_atom = _make_rho(ao_value, rdm1_atom, xc_type)
                         # energy from individual atoms
                         res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
+                        # nlc (vv10)
+                        if eps_xc_nlc is not None:
+                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights, rho_atom)
                 # sum up electronic and structural contributions
                 if prop_type == 'energy':
                     res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
@@ -175,11 +176,14 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
-                        rho_atom = _make_rho(c0_tot[:, select], \
-                                             c1_tot if c1_tot is None else c1_tot[:, :, select], \
-                                             ao_value[:, :, select], xc_type)
+                        rho_atom = _make_rho_interm2(c0_tot[:, select], \
+                                                     c1_tot if c1_tot is None else c1_tot[:, :, select], \
+                                                     ao_value[:, :, select], xc_type)
                         # energy from individual atoms
                         res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
+                        # nlc (vv10)
+                        if eps_xc_nlc is not None:
+                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights, rho_atom)
                 # sum up electronic and structural contributions
                 if prop_type == 'energy':
                     res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
@@ -206,10 +210,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # orbital-specific rho
-                        c0_orb, c1_orb = _make_rho_int(ao_value, rdm1_orb, xc_type)
-                        rho_orb = _make_rho(c0_orb, c1_orb, ao_value, xc_type)
-                        # energy from individual orbitals
+                        _, _, rho_orb = _make_rho(ao_value, rdm1_orb, xc_type)
+                        # xc energy from individual orbitals
                         res['el'] += _e_xc(eps_xc, grid_weights, rho_orb)
+                        # nlc (vv10)
+                        if eps_xc_nlc is not None:
+                            res['el'] += _e_xc(eps_xc_nlc, grid_weights, rho_orb)
                 elif prop_type == 'dipole':
                     res['el'] = -_trace(ao_dip, rdm1_orb)
                 return res
@@ -302,11 +308,11 @@ def _h_core(mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         return kin, nuc, sub_nuc
 
 
-def _xc_ao_deriv(mf: dft.rks.KohnShamDFT) -> Tuple[str, int]:
+def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:
         """
         this function returns the type of xc functional and the level of ao derivatives needed
         """
-        xc_type = dft.libxc.xc_type(mf.xc)
+        xc_type = dft.libxc.xc_type(xc_func)
         if xc_type == 'LDA':
             ao_deriv = 0
         elif xc_type in ['GGA', 'NLC']:
@@ -316,8 +322,8 @@ def _xc_ao_deriv(mf: dft.rks.KohnShamDFT) -> Tuple[str, int]:
         return xc_type, ao_deriv
 
 
-def _make_rho_int(ao_value: np.ndarray, \
-                  rdm1: np.ndarray, xc_type: str) -> Tuple[np.ndarray, Union[None, np.ndarray]]:
+def _make_rho_interm1(ao_value: np.ndarray, \
+                      rdm1: np.ndarray, xc_type: str) -> Tuple[np.ndarray, Union[None, np.ndarray]]:
         """
         this function returns the rho intermediates (c0, c1) needed in _make_rho()
         (adpated from: dft/numint.py:eval_rho() in PySCF)
@@ -343,10 +349,10 @@ def _make_rho_int(ao_value: np.ndarray, \
         return c0, c1
 
 
-def _make_rho(c0: np.ndarray, c1: np.ndarray, \
-              ao_value: np.ndarray, xc_type: str) -> np.ndarray:
+def _make_rho_interm2(c0: np.ndarray, c1: np.ndarray, \
+                      ao_value: np.ndarray, xc_type: str) -> np.ndarray:
         """
-        this function returns rho
+        this function returns rho from intermediates (c0, c1)
         (adpated from: dft/numint.py:eval_rho() in PySCF)
         """
         # determine dimensions based on xctype
@@ -379,12 +385,37 @@ def _make_rho(c0: np.ndarray, c1: np.ndarray, \
         return rho
 
 
-def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
+def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
+              xc_type: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        this function returns important dft intermediates, e.g., energy density, grid weights, etc.
+        """
+        # rho corresponding to given 1-RDM
+        if rdm1.ndim == 2:
+            c0, c1 = _make_rho_interm1(ao_value, rdm1, xc_type)
+            rho = _make_rho_interm2(c0, c1, ao_value, xc_type)
+        else:
+            if np.allclose(rdm1[0], rdm1[1]):
+                c0, c1 = _make_rho_interm1(ao_value, rdm1[0] * 2., xc_type)
+                rho = _make_rho_interm2(c0, c1, ao_value, xc_type)
+            else:
+                c0, c1 = zip(_make_rho_interm1(ao_value, rdm1[0], xc_type), \
+                             _make_rho_interm1(ao_value, rdm1[1], xc_type))
+                c0 = np.sum(c0, axis=0)
+                if c1[0] is not None:
+                    c1 = np.sum(c1, axis=0)
+                rho = (_make_rho_interm2(c0[0], c1[0], ao_value, xc_type), \
+                       _make_rho_interm2(c0[1], c1[1], ao_value, xc_type))
+        return c0, c1, rho
+
+
+def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
+            xc_func: str, rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
         """
         this function returns the appropriate dft exchange operator
         """
         # range-separated and exact exchange parameters
-        omega, alpha, hyb = mf._numint.rsh_and_hybrid_coeff(mf.xc)
+        omega, alpha, hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
         # scale amount of exact exchange
         vk *= hyb
         # range separated coulomb operator
@@ -395,11 +426,11 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, rdm1: np.ndarray, vk: np.nda
         return vk
 
 
-def _ao_val(mol: gto.Mole, mf: dft.rks.KohnShamDFT, ao_deriv: int) -> np.ndarray:
+def _ao_val(mol: gto.Mole, grids_coords: np.ndarray, ao_deriv: int) -> np.ndarray:
         """
         this function returns ao function values on the given grid
         """
-        return numint.eval_ao(mol, mf.grids.coords, deriv=ao_deriv)
+        return numint.eval_ao(mol, grids_coords, deriv=ao_deriv)
 
 
 def _trace(op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.) -> Union[float, np.ndarray]:
