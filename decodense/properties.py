@@ -90,14 +90,19 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             if mf.nlc.upper() == 'VV10':
                 nlc_pars = dft.libxc.nlc_coeff(mf.xc)
                 ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
+                grid_weights_nlc = mf.nlcgrids.weights
                 c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, rdm1_tot, 'GGA')
-                eps_xc_nlc = numint._vv10nlc(rho_tot, mf.grids.coords, rho_vv10, \
-                                             mf.nlcgrids.weights, mf.nlcgrids.coords, nlc_pars)[0]
+                eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
+                                             grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
             else:
                 eps_xc_nlc = None
         else:
             xc_type = ''
-            grid_weights = ao_value = eps_xc = eps_xc_nlc = c0_tot = c1_tot = None
+            grid_weights = grid_weights_nlc = None
+            ao_value = ao_value_nlc = None
+            eps_xc = eps_xc_nlc = None
+            c0_tot = c1_tot = None
+            c0_vv10 = c1_vv10 = None
 
         # dimensions
         alpha = mol.alpha
@@ -143,7 +148,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
-                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights, rho_atom)
+                            _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, rdm1_atom, 'GGA')
+                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
                 # sum up electronic and structural contributions
                 if prop_type == 'energy':
                     res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
@@ -183,7 +189,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
-                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights, rho_atom)
+                            rho_atom_vv10 = _make_rho_interm2(c0_vv10[:, select], \
+                                                              c1_vv10 if c1_vv10 is None else c1_vv10[:, :, select], \
+                                                              ao_value_nlc[:, :, select], 'GGA')
+                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
                 # sum up electronic and structural contributions
                 if prop_type == 'energy':
                     res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
@@ -215,7 +224,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['el'] += _e_xc(eps_xc, grid_weights, rho_orb)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
-                            res['el'] += _e_xc(eps_xc_nlc, grid_weights, rho_orb)
+                            _, _, rho_orb_vv10 = _make_rho(ao_value_nlc, rdm1_orb, 'GGA')
+                            res['el'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
                 elif prop_type == 'dipole':
                     res['el'] = -_trace(ao_dip, rdm1_orb)
                 return res
