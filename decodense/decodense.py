@@ -18,12 +18,12 @@ from typing import Dict, Tuple, List, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import mf_calc, dim, make_rdm1, format_mf, write_cube
+from .tools import dim, make_rdm1, format_mf, write_cube
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
-         dipole_origin: Union[List[float], np.ndarray] = [0.] * 3, \
-         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT] = None) -> Dict[str, Any]:
+         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT], \
+         dipole_origin: Union[List[float], np.ndarray] = [0.] * 3) -> Dict[str, Any]:
         """
         main decodense program
         """
@@ -34,12 +34,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         time = MPI.Wtime()
 
         # mf calculation
-        if mf is None:
-            mf, mo_coeff, mo_occ = mf_calc(mol, decomp.xc, decomp.ref, decomp.irrep_nelec, \
-                                           decomp.conv_tol, decomp.grid_level, \
-                                           decomp.verbose, decomp.mom, decomp.df_basis)
-        else:
-            mo_coeff, mo_occ = format_mf(mf, decomp.ref)
+        mo_coeff, mo_occ, ref = format_mf(mf)
 
         # molecular dimensions
         mol.alpha, mol.beta = dim(mol, mo_occ)
@@ -48,29 +43,25 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # compute localized molecular orbitals
         if decomp.loc != '':
-            mo_coeff = loc_orbs(mol, mo_coeff, s, decomp.ref, decomp.loc)
+            mo_coeff = loc_orbs(mol, mo_coeff, s, ref, decomp.loc)
 
         # inter-atomic distance array
         dist = gto.mole.inter_distance(mol) * lib.param.BOHR
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
-            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
+            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, ref, decomp.pop, \
                                    decomp.part, decomp.multiproc, decomp.verbose)[0]
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                  decomp.ref, decomp.pop, \
-                                  decomp.prop, decomp.part, \
-                                  decomp.multiproc, weights = weights, \
-                                  dipole_origin = dipole_origin)
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, ref, decomp.pop, \
+                                  decomp.prop, decomp.part, decomp.multiproc, \
+                                  weights = weights, dipole_origin = dipole_origin)
         elif decomp.part == 'bonds':
-            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.ref, decomp.pop, \
+            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, ref, decomp.pop, \
                                             decomp.part, decomp.multiproc, decomp.verbose, \
                                             thres = decomp.thres)
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, \
-                                  decomp.ref, decomp.pop, \
-                                  decomp.prop, decomp.part, \
-                                  decomp.multiproc, rep_idx = rep_idx, \
-                                  dipole_origin = dipole_origin)
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, ref, decomp.pop, \
+                                  decomp.prop, decomp.part, decomp.multiproc, \
+                                  rep_idx = rep_idx, dipole_origin = dipole_origin)
 
         # write cube files
         if decomp.cube:

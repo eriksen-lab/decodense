@@ -25,11 +25,8 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', \
-                     xc: str = '', part = 'atoms', irrep_nelec: Dict[str, int] = {}, \
-                     ref: str = 'restricted', conv_tol: float = 1.e-10, thres = .75, \
-                     mom: List[Dict[int, int]] = [], grid_level: int = 3, df_basis: str = '', \
-                     multiproc: bool = False, prop: str = 'energy', \
-                     cube: bool = False, verbose: int = 0) -> None:
+                     xc: str = '', part = 'atoms', thres = .75, multiproc: bool = False, \
+                     prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -39,13 +36,7 @@ class DecompCls(object):
                 self.pop = pop
                 self.xc = xc
                 self.part = part
-                self.irrep_nelec = irrep_nelec
-                self.ref = ref
-                self.conv_tol = conv_tol
                 self.thres = thres
-                self.mom = mom
-                self.grid_level = grid_level
-                self.df_basis = df_basis
                 self.multiproc = multiproc
                 self.prop = prop
                 self.cube = cube
@@ -75,42 +66,11 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'bonds'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `bonds`'
-        # irrep_nelec
-        assert decomp.irrep_nelec is False or all([isinstance(i, int) for i in decomp.irrep_nelec.values()]), \
-            'invalid irrep_nelec dict. valid choices: empty (default) or dict of str and ints'
-        # reference
-        assert decomp.ref in ['restricted', 'unrestricted'], \
-            'invalid reference. valid choices: `restricted` (default) and `unrestricted`'
-        # mf convergence tolerance
-        assert isinstance(decomp.conv_tol, float), \
-            'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-10)'
-        assert 0. < decomp.conv_tol, \
-            'invalid convergence threshold. valid choices: 0. < `conv_tol` (default: 1.e-10)'
         # bond partitioning threshold
         assert isinstance(decomp.thres, float), \
             'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
         assert 0. < decomp.thres < 1., \
             'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
-        # mom
-        assert isinstance(decomp.mom, list), \
-            'invalid mom argument. must be a list of dictionaries'
-        if 0 < len(decomp.mom):
-            assert decomp.ref == 'unrestricted', \
-                'invalid mom argument. only implemented for unrestricted references'
-        assert all([isinstance(i, int) for j in decomp.mom for i in j.keys()]), \
-            'invalid mom argument. dictionaries keys (MO indices) must be ints'
-        assert all([isinstance(i, float) and i in [0., 1., 2.] for j in decomp.mom for i in j.values()]), \
-            'invalid mom argument. dictionaries values (occupations) must be floats with a value of 0., 1., or 2.'
-        assert len(decomp.mom) <= 2, \
-            'invalid mom argument. must be a list of at max two dictionaries'
-        # ks-dft grid level
-        assert isinstance(decomp.grid_level, int), \
-            'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
-        assert 0 < decomp.grid_level, \
-            'invalid ks-dft grid level. valid choices: 0 < `grid_level` (default: 3)'
-        # density fitting basis
-        assert isinstance(decomp.df_basis, str), \
-            'invalid density fitting basis. must be a string'
         # multiprocessing
         assert isinstance(decomp.multiproc, bool), \
             'invalid multiprocessing argument. must be a bool'

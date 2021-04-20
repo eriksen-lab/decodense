@@ -56,21 +56,13 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         form += (decomp.prop, decomp.basis, decomp.part, decomp.pop,)
         string += ' localization       =  {:}\n'
         form += (_format(decomp.loc),)
-        string += ' xc functional      =  {:}\n'
-        form += (_format(decomp.xc),)
-        string += ' conv. tolerance    =  {:}\n'
-        form += (_format(decomp.conv_tol),)
-        if decomp.xc != '':
-            string += ' ks-dft grid level  =  {:}\n'
-            form += (_format(decomp.grid_level),)
         if mol is not None:
-            string += '\n reference funct.   =  {:}\n'
-            string += ' point group        =  {:}\n'
+            string += '\n point group        =  {:}\n'
             string += ' electrons          =  {:d}\n'
             string += ' alpha electrons    =  {:d}\n'
             string += ' beta electrons     =  {:d}\n'
             string += ' basis functions    =  {:d}\n'
-            form += (_ref(mol, decomp.ref, decomp.xc), mol.groupname, mol.nelectron, \
+            form += (mol.groupname, mol.nelectron, \
                      mol.alpha.size, mol.beta.size, mol.nao_nr(),)
             if 'ss' in kwargs:
                 string += ' spin: <S^2>        =  {:.3f}\n'
@@ -403,19 +395,6 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider + '\n'
 
         return string
-
-
-def _ref(mol: gto.Mole, ref: str, xc: str) -> str:
-        """
-        this functions returns the correct (formatted) reference function
-        """
-        if ref == 'restricted':
-            if mol.spin == 0:
-                return 'RHF' if xc == '' else 'RKS'
-            else:
-                return 'ROHF' if xc == '' else 'ROKS'
-        else:
-            return 'UHF' if xc == '' else 'UKS'
 
 
 def _format(opt: Any) -> str:

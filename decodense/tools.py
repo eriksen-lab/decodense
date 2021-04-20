@@ -76,65 +76,6 @@ def git_version() -> str:
         return GIT_REVISION
 
 
-def mf_calc(mol: gto.Mole, xc: str, ref: str, irrep_nelec: Dict['str', int], \
-            conv_tol: float, grid_level: int, verbose: int, \
-            mom: List[Dict[int, int]], df_basis: str) -> Tuple[Union[scf.hf.SCF, dft.rks.KohnShamDFT], np.ndarray, np.ndarray]:
-        """
-        this function returns the results of a mean-field (hf or ks-dft) calculation
-        """
-        # mf method
-        if xc == '':
-            # hf calc
-            if ref == 'restricted':
-                mf = scf.RHF(mol)
-            elif ref == 'unrestricted':
-                mf = scf.UHF(mol)
-        else:
-            # dft calc
-            if ref == 'restricted':
-                mf = dft.RKS(mol)
-            elif ref == 'unrestricted':
-                mf = dft.UKS(mol)
-            mf.xc = xc
-
-        # density fitting
-        if df_basis != '':
-            mf = mf.density_fit()
-            mf.with_df.auxbasis = df_basis
-
-        # defaults
-        mf.max_cycle = MAX_CYCLE
-        mf.irrep_nelec = irrep_nelec
-        mf.conv_tol = conv_tol
-        if xc != '':
-            mf.grids.level = grid_level
-        mf.verbose = verbose
-
-        mf.kernel()
-        assert mf.converged, 'mean-field calculation not converged'
-
-        if mom:
-            # maximum occpuation method
-            mo = mf.mo_coeff
-            occ = mf.mo_occ
-            # loop through mom dictionary
-            for i in range(len(mom)):
-                for key, val in mom[i].items():
-                    occ[i][key] = val
-
-            # base calculation on original mf object
-            mf = copy.copy(mf)
-            rdm1 = mf.make_rdm1(mo, occ)
-            mf = scf.addons.mom_occ(mf, mo, occ)
-            mf.kernel(rdm1)
-            assert mf.converged, 'maximum occupation method mean-field calculation not converged'
-
-        # format mf information
-        mo_coeff, mo_occ = format_mf(mf, ref)
-
-        return mf, mo_coeff, mo_occ
-
-
 def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
@@ -142,19 +83,21 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
 
 
-def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], ref: str) -> Tuple[np.ndarray, np.ndarray]:
+def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.ndarray, str]:
         """
         format mf information (mo coefficients & occupations)
         """
-        if ref == 'restricted':
+        if isinstance(mf, (scf.hf.RHF, scf.rohf.ROHF, dft.rks.RKS, dft.roks.ROKS)):
             mo_coeff = np.asarray((mf.mo_coeff,) * 2)
             mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
             mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
             mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+            ref = 'restricted'
         else:
             mo_coeff = mf.mo_coeff
             mo_occ = mf.mo_occ
-        return mo_coeff, mo_occ
+            ref = 'unrestricted'
+        return mo_coeff, mo_occ, ref
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
