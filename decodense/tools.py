@@ -14,7 +14,11 @@ import sys
 import os
 import copy
 import numpy as np
-import opt_einsum as oe
+try:
+    import opt_einsum as oe
+    OE_AVAILABLE = True
+except ImportError:
+    OE_AVAILABLE = False
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft
 from pyscf import tools as pyscf_tools
@@ -104,7 +108,7 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         """
         this function returns an 1-RDM (in ao basis) corresponding to given mo(s)
         """
-        return oe.contract('ip,jp->ij', occup * mo, mo)
+        return contract('ip,jp->ij', occup * mo, mo)
 
 
 def write_cube(mol: gto.Mole, part: str, mo_coeff: np.ndarray, mo_occ: np.ndarray, \
@@ -151,4 +155,15 @@ def write_cube(mol: gto.Mole, part: str, mo_coeff: np.ndarray, mo_occ: np.ndarra
                                                 rdm1_orb)
         else:
             raise RuntimeError('invalid choice of partitioning in write_cube() function.')
+
+
+def contract(eqn, *tensors):
+        """
+        interface to optimized einsum operation
+        """
+        if OE_AVAILABLE:
+            return oe.contract(eqn, *tensors)
+        else:
+            return np.einsum(eqn, *tensors, optimize=True)
+
 
