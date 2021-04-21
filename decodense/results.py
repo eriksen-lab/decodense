@@ -50,12 +50,10 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         string += '\n\n system info:\n'
         string += ' ------------\n'
         string += ' property           =  {:}\n'
-        string += ' basis set          =  {:}\n'
         string += ' partitioning       =  {:}\n'
         string += ' assignment         =  {:}\n'
-        form += (decomp.prop, decomp.basis, decomp.part, decomp.pop,)
         string += ' localization       =  {:}\n'
-        form += (_format(decomp.loc),)
+        form += (decomp.prop, decomp.part, decomp.pop, _format(decomp.loc),)
         if mol is not None:
             string += '\n point group        =  {:}\n'
             string += ' electrons          =  {:d}\n'

@@ -24,17 +24,15 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, basis: str = 'sto3g', loc: str = '', pop: str = 'mulliken', \
-                     xc: str = '', part = 'atoms', thres = .75, multiproc: bool = False, \
+        def __init__(self, loc: str = '', pop: str = 'mulliken', \
+                     part = 'atoms', thres = .75, multiproc: bool = False, \
                      prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
                 # set system defaults
-                self.basis = basis
                 self.loc = loc
                 self.pop = pop
-                self.xc = xc
                 self.part = part
                 self.thres = thres
                 self.multiproc = multiproc
@@ -54,9 +52,6 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         """
         this function performs sanity checks of decomp attributes
         """
-        # basis
-        assert decomp.basis == mol.basis, \
-            'invalid basis. basis set (default: `sto3g`) in decomp and mol objects must match'
         # localization procedure
         assert decomp.loc in ['', 'fb', 'pm', 'ibo-2', 'ibo-4'], \
             'invalid localization procedure. valid choices: none (default), `fb`, `pm`, `ibo-2`, and `ibo-4`'
