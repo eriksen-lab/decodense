@@ -137,8 +137,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] = _trace(kin, np.sum(rdm1_atom, axis=0))
-                    res['rdm_att'] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
-                    res['nuc_att'] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att'] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
@@ -149,15 +148,14 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         if eps_xc_nlc is not None:
                             _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, rdm1_atom, 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
-                # nuclear repulsion contributions
-                res['nuc_rep'] = prop_nuc_rep[atom_idx]
                 # sum up electronic and structural contributions
                 if prop_type == 'energy':
-                    res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
-                    res['struct'] = res['nuc_att'] + res['nuc_rep']
+                    res['el'] = res['coul'] + res['exch'] + res['kin'] + res['nuc_att'] + res['xc']
+                    res['struct'] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5) \
+                                    + prop_nuc_rep[atom_idx]
                 elif prop_type == 'dipole':
                     res['el'] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
-                    res['struct'] = res['nuc_rep']
+                    res['struct'] = prop_nuc_rep[atom_idx]
                 return res
 
         def prop_eda(atom_idx: int) -> Dict[str, Any]:
@@ -178,8 +176,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
                         res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
                     res['kin'] = _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    res['rdm_att'] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                    res['nuc_att'] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att'] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
@@ -194,15 +191,14 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                                                               c1_vv10 if c1_vv10 is None else c1_vv10[:, :, select], \
                                                               ao_value_nlc[:, :, select], 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
-                # nuclear repulsion contributions
-                res['nuc_rep'] = prop_nuc_rep[atom_idx]
                 # sum up electronic and structural contributions
                 if prop_type == 'energy':
-                    res['el'] = res['coul'] + res['exch'] + res['kin'] + res['rdm_att'] + res['xc']
-                    res['struct'] = res['nuc_att'] + res['nuc_rep']
+                    res['el'] = res['coul'] + res['exch'] + res['kin'] + res['nuc_att'] + res['xc']
+                    res['struct'] =  _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5) \
+                                     + prop_nuc_rep[atom_idx]
                 elif prop_type == 'dipole':
                     res['el'] = -_trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
-                    res['struct'] = res['nuc_rep']
+                    res['struct'] = prop_nuc_rep[atom_idx]
                 return res
 
         def prop_bonds(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
@@ -315,7 +311,7 @@ def _h_core(mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
         for k in range(mol.natm):
             with mol.with_rinv_origin(coords[k]):
-                sub_nuc[k] = mol.intor('int1e_rinv') * -charges[k]
+                sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
         # total nuclear potential
         nuc = np.sum(sub_nuc, axis=0)
         return kin, nuc, sub_nuc

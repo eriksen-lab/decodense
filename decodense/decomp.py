@@ -18,7 +18,7 @@ from typing import List, Dict
 
 
 # property keys
-PROP_KEYS = ['coul', 'exch', 'kin', 'rdm_att', 'xc', 'nuc_att', 'nuc_rep', 'el', 'struct']
+PROP_KEYS = ['coul', 'exch', 'kin', 'nuc_att', 'xc', 'el', 'struct']
 
 class DecompCls(object):
         """

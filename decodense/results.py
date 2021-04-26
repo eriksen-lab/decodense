@@ -149,7 +149,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f'{prop["coul"][i] * scaling:>+12.5f}  |' \
                           f'{prop["exch"][i] * scaling:>+12.5f}  |' \
                           f'{prop["kin"][i] * scaling:>+12.5f}  |' \
-                          f'{prop["rdm_att"][i] * scaling:>+12.5f}  |' \
+                          f'{prop["nuc_att"][i] * scaling:>+12.5f}  |' \
                           f'{prop["xc"][i] * scaling:>+12.5f}  ||' \
                           f'{prop["el"][i] * scaling:>+12.5f}  ||' \
                           f'{prop["struct"][i] * scaling:>+12.5f}  |||' \
@@ -163,7 +163,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{np.sum(prop["coul"]) * scaling:>+12.5f}  |' \
                       f'{np.sum(prop["exch"]) * scaling:>+12.5f}  |' \
                       f'{np.sum(prop["kin"]) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop["rdm_att"]) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop["nuc_att"]) * scaling:>+12.5f}  |' \
                       f'{np.sum(prop["xc"]) * scaling:>+12.5f}  ||' \
                       f'{np.sum(prop["el"]) * scaling:>+12.5f}  ||' \
                       f'{np.sum(prop["struct"]) * scaling:>+12.5f}  |||' \
