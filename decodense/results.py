@@ -16,7 +16,7 @@ import math
 from pyscf import gto, lo
 from typing import Dict, Tuple, List, Union, Any
 
-from .decomp import PROP_KEYS, DecompCls
+from .decomp import COMP_KEYS, DecompCls
 from .tools import git_version
 from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 
@@ -100,7 +100,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         string: str = ''
 
         # electronic, structural, and total contributions to property
-        prop = {prop_key: kwargs[prop_key] for prop_key in PROP_KEYS[-2:]}
+        prop = {comp_key: kwargs[comp_key] for comp_key in COMP_KEYS[-2:]}
         prop['tot'] = prop['el'] + prop['struct']
         # effective atomic charges
         charge_atom = kwargs['charge_atom']
@@ -109,8 +109,8 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         if prop['el'].ndim == prop['struct'].ndim == 1:
 
             # remaining energetic contributions
-            for prop_key in PROP_KEYS[:-2]:
-                prop[prop_key] = kwargs[prop_key]
+            for comp_key in COMP_KEYS[:-2]:
+                prop[comp_key] = kwargs[comp_key]
 
             # formatting
             length = 149

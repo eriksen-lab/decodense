@@ -17,8 +17,8 @@ from pyscf import gto
 from typing import List, Dict
 
 
-# property keys
-PROP_KEYS = ['coul', 'exch', 'kin', 'nuc_att', 'xc', 'el', 'struct']
+# component keys
+COMP_KEYS = ['coul', 'exch', 'kin', 'nuc_att', 'xc', 'el', 'struct']
 
 class DecompCls(object):
         """
@@ -40,7 +40,7 @@ class DecompCls(object):
                 self.cube = cube
                 self.verbose = verbose
                 # set internal defaults
-                self.res: Dict[str, np.ndarray] = {prop_key: None for prop_key in PROP_KEYS}
+                self.res: Dict[str, np.ndarray] = {comp_key: None for comp_key in COMP_KEYS}
                 self.charge_atom: np.ndarray = None
                 self.dist: np.ndarray = None
                 self.weights: np.ndarray = None

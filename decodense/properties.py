@@ -19,7 +19,7 @@ from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
 from .tools import make_rdm1, contract
-from .decomp import PROP_KEYS
+from .decomp import COMP_KEYS
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
@@ -115,9 +115,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 """
                 # init results
                 if prop_type == 'energy':
-                    res = {prop_key: 0. for prop_key in PROP_KEYS}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS}
                 elif prop_type == 'dipole':
-                    res = {prop_key: np.zeros(3, dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
+                    res = {comp_key: np.zeros(3, dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
                 # atom-specific rdm1
                 rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
@@ -164,9 +164,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 """
                 # init results
                 if prop_type == 'energy':
-                    res = {prop_key: 0. for prop_key in PROP_KEYS}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS}
                 elif prop_type == 'dipole':
-                    res = {prop_key: np.zeros(3, dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
+                    res = {comp_key: np.zeros(3, dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
                 # get AOs on atom k
                 select = np.where([atom[0] == atom_idx for atom in ao_labels])[0]
                 # common energy contributions associated with given atom
@@ -233,9 +233,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if part in ['atoms', 'eda']:
             # init atom-specific energy or dipole arrays
             if prop_type == 'energy':
-                prop = {prop_key: np.zeros(pmol.natm, dtype=np.float64) for prop_key in PROP_KEYS}
+                prop = {comp_key: np.zeros(pmol.natm, dtype=np.float64) for comp_key in COMP_KEYS}
             elif prop_type == 'dipole':
-                prop = {prop_key: np.zeros([pmol.natm, 3], dtype=np.float64) for prop_key in PROP_KEYS[-2:]}
+                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
