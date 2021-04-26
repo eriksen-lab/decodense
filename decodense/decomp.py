@@ -18,7 +18,7 @@ from typing import List, Dict
 
 
 # property keys
-PROP_KEYS = ['coul', 'exch', 'kin', 'rdm_att', 'xc', 'nuc_att', 'el', 'struct']
+PROP_KEYS = ['coul', 'exch', 'kin', 'rdm_att', 'xc', 'nuc_att', 'nuc_rep', 'el', 'struct']
 
 class DecompCls(object):
         """
@@ -40,8 +40,7 @@ class DecompCls(object):
                 self.cube = cube
                 self.verbose = verbose
                 # set internal defaults
-                self.res: Dict[str, np.ndarray] = {'kin': None, 'coul': None, 'exch': None, 'xc': None, \
-                                                   'nuc_att': None, 'nuc_rep': None, 'el': None, 'tot': None}
+                self.res: Dict[str, np.ndarray] = {prop_key: None for prop_key in PROP_KEYS}
                 self.charge_atom: np.ndarray = None
                 self.dist: np.ndarray = None
                 self.weights: np.ndarray = None
