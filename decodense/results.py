@@ -113,7 +113,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 prop[comp_key] = kwargs[comp_key]
 
             # formatting
-            length = 149
+            length = 163
             divider = '-' * length + '\n'
 
             # units
@@ -138,7 +138,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
             string += divider
-            string += f'{"atom":^6}|{"coulomb":^14}|{"exchange":^14}|{"kinetic":^14}|{"nuc. attr.":^14}|{"xc":^14}||'
+            string += f'{"atom":^6}|{"coulomb":^14}|{"exchange":^14}|{"kinetic":^14}|{"nuc. attr.":^14}|{"solvent":^14}|{"xc":^14}||'
             string += f'{"electronic":^14}||{"structural":^14}|||{"total":^14}|||{"part. charge":^16}\n'
             string += divider
             string += divider
@@ -150,6 +150,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f'{prop["exch"][i] * scaling:>+12.5f}  |' \
                           f'{prop["kin"][i] * scaling:>+12.5f}  |' \
                           f'{prop["nuc_att"][i] * scaling:>+12.5f}  |' \
+                          f'{prop["solvent"][i] * scaling:>+12.5f}  |' \
                           f'{prop["xc"][i] * scaling:>+12.5f}  ||' \
                           f'{prop["el"][i] * scaling:>+12.5f}  ||' \
                           f'{prop["struct"][i] * scaling:>+12.5f}  |||' \
@@ -164,6 +165,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{np.sum(prop["exch"]) * scaling:>+12.5f}  |' \
                       f'{np.sum(prop["kin"]) * scaling:>+12.5f}  |' \
                       f'{np.sum(prop["nuc_att"]) * scaling:>+12.5f}  |' \
+                      f'{np.sum(prop["solvent"]) * scaling:>+12.5f}  |' \
                       f'{np.sum(prop["xc"]) * scaling:>+12.5f}  ||' \
                       f'{np.sum(prop["el"]) * scaling:>+12.5f}  ||' \
                       f'{np.sum(prop["struct"]) * scaling:>+12.5f}  |||' \
