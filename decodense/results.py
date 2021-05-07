@@ -253,18 +253,24 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         centres = kwargs['centres']
         # bond lengths
         dist = kwargs['dist']
-        # electronic and structlear contributions to property
-        prop_el = kwargs['el']
-        prop_struct = kwargs['struct']
+        # electronic, structural, and total contributions to property
+        prop = {comp_key: kwargs[comp_key] for comp_key in COMP_KEYS[-2:]}
+        prop['tot'] = prop['el'] + prop['struct']
 
         # scalar property
-        if prop_el[0].ndim == prop_struct.ndim == 1:
+        if prop['el'][0].ndim == prop['struct'].ndim == 1:
 
-            length = 56
+            # remaining energetic contributions
+            for comp_key in COMP_KEYS[:-2]:
+                prop[comp_key] = kwargs[comp_key]
+
+            # formatting
+            length = 142
             divider = '-' * length + '\n'
-            length_2 = 23
+            length_2 = 27
             divider_2 = '-' * length_2 + '\n'
 
+            # units
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
@@ -281,12 +287,15 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             elif unit == 'kj_mol':
                 scaling = AU_TO_KJ_MOL
 
+            # headers
             string += divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
-            string += f'{"MO":^6}|{"electronic":^15}|{"atom(s)":^15}|{"bond length/Ang":^17}\n'
+            string += f'{"MO":^10}|{"coulomb":^15}|{"exchange":^15}|{"kinetic":^15}|'
+            string += f'{"nuc. attr.":^15}|{"xc":^15}||{"electronic":^15}||{"atom(s)":^15}|{"bond length/Ang":^17}\n'
             string += divider
 
+            # individual contributions
             for i, spin in enumerate(('alpha-spin', 'beta-spin')):
                 string += divider
                 string += f'{spin:^{length}}\n'
@@ -295,37 +304,52 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                     atom = f'{mol.atom_symbol(centres[i][j, 0]):s}{centres[i][j, 0]:d}'
                     core = centres[i][j, 0] == centres[i][j, 1]
                     if core:
-                        string += f'  {j:>2d}  |' \
-                                  f'{prop_el[i][j] * scaling:>+12.5f}   |' \
+                        string += f'   {j:>2d}     |' \
+                                  f'{prop["coul"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["exch"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["kin"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["nuc_att"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["xc"][i][j] * scaling:>+12.5f}   ||' \
+                                  f'{prop["el"][i][j] * scaling:>+12.5f}   ||' \
                                   f'    {atom:<11s}|\n'
                     else:
                         atom += f'-{mol.atom_symbol(centres[i][j, 1]):s}{centres[i][j, 1]:d}'
                         rr = f'{dist[centres[i][j, 0], centres[i][j, 1]]:.3f}'
-                        string += f'  {j:>2d}  |' \
-                                  f'{prop_el[i][j] * scaling:>+12.5f}   |' \
+                        string += f'   {j:>2d}     |' \
+                                  f'{prop["coul"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["exch"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["kin"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["nuc_att"][i][j] * scaling:>+12.5f}   |' \
+                                  f'{prop["xc"][i][j] * scaling:>+12.5f}   ||' \
+                                  f'{prop["el"][i][j] * scaling:>+12.5f}   ||' \
                                   f'    {atom:<11s}|' \
                                   f'  {rr:>9s}\n'
 
+            # total contributions
             string += divider
             string += divider
-            string += f'{"sum":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1])) * scaling:>+12.5f}   |\n'
-
+            string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
-            string += f'{"struct":^6}|{np.sum(prop_struct) * scaling:>+12.5f}   |\n'
-
+            string += f'{"electronic":^10}|{(np.sum(prop["el"][0]) + np.sum(prop["el"][1])) * scaling:>+12.5f}   |\n'
+            string += divider_2
+            string += f'{"solvent":^10}|{np.sum(prop["solvent"]) * scaling:>+12.5f}   |\n'
+            string += divider_2
+            string += f'{"struct":^10}|{np.sum(prop["struct"]) * scaling:>+12.5f}   |\n'
             string += divider_2
             string += divider_2
-            string += f'{"tot":^6}|{(np.sum(prop_el[0]) + np.sum(prop_el[1]) + np.sum(prop_struct)) * scaling:>12.5f}   |\n'
+            string += f'{"total":^10}|{(np.sum(prop["el"][0]) + np.sum(prop["el"][1]) + np.sum(prop["struct"])) * scaling:>12.5f}   |\n'
             string += divider_2 + '\n'
 
         # tensor property
-        elif prop_el[0].ndim == prop_struct.ndim == 2:
+        elif prop['el'][0].ndim == prop['struct'].ndim == 2:
 
+            # formatting
             length = 76
             divider = '-' * length + '\n'
             length_2 = 35
             divider_2 = '-' * length_2
 
+            # units
             if 'unit' in kwargs:
                 unit = kwargs['unit'].lower()
             else:
@@ -336,6 +360,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             if unit == 'debye':
                 scaling = AU_TO_DEBYE
 
+            # headers
             string += divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
@@ -344,6 +369,7 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{"":^6}|{"x":^11}/{"y":^11}/{"z":^11}|{"":^15}|\n'
             string += divider
 
+            # individual contributions
             for i, spin in enumerate(('alpha-spin', 'beta-spin')):
                 string += divider
                 string += f'{spin:^{length}}\n'
@@ -353,41 +379,37 @@ def bonds(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                     core = centres[i][j, 0] == centres[i][j, 1]
                     if core:
                         string += f'  {j:>2d}  |' \
-                                  f' {prop_el[i][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                                  f' {prop_el[i][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                                  f' {prop_el[i][j][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                                  f' {prop["el"][i][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop["el"][i][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop["el"][i][j][2] * scaling + TOLERANCE:>+8.3f}  |' \
                                   f'    {atom:<11s}|\n'
                     else:
                         atom += f'-{mol.atom_symbol(centres[i][j, 1]):s}{centres[i][j, 1]:d}'
                         rr = f'{dist[centres[i][j, 0], centres[i][j, 1]]:.3f}'
                         string += f'  {j:>2d}  |' \
-                                  f' {prop_el[i][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                                  f' {prop_el[i][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                                  f' {prop_el[i][j][2] * scaling + TOLERANCE:>+8.3f}  |' \
+                                  f' {prop["el"][i][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop["el"][i][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
+                                  f' {prop["el"][i][j][2] * scaling + TOLERANCE:>+8.3f}  |' \
                                   f'    {atom:<11s}|' \
                                   f'  {rr:>9s}\n'
 
+            # total contributions
             string += divider
             string += divider
-
-            sum_el = (np.fromiter(map(math.fsum, prop_el[0].T), dtype=np.float64, count=3) + \
-                      np.fromiter(map(math.fsum, prop_el[1].T), dtype=np.float64, count=3))
-            sum_struct = np.fromiter(map(math.fsum, prop_struct.T), dtype=np.float64, count=3)
-
+            sum_el = (np.fromiter(map(math.fsum, prop['el'][0].T), dtype=np.float64, count=3) + \
+                      np.fromiter(map(math.fsum, prop['el'][1].T), dtype=np.float64, count=3))
+            sum_struct = np.fromiter(map(math.fsum, prop['struct'].T), dtype=np.float64, count=3)
             string += f'{"sum":^6}|' \
                       f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_el[1] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_el[2] * scaling + TOLERANCE:>+8.3f}  |\n'
-
             string += divider
             string += f'{"struct":^6}|' \
                       f' {sum_struct[0] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_struct[1] * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {sum_struct[2] * scaling + TOLERANCE:>+8.3f}  |\n'
-
             string += divider
             string += divider
-
             string += f'{"tot":^6}|' \
                       f' {(sum_el[0] + sum_struct[0]) * scaling + TOLERANCE:>+8.3f}  /' \
                       f' {(sum_el[1] + sum_struct[1]) * scaling + TOLERANCE:>+8.3f}  /' \

@@ -165,14 +165,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         if eps_xc_nlc is not None:
                             _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_atom, axis=0), ref, 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
+                elif prop_type == 'dipole':
+                    res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # sum up electronic contributions
                 if prop_type == 'energy':
                     for comp_key in COMP_KEYS[:-2]:
                         res['el'] += res[comp_key]
-                elif prop_type == 'dipole':
-                    res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
-                # add nuclear contributions
-                res['struct'] += prop_nuc_rep[atom_idx]
                 return res
 
         def prop_eda(atom_idx: int) -> Dict[str, Any]:
@@ -213,14 +211,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                                                               c1_vv10 if c1_vv10 is None else c1_vv10[:, :, select], \
                                                               ao_value_nlc[:, :, select], 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
+                elif prop_type == 'dipole':
+                    res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # sum up electronic contributions
                 if prop_type == 'energy':
                     for comp_key in COMP_KEYS[:-2]:
                         res['el'] += res[comp_key]
-                elif prop_type == 'dipole':
-                    res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
-                # add nuclear contributions
-                res['struct'] += prop_nuc_rep[atom_idx]
                 return res
 
         def prop_bonds(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
@@ -228,29 +224,38 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 this function returns bond-wise energy/dipole contributions
                 """
                 # init res
-                res = {}
+                if prop_type == 'energy':
+                    res = {comp_key: 0. for comp_key in COMP_KEYS}
+                else:
+                    res = {}
                 # get orbital(s)
                 orb = mo_coeff[spin_idx][:, orb_idx].reshape(mo_coeff[spin_idx].shape[0], -1)
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mo_occ[spin_idx][orb_idx])
                 # total energy or dipole moment associated with given spin-orbital
                 if prop_type == 'energy':
-                    res['el'] = _trace(np.sum(vj, axis=0) - vk[spin_idx], rdm1_orb, scaling = .5)
-                    res['el'] += _trace(kin + nuc, rdm1_orb)
+                    res['coul'] += _trace(np.sum(vj, axis=0), rdm1_orb, scaling = .5)
+                    res['exch'] -= _trace(vk[spin_idx], rdm1_orb, scaling = .5)
+                    res['kin'] += _trace(kin, rdm1_orb)
+                    res['nuc_att'] += _trace(nuc, rdm1_orb)
                     if mm_pot is not None:
-                        res['el'] += _trace(mm_pot, rdm1_orb)
+                        res['solvent'] += _trace(mm_pot, rdm1_orb)
                     # additional xc energy contribution
                     if dft_calc:
                         # orbital-specific rho
                         _, _, rho_orb = _make_rho(ao_value, rdm1_orb, ref, xc_type)
                         # xc energy from individual orbitals
-                        res['el'] += _e_xc(eps_xc, grid_weights, rho_orb)
+                        res['xc'] += _e_xc(eps_xc, grid_weights, rho_orb)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
                             _, _, rho_orb_vv10 = _make_rho(ao_value_nlc, rdm1_orb, ref, 'GGA')
-                            res['el'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
+                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
                 elif prop_type == 'dipole':
                     res['el'] = -_trace(ao_dip, rdm1_orb)
+                # sum up electronic contributions
+                if prop_type == 'energy':
+                    for comp_key in COMP_KEYS[:-2]:
+                        res['el'] += res[comp_key]
                 return res
 
         # perform decomposition
@@ -273,14 +278,15 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
+            prop['struct'] = prop_nuc_rep
         else: # bonds
             # get rep_idx
             rep_idx = kwargs['rep_idx']
             # init orbital-specific energy or dipole array
             if prop_type == 'energy':
-                prop = {'el': [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)]}
+                prop = {comp_key: [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)] for comp_key in COMP_KEYS}
             elif prop_type == 'dipole':
-                prop = {'el': [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)]}
+                prop = {comp_key: [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
             domain = np.array([(i, j) for i, _ in enumerate((mol.alpha, mol.beta)) for j in rep_idx[i]])
             # execute kernel
