@@ -66,6 +66,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # possible mm region
         mm_mol = getattr(mf, 'mm_mol', None)
 
+        # cosmo/pcm solvent model
+        if getattr(mf, 'with_solvent', None):
+            e_solvent = _solvent(mol, np.sum(rdm1_tot, axis=0), mf.with_solvent)
+        else:
+            e_solvent = None
+
         # nuclear repulsion property
         if prop_type == 'energy':
             prop_nuc_rep = _e_nuc(pmol, mm_mol)
@@ -142,17 +148,19 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
-                    res['kin'] = _trace(kin, np.sum(rdm1_atom, axis=0))
-                    res['nuc_att'] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5) \
-                                     + _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
+                    res['nuc_att'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5) \
+                                      + _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     if mm_pot is not None:
-                        res['solvent'] = _trace(mm_pot, np.sum(rdm1_atom, axis=0))
+                        res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))
+                    if e_solvent is not None:
+                        res['solvent'] += e_solvent[atom_idx]
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
                         _, _, rho_atom = _make_rho(ao_value, np.sum(rdm1_atom, axis=0), ref, xc_type)
                         # energy from individual atoms
-                        res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
+                        res['xc'] += _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
                             _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_atom, axis=0), ref, 'GGA')
@@ -162,9 +170,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     for comp_key in COMP_KEYS[:-2]:
                         res['el'] += res[comp_key]
                 elif prop_type == 'dipole':
-                    res['el'] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
+                    res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # add nuclear contributions
-                res['struct'] = prop_nuc_rep[atom_idx]
+                res['struct'] += prop_nuc_rep[atom_idx]
                 return res
 
         def prop_eda(atom_idx: int) -> Dict[str, Any]:
@@ -184,11 +192,13 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     for i, _ in enumerate((alpha, beta)):
                         res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
                         res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
-                    res['kin'] = _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    res['nuc_att'] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) \
-                                     + _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
+                    res['nuc_att'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) \
+                                      + _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     if mm_pot is not None:
-                        res['solvent'] = _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
+                        res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
+                    if e_solvent is not None:
+                        res['solvent'] += e_solvent[atom_idx]
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
@@ -196,7 +206,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                                                      c1_tot if c1_tot is None else c1_tot[:, :, select], \
                                                      ao_value[:, :, select], xc_type)
                         # energy from individual atoms
-                        res['xc'] = _e_xc(eps_xc, grid_weights, rho_atom)
+                        res['xc'] += _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
                             rho_atom_vv10 = _make_rho_interm2(c0_vv10[:, select], \
@@ -208,9 +218,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     for comp_key in COMP_KEYS[:-2]:
                         res['el'] += res[comp_key]
                 elif prop_type == 'dipole':
-                    res['el'] = -_trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
+                    res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # add nuclear contributions
-                res['struct'] = prop_nuc_rep[atom_idx]
+                res['struct'] += prop_nuc_rep[atom_idx]
                 return res
 
         def prop_bonds(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
@@ -350,15 +360,15 @@ def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:
         this function returns the full mm potential
         (adapted from: qmmm/itrf.py:get_hcore() in PySCF)
         """
-        if mol.cart:
-            intor = 'int3c2e_cart'
-        else:
-            intor = 'int3c2e_sph'
+        # settings
         coords = mm_mol.atom_coords()
         charges = mm_mol.atom_charges()
         blksize = BLKSIZE
+        # integrals
+        intor = 'int3c2e_cart' if mol.cart else 'int3c2e_sph'
         cintopt = gto.moleintor.make_cintopt(mol._atm, mol._bas,
                                              mol._env, intor)
+        # compute interaction potential
         mm_pot = 0
         for i0, i1 in lib.prange(0, charges.size, blksize):
             fakemol = gto.fakemol_for_charges(coords[i0:i1])
@@ -367,6 +377,30 @@ def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:
             mm_pot += np.einsum('xk,k->x', j3c, -charges[i0:i1])
         mm_pot = lib.unpack_tril(mm_pot)
         return mm_pot
+
+
+def _solvent(mol: gto.Mole, rdm1: np.ndarray, \
+             solvent_model: solvent.ddcosmo.DDCOSMO) -> np.ndarray:
+        """
+        this function return atom-specific PCM/COSMO contributions
+        (adapted from: solvent/ddcosmo.py:_get_vind() in PySCF)
+        """
+        # settings
+        r_vdw      = solvent_model._intermediates['r_vdw'     ]
+        ylm_1sph   = solvent_model._intermediates['ylm_1sph'  ]
+        ui         = solvent_model._intermediates['ui'        ]
+        Lmat       = solvent_model._intermediates['Lmat'      ]
+        cached_pol = solvent_model._intermediates['cached_pol']
+        dielectric = solvent_model.eps
+        f_epsilon = (dielectric - 1.) / dielectric if dielectric > 0. else 1.
+        # electrostatic potential
+        phi = solvent.ddcosmo.make_phi(solvent_model, rdm1, r_vdw, ui, ylm_1sph)
+        # X and psi (cf. https://github.com/filippolipparini/ddPCM/blob/master/reference.pdf)
+        Xvec = np.linalg.solve(Lmat, phi.ravel()).reshape(mol.natm,-1)
+        psi  = solvent.ddcosmo.make_psi_vmat(solvent_model, rdm1, r_vdw, \
+                                             ui, ylm_1sph, cached_pol, Xvec, Lmat)[0]
+        return .5 * f_epsilon * np.einsum('jx,jx->j', psi, Xvec)
+
 
 def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:
         """
