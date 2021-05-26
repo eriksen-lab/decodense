@@ -129,7 +129,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 if prop_type == 'energy':
                     res = {comp_key: 0. for comp_key in COMP_KEYS}
                 else:
-                    res = {}
+                    res = {'el': np.zeros(3, dtype=np.float64)}
                 # atom-specific rdm1
                 rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
@@ -149,8 +149,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    res['nuc_att'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5) \
-                                      + _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))
                     if e_solvent is not None:
@@ -181,7 +181,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 if prop_type == 'energy':
                     res = {comp_key: 0. for comp_key in COMP_KEYS}
                 else:
-                    res = {}
+                    res = {'el': np.zeros(3, dtype=np.float64)}
                 # get AOs on atom k
                 select = np.where([atom[0] == atom_idx for atom in ao_labels])[0]
                 # common energy contributions associated with given atom
@@ -191,8 +191,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
                         res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
                     res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    res['nuc_att'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) \
-                                      + _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
                     if e_solvent is not None:

@@ -18,7 +18,7 @@ from typing import List, Dict
 
 
 # component keys
-COMP_KEYS = ['coul', 'exch', 'kin', 'solvent', 'nuc_att', 'xc', 'el', 'struct']
+COMP_KEYS = ['coul', 'exch', 'kin', 'solvent', 'nuc_att_glob', 'nuc_att_loc', 'nuc_att', 'xc', 'el', 'struct']
 
 class DecompCls(object):
         """

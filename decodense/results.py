@@ -113,7 +113,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 prop[comp_key] = kwargs[comp_key]
 
             # formatting
-            length = 163
+            length = 189
             divider = '-' * length + '\n'
 
             # units
@@ -138,38 +138,41 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
             string += divider
-            string += f'{"atom":^6}|{"coulomb":^14}|{"exchange":^14}|{"kinetic":^14}|{"nuc. attr.":^14}|{"solvent":^14}|{"xc":^14}||'
-            string += f'{"electronic":^14}||{"structural":^14}|||{"total":^14}|||{"part. charge":^16}\n'
+            string += f'{"atom":^6}|{"coulomb":^15}|{"exchange":^15}|{"kinetic":^15}|'
+            string += f'{"nuc. att. (G)":^15}|{"nuc. att. (L)":^15}|{"solvent":^15}|{"xc":^15}||'
+            string += f'{"electronic":^15}||{"structural":^15}|||{"total":^15}|||{"part. charge":^16}\n'
             string += divider
             string += divider
 
             # individual contributions
             for i in range(mol.natm):
                 string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
-                          f'{prop["coul"][i] * scaling:>+12.5f}  |' \
-                          f'{prop["exch"][i] * scaling:>+12.5f}  |' \
-                          f'{prop["kin"][i] * scaling:>+12.5f}  |' \
-                          f'{prop["nuc_att"][i] * scaling:>+12.5f}  |' \
-                          f'{prop["solvent"][i] * scaling:>+12.5f}  |' \
-                          f'{prop["xc"][i] * scaling:>+12.5f}  ||' \
-                          f'{prop["el"][i] * scaling:>+12.5f}  ||' \
-                          f'{prop["struct"][i] * scaling:>+12.5f}  |||' \
-                          f'{prop["tot"][i] * scaling:>+12.5f}  |||' \
+                          f'{prop["coul"][i] * scaling:>+13.5f}  |' \
+                          f'{prop["exch"][i] * scaling:>+13.5f}  |' \
+                          f'{prop["kin"][i] * scaling:>+13.5f}  |' \
+                          f'{prop["nuc_att_glob"][i] * scaling:>+13.5f}  |' \
+                          f'{prop["nuc_att_loc"][i] * scaling:>+13.5f}  |' \
+                          f'{prop["solvent"][i] * scaling:>+13.5f}  |' \
+                          f'{prop["xc"][i] * scaling:>+13.5f}  ||' \
+                          f'{prop["el"][i] * scaling:>+13.5f}  ||' \
+                          f'{prop["struct"][i] * scaling:>+13.5f}  |||' \
+                          f'{prop["tot"][i] * scaling:>+13.5f}  |||' \
                           f'{charge_atom[i]:>+11.3f}\n'
             string += divider
             string += divider
 
             # total contributions
             string += f'{"sum":^6}|' \
-                      f'{np.sum(prop["coul"]) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop["exch"]) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop["kin"]) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop["nuc_att"]) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop["solvent"]) * scaling:>+12.5f}  |' \
-                      f'{np.sum(prop["xc"]) * scaling:>+12.5f}  ||' \
-                      f'{np.sum(prop["el"]) * scaling:>+12.5f}  ||' \
-                      f'{np.sum(prop["struct"]) * scaling:>+12.5f}  |||' \
-                      f'{np.sum(prop["tot"]) * scaling:>+12.5f}  |||' \
+                      f'{np.sum(prop["coul"]) * scaling:>+13.5f}  |' \
+                      f'{np.sum(prop["exch"]) * scaling:>+13.5f}  |' \
+                      f'{np.sum(prop["kin"]) * scaling:>+13.5f}  |' \
+                      f'{np.sum(prop["nuc_att_glob"]) * scaling:>+13.5f}  |' \
+                      f'{np.sum(prop["nuc_att_loc"]) * scaling:>+13.5f}  |' \
+                      f'{np.sum(prop["solvent"]) * scaling:>+13.5f}  |' \
+                      f'{np.sum(prop["xc"]) * scaling:>+13.5f}  ||' \
+                      f'{np.sum(prop["el"]) * scaling:>+13.5f}  ||' \
+                      f'{np.sum(prop["struct"]) * scaling:>+13.5f}  |||' \
+                      f'{np.sum(prop["tot"]) * scaling:>+13.5f}  |||' \
                       f'{0.:>11.3f}\n'
             string += divider + '\n'
 
