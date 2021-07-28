@@ -27,7 +27,7 @@ BLKSIZE = 200
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             ref: str, pop: str, prop_type: str, part: str, multiproc: bool, \
+             pop: str, prop_type: str, part: str, multiproc: bool, \
              **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -94,7 +94,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # grid weights
             grid_weights = mf.grids.weights
             # compute all intermediates
-            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_tot, ref, xc_type)
+            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_tot, xc_type)
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # nlc (vv10)
@@ -102,7 +102,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 nlc_pars = dft.libxc.nlc_coeff(mf.xc)
                 ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                 grid_weights_nlc = mf.nlcgrids.weights
-                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_tot, axis=0), ref, 'GGA')
+                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_tot, axis=0), 'GGA')
                 eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
                                              grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
             else:
@@ -158,12 +158,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
-                        _, _, rho_atom = _make_rho(ao_value, np.sum(rdm1_atom, axis=0), ref, xc_type)
+                        _, _, rho_atom = _make_rho(ao_value, np.sum(rdm1_atom, axis=0), xc_type)
                         # energy from individual atoms
                         res['xc'] += _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
-                            _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_atom, axis=0), ref, 'GGA')
+                            _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_atom, axis=0), 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
                 elif prop_type == 'dipole':
                     res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
@@ -243,12 +243,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     # additional xc energy contribution
                     if dft_calc:
                         # orbital-specific rho
-                        _, _, rho_orb = _make_rho(ao_value, rdm1_orb, ref, xc_type)
+                        _, _, rho_orb = _make_rho(ao_value, rdm1_orb, xc_type)
                         # xc energy from individual orbitals
                         res['xc'] += _e_xc(eps_xc, grid_weights, rho_orb)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
-                            _, _, rho_orb_vv10 = _make_rho(ao_value_nlc, rdm1_orb, ref, 'GGA')
+                            _, _, rho_orb_vv10 = _make_rho(ao_value_nlc, rdm1_orb, 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
                 elif prop_type == 'dipole':
                     res['el'] = -_trace(ao_dip, rdm1_orb)
@@ -486,7 +486,7 @@ def _make_rho_interm2(c0: np.ndarray, c1: np.ndarray, \
 
 
 def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
-              ref: str, xc_type: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+              xc_type: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         this function returns important dft intermediates, e.g., energy density, grid weights, etc.
         """
@@ -495,7 +495,7 @@ def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
             c0, c1 = _make_rho_interm1(ao_value, rdm1, xc_type)
             rho = _make_rho_interm2(c0, c1, ao_value, xc_type)
         else:
-            if ref == 'restricted':
+            if np.allclose(rdm1[0], rdm1[1]):
                 c0, c1 = _make_rho_interm1(ao_value, rdm1[0] * 2., xc_type)
                 rho = _make_rho_interm2(c0, c1, ao_value, xc_type)
             else:

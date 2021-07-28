@@ -87,21 +87,29 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
 
 
-def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.ndarray, str]:
+def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], spin: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         format mf information (mo coefficients & occupations)
         """
         if isinstance(mf, (scf.hf.RHF, scf.rohf.ROHF, dft.rks.RKS, dft.roks.ROKS)):
             mo_coeff = np.asarray((mf.mo_coeff,) * 2)
             mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
-            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
-            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
-            ref = 'restricted'
+            if isinstance(mf, (scf.hf.RHF, dft.rks.RKS)):
+                mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
+                mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+            elif isinstance(mf, (scf.hf.ROHF, dft.rks.ROKS)):
+                if spin != 0:
+                    mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
+                    mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+                else:
+                    mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
+                    mo_occ[0][np.where(mf.mo_occ == 1.)[0]] += 1.
+                    mo_occ[1][np.where(0. < mf.mo_occ)] += 1.
+                    mo_occ[1][np.where(mf.mo_occ == 1.)[1]] += 1.
         else:
             mo_coeff = mf.mo_coeff
             mo_occ = mf.mo_occ
-            ref = 'unrestricted'
-        return mo_coeff, mo_occ, ref
+        return mo_coeff, mo_occ
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:

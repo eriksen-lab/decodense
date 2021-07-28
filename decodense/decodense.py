@@ -34,7 +34,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         time = MPI.Wtime()
 
         # mf calculation
-        mo_coeff, mo_occ, ref = format_mf(mf)
+        mo_coeff, mo_occ = format_mf(mf, mol.spin)
 
         # molecular dimensions
         mol.alpha, mol.beta = dim(mol, mo_occ)
@@ -43,23 +43,23 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # compute localized molecular orbitals
         if decomp.loc != '':
-            mo_coeff = loc_orbs(mol, mo_coeff, s, ref, decomp.loc)
+            mo_coeff = loc_orbs(mol, mo_coeff, mo_occ, s, decomp.loc)
 
         # inter-atomic distance array
         dist = gto.mole.inter_distance(mol) * lib.param.BOHR
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
-            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, ref, decomp.pop, \
+            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, \
                                    decomp.part, decomp.multiproc, decomp.verbose)[0]
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, ref, decomp.pop, \
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
                                   weights = weights, dipole_origin = dipole_origin)
         elif decomp.part == 'bonds':
-            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, ref, decomp.pop, \
+            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, \
                                             decomp.part, decomp.multiproc, decomp.verbose, \
                                             thres = decomp.thres)
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, ref, decomp.pop, \
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
                                   rep_idx = rep_idx, dipole_origin = dipole_origin)
 
