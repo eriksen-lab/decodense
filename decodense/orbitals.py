@@ -52,7 +52,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
                                                          grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
 
             # closed-shell reference
-            if np.allclose(mo_coeff_in[0], mo_coeff_in[1]):
+            if np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1]):
                 mo_coeff_out[i+1][:, spin_mo] = mo_coeff_out[i][:, spin_mo]
                 break
 
@@ -126,7 +126,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
                 weights[i] = list(map(get_weights, domain)) # type:ignore
 
             # closed-shell reference
-            if np.allclose(mo_coeff[0], mo_coeff[1]):
+            if np.allclose(mo_coeff[0], mo_coeff[1]) and np.allclose(mo_occ[0], mo_occ[1]):
                 weights[i+1] = weights[i]
                 break
 
@@ -159,7 +159,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
                         # valence orbitals
                         centres[i][j] = np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
                 # closed-shell reference
-                if np.allclose(mo_coeff[0], mo_coeff[1]):
+                if np.allclose(mo_coeff[0], mo_coeff[1]) and np.allclose(mo_occ[0], mo_occ[1]):
                     centres[i+1] = centres[i]
                     break
             # unique and repetitive centres
