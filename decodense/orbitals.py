@@ -21,38 +21,57 @@ LOC_CONV = 1.e-10
 
 
 def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
-             mo_occ: np.ndarray, s: np.ndarray, variant: str) -> np.ndarray:
+             mo_occ: np.ndarray, s: np.ndarray, variant: str, \
+             loc_lst: Union[None, List[Any]]) -> np.ndarray:
         """
         this function returns a set of localized MOs of a specific variant
         """
+        # rhf reference
+        rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
+
+        # localization list(s)
+        if loc_lst is not None:
+            if not rhf:
+                assert len(loc_lst) == 2, 'loc_lst must be supplied for both alpha and beta spaces'
+            for i, idx_arr in enumerate(loc_lst):
+                assert np.sum([len(idx) for idx in idx_arr]) == (mol.alpha, mol.beta)[i].size, 'loc_lst does not cover all occupied orbitals'
+
         # init mo_coeff_out
         mo_coeff_out = np.zeros_like(mo_coeff_in)
 
         # loop over spins
         for i, spin_mo in enumerate((mol.alpha, mol.beta)):
 
-            if variant == 'fb':
-                # foster-boys procedure
-                loc = lo.Boys(mol, mo_coeff_in[i][:, spin_mo])
-                loc.conv_tol = LOC_CONV
-                # FB MOs
-                mo_coeff_out[i][:, spin_mo] = loc.kernel()
-            elif variant == 'pm':
-                # pipek-mezey procedure
-                loc = lo.PM(mol, mo_coeff_in[i][:, spin_mo])
-                loc.conv_tol = LOC_CONV
-                # PM MOs
-                mo_coeff_out[i][:, spin_mo] = loc.kernel()
-            elif 'ibo' in variant:
-                # orthogonalized IAOs
-                iao = lo.iao.iao(mol, mo_coeff_in[i][:, spin_mo])
-                iao = lo.vec_lowdin(iao, s)
-                # IBOs
-                mo_coeff_out[i][:, spin_mo] = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], iaos=iao, \
-                                                         grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
+            # selective localization
+            if loc_lst is None:
+                idx_arr = spin_mo.reshape(1, -1)
+            else:
+                idx_arr = loc_lst[i]
+
+            # localize orbitals
+            for idx in idx_arr:
+                if variant == 'fb':
+                    # foster-boys procedure
+                    loc = lo.Boys(mol, mo_coeff_in[i][:, spin_mo[idx]])
+                    loc.conv_tol = LOC_CONV
+                    # FB MOs
+                    mo_coeff_out[i][:, spin_mo[idx]] = loc.kernel()
+                elif variant == 'pm':
+                    # pipek-mezey procedure
+                    loc = lo.PM(mol, mo_coeff_in[i][:, spin_mo[idx]])
+                    loc.conv_tol = LOC_CONV
+                    # PM MOs
+                    mo_coeff_out[i][:, spin_mo[idx]] = loc.kernel()
+                elif 'ibo' in variant:
+                    # orthogonalized IAOs
+                    iao = lo.iao.iao(mol, mo_coeff_in[i][:, spin_mo[idx]])
+                    iao = lo.vec_lowdin(iao, s)
+                    # IBOs
+                    mo_coeff_out[i][:, spin_mo[idx]] = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo[idx]], iaos=iao, \
+                                                                  grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
 
             # closed-shell reference
-            if np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1]):
+            if rhf:
                 mo_coeff_out[i+1][:, spin_mo] = mo_coeff_out[i][:, spin_mo]
                 break
 

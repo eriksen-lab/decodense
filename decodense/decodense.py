@@ -23,6 +23,7 @@ from .tools import dim, make_rdm1, format_mf, write_cube
 
 def main(mol: gto.Mole, decomp: DecompCls, \
          mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT], \
+         loc_lst: Union[None, List[Any]] = None, \
          dipole_origin: Union[List[float], np.ndarray] = [0.] * 3) -> Dict[str, Any]:
         """
         main decodense program
@@ -43,7 +44,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # compute localized molecular orbitals
         if decomp.loc != '':
-            mo_coeff = loc_orbs(mol, mo_coeff, mo_occ, s, decomp.loc)
+            mo_coeff = loc_orbs(mol, mo_coeff, mo_occ, s, decomp.loc, loc_lst)
 
         # inter-atomic distance array
         dist = gto.mole.inter_distance(mol) * lib.param.BOHR
