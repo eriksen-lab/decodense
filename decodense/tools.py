@@ -91,7 +91,7 @@ def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], spin: int) -> Tuple[np
         """
         format mf information (mo coefficients & occupations)
         """
-        if isinstance(mf, (scf.hf.RHF, scf.rohf.ROHF, dft.rks.RKS, dft.roks.ROKS)):
+        if mf.mo_coeff.ndim == 2 and mf.mo_occ.ndim == 1:
             mo_coeff = np.asarray((mf.mo_coeff,) * 2)
             mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
             if isinstance(mf, (scf.hf.RHF, dft.rks.RKS)):
