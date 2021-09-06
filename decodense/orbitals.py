@@ -52,23 +52,23 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
             for idx in idx_arr:
                 if variant == 'fb':
                     # foster-boys procedure
-                    loc = lo.Boys(mol, mo_coeff_in[i][:, spin_mo[idx]])
+                    loc = lo.Boys(mol, mo_coeff_in[i][:, idx])
                     loc.conv_tol = LOC_CONV
                     # FB MOs
-                    mo_coeff_out[i][:, spin_mo[idx]] = loc.kernel()
+                    mo_coeff_out[i][:, idx] = loc.kernel()
                 elif variant == 'pm':
                     # pipek-mezey procedure
-                    loc = lo.PM(mol, mo_coeff_in[i][:, spin_mo[idx]])
+                    loc = lo.PM(mol, mo_coeff_in[i][:, idx])
                     loc.conv_tol = LOC_CONV
                     # PM MOs
-                    mo_coeff_out[i][:, spin_mo[idx]] = loc.kernel()
+                    mo_coeff_out[i][:, idx] = loc.kernel()
                 elif 'ibo' in variant:
                     # orthogonalized IAOs
-                    iao = lo.iao.iao(mol, mo_coeff_in[i][:, spin_mo[idx]])
+                    iao = lo.iao.iao(mol, mo_coeff_in[i][:, idx])
                     iao = lo.vec_lowdin(iao, s)
                     # IBOs
-                    mo_coeff_out[i][:, spin_mo[idx]] = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo[idx]], iaos=iao, \
-                                                                  grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
+                    mo_coeff_out[i][:, idx] = lo.ibo.ibo(mol, mo_coeff_in[i][:, idx], iaos=iao, \
+                                                         grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
 
             # closed-shell reference
             if rhf:
