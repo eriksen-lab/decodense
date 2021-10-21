@@ -76,7 +76,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if prop_type == 'energy':
             prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
-            prop_nuc_rep = _dip_nuc(pmol)
+            prop_nuc_rep = _dip_nuc(pmol, kwargs['dipole_origin'])
 
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol)
@@ -326,14 +326,14 @@ def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:
         return e_nuc
 
 
-def _dip_nuc(mol: gto.Mole) -> np.ndarray:
+def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
         """
         this function returns the nuclear contribution to the molecular dipole moment
         """
         # coordinates and charges of nuclei
         coords = mol.atom_coords()
         charges = mol.atom_charges()
-        return contract('i,ix->ix', charges, coords)
+        return contract('i,ix->ix', charges, coords - gauge_origin)
 
 
 def _h_core(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> Tuple[np.ndarray, np.ndarray, \
