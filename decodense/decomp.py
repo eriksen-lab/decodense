@@ -14,7 +14,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto
-from typing import List, Dict
+from typing import List, Dict, Union
 
 
 # component keys
@@ -26,7 +26,7 @@ class DecompCls(object):
         """
         def __init__(self, loc: str = '', pop: str = 'mulliken', \
                      part = 'atoms', thres = .75, multiproc: bool = False, \
-                     prop: str = 'energy', cube: bool = False, verbose: int = 0) -> None:
+                     prop: str = 'energy', write: Union[None, str] = None, verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -37,7 +37,7 @@ class DecompCls(object):
                 self.thres = thres
                 self.multiproc = multiproc
                 self.prop = prop
-                self.cube = cube
+                self.write = write
                 self.verbose = verbose
                 # set internal defaults
                 self.res: Dict[str, np.ndarray] = {comp_key: None for comp_key in COMP_KEYS}
@@ -71,9 +71,11 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'
-        # cube
-        assert isinstance(decomp.cube, bool), \
-            'invalid cube argument. must be a bool'
+        # write
+        assert isinstance(decomp.write, Union[None, str]), \
+            'invalid write format argument. must be a str'
+        assert decomp.write in ['cube', 'numpy'], \
+            'invalid write format. valid choices: `cube` and `numpy`'
         # verbosity
         assert isinstance(decomp.verbose, int), \
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'

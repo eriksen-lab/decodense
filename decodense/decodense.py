@@ -18,7 +18,7 @@ from typing import Dict, Tuple, List, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import dim, make_rdm1, format_mf, write_cube
+from .tools import dim, make_rdm1, format_mf, write_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
@@ -64,9 +64,9 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
                                   rep_idx = rep_idx, dipole_origin = dipole_origin)
 
-        # write cube files
-        if decomp.cube:
-            write_cube(mol, decomp.part, mo_coeff, mo_occ, \
+        # write rdm1s
+        if decomp.write is not None:
+            write_rdm1(mol, decomp.part, mo_coeff, mo_occ, decomp.write, \
                        weights if decomp.part == 'atoms' else None, \
                        rep_idx if decomp.part == 'bonds' else None)
 
