@@ -37,8 +37,6 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         # mf calculation
         mo_coeff, mo_occ = format_mf(mf, mol.spin)
 
-        # molecular dimensions
-        mol.alpha, mol.beta = dim(mol, mo_occ)
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
 
@@ -51,28 +49,29 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
-            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, \
-                                   decomp.part, decomp.multiproc, decomp.verbose)[0]
+            weights = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, decomp.part, \
+                                   multiproc = decomp.multiproc, verbose = decomp.verbose)[0]
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
                                   weights = weights, dipole_origin = dipole_origin)
         elif decomp.part == 'bonds':
-            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, \
-                                            decomp.part, decomp.multiproc, decomp.verbose, \
+            rep_idx, centres = assign_rdm1s(mol, s, mo_coeff, mo_occ, decomp.pop, decomp.part, \
+                                            multiproc = decomp.multiproc, verbose = decomp.verbose, \
                                             thres = decomp.thres)
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
                                   rep_idx = rep_idx, dipole_origin = dipole_origin)
 
         # write rdm1s
-        if decomp.write is not None:
+        if decomp.write != '':
             write_rdm1(mol, decomp.part, mo_coeff, mo_occ, decomp.write, \
                        weights if decomp.part == 'atoms' else None, \
                        rep_idx if decomp.part == 'bonds' else None)
 
         # determine spin
-        decomp.res['ss'], decomp.res['s'] = scf.uhf.spin_square((mo_coeff[0][:, mol.alpha], \
-                                                                 mo_coeff[1][:, mol.beta]), s)
+        alpha, beta = dim(mol, mo_occ)
+        decomp.res['ss'], decomp.res['s'] = scf.uhf.spin_square((mo_coeff[0][:, alpha], \
+                                                                 mo_coeff[1][:, beta]), s)
 
         # collect time
         decomp.res['time'] = MPI.Wtime() - time

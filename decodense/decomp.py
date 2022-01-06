@@ -26,7 +26,7 @@ class DecompCls(object):
         """
         def __init__(self, loc: str = '', pop: str = 'mulliken', \
                      part = 'atoms', thres = .75, multiproc: bool = False, \
-                     prop: str = 'energy', write: Union[None, str] = None, verbose: int = 0) -> None:
+                     prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
                 """
                 init molecule attributes
                 """
@@ -72,9 +72,9 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'
         # write
-        assert isinstance(decomp.write, Union[None, str]), \
+        assert isinstance(decomp.write, str), \
             'invalid write format argument. must be a str'
-        assert decomp.write in ['cube', 'numpy'], \
+        assert decomp.write in ['', 'cube', 'numpy'], \
             'invalid write format. valid choices: `cube` and `numpy`'
         # verbosity
         assert isinstance(decomp.verbose, int), \

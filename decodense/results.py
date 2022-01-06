@@ -57,11 +57,8 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         if mol is not None:
             string += '\n point group        =  {:}\n'
             string += ' electrons          =  {:d}\n'
-            string += ' alpha electrons    =  {:d}\n'
-            string += ' beta electrons     =  {:d}\n'
             string += ' basis functions    =  {:d}\n'
-            form += (mol.groupname, mol.nelectron, \
-                     mol.alpha.size, mol.beta.size, mol.nao_nr(),)
+            form += (mol.groupname, mol.nelectron, mol.nao_nr(),)
             if 'ss' in kwargs:
                 string += ' spin: <S^2>        =  {:.3f}\n'
                 form += (kwargs['ss'] + 1.e-6,)

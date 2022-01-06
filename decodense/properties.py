@@ -18,7 +18,7 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .tools import make_rdm1, contract
+from .tools import dim, make_rdm1, contract
 from .decomp import COMP_KEYS
 
 # block size in _mm_pot()
@@ -115,9 +115,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             c0_tot = c1_tot = None
             c0_vv10 = c1_vv10 = None
 
-        # dimensions
-        alpha = mol.alpha
-        beta = mol.beta
+        # molecular dimensions
+        alpha, beta = dim(mol, mo_occ)
         if part == 'eda':
             ao_labels = mol.ao_labels(fmt=None)
 
@@ -288,7 +287,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             elif prop_type == 'dipole':
                 prop = {comp_key: [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
-            domain = np.array([(i, j) for i, _ in enumerate((mol.alpha, mol.beta)) for j in rep_idx[i]])
+            domain = np.array([(i, j) for i, _ in enumerate((alpha, beta)) for j in rep_idx[i]])
             # execute kernel
             if multiproc:
                 n_threads = min(domain.size, lib.num_threads())
@@ -518,13 +517,13 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         this function returns the appropriate dft exchange operator
         """
         # range-separated and exact exchange parameters
-        omega, alpha, hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
+        ks_omega, ks_alpha, ks_hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
         # scale amount of exact exchange
-        vk *= hyb
+        vk *= ks_hyb
         # range separated coulomb operator
-        if abs(omega) > 1e-10:
-            vk_lr = mf.get_k(mol, rdm1, omega=omega)
-            vk_lr *= (alpha - hyb)
+        if abs(ks_omega) > 1e-10:
+            vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)
+            vk_lr *= (ks_alpha - ks_hyb)
             vk += vk_lr
         return vk
 

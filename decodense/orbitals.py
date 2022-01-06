@@ -15,7 +15,7 @@ import numpy as np
 from pyscf import gto, scf, dft, lo, lib
 from typing import List, Tuple, Dict, Union, Any
 
-from .tools import make_rdm1, contract
+from .tools import dim, make_rdm1, contract
 
 LOC_CONV = 1.e-10
 
@@ -29,18 +29,21 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         # rhf reference
         rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
 
+        # molecular dimensions
+        alpha, beta = dim(mol, mo_occ)
+
         # localization list(s)
         if loc_lst is not None:
             if not rhf:
                 assert len(loc_lst) == 2, 'loc_lst must be supplied for both alpha and beta spaces'
             for i, idx_arr in enumerate(loc_lst):
-                assert np.sum([len(idx) for idx in idx_arr]) == (mol.alpha, mol.beta)[i].size, 'loc_lst does not cover all occupied orbitals'
+                assert np.sum([len(idx) for idx in idx_arr]) == (alpha, beta)[i].size, 'loc_lst does not cover all occupied orbitals'
 
         # init mo_coeff_out
         mo_coeff_out = np.zeros_like(mo_coeff_in)
 
         # loop over spins
-        for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+        for i, spin_mo in enumerate((alpha, beta)):
 
             # selective localization
             if loc_lst is None:
@@ -79,7 +82,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 
 def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
-                 mo_occ: np.ndarray, pop: str, part: str, multiproc: bool, verbose: int, \
+                 mo_occ: np.ndarray, pop: str, part: str, \
                  **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
@@ -87,8 +90,15 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         # declare nested kernel function in global scope
         global get_weights
 
+        # settings
+        multiproc = kwargs['multiproc'] if 'multiproc' in kwargs else False
+        verbose = kwargs['verbose'] if 'verbose' in kwargs else 0
+
+        # molecular dimensions
+        alpha, beta = dim(mol, mo_occ)
+
         # max number of occupied spin-orbs
-        n_spin = max(mol.alpha.size, mol.beta.size)
+        n_spin = max(alpha.size, beta.size)
 
         # mol object projected into minao basis
         if pop == 'iao':
@@ -123,7 +133,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         weights = [np.zeros([n_spin, pmol.natm], dtype=np.float64), np.zeros([n_spin, pmol.natm], dtype=np.float64)]
 
         # loop over spin
-        for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+        for i, spin_mo in enumerate((alpha, beta)):
 
             # get mo coefficients and occupation
             if pop == 'mulliken':
@@ -154,7 +164,7 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
             symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
-            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+            for i, spin_mo in enumerate((alpha, beta)):
                 for j in domain:
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
                         print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', spin_mo[j], weights[i][j]))
@@ -162,10 +172,10 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         # bond-wise partitioning
         if part == 'bonds':
             # init population centres array and get threshold
-            centres = [np.zeros([mol.alpha.size, 2], dtype=np.int), np.zeros([mol.beta.size, 2], dtype=np.int)]
+            centres = [np.zeros([alpha.size, 2], dtype=np.int), np.zeros([beta.size, 2], dtype=np.int)]
             thres = kwargs['thres']
             # loop over spin
-            for i, spin_mo in enumerate((mol.alpha, mol.beta)):
+            for i, spin_mo in enumerate((alpha, beta)):
                 # loop over orbitals
                 for j in domain:
                     # get sorted indices
