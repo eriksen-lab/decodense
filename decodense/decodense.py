@@ -65,10 +65,6 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                        weights if decomp.part == 'atoms' else None, \
                        rep_idx if decomp.part == 'bonds' else None)
 
-        # determine spin
-        alpha, beta = dim(mol, mo_occ)
-        decomp.res['ss'], decomp.res['s'] = mf.spin_square()
-
         # collect time
         decomp.res['time'] = MPI.Wtime() - time
 
