@@ -11,7 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import lib, gto, scf, dft
+from pyscf import gto, scf, dft
 from mpi4py import MPI
 from typing import Dict, Tuple, List, Union, Any
 
@@ -57,10 +57,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
-                                  decomp.gauge_origin, rep_idx = rep_idx)
-            # save centres & inter-atomic distances
-            decomp.res['centres'] = centres
-            decomp.res['dist'] = gto.mole.inter_distance(mol) * lib.param.BOHR
+                                  decomp.gauge_origin, rep_idx = rep_idx, centres = centres)
 
         # write rdm1s
         if decomp.write != '':

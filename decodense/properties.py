@@ -300,6 +300,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 for key, val in r.items():
                     prop[key][0 if k < len(rep_idx[0]) else 1][k % len(rep_idx[0])] = val
             prop['struct'] = prop_nuc_rep
+            # save centres & inter-atomic distances
+            prop['centres'] = kwargs['centres']
+            prop['dist'] = gto.mole.inter_distance(mol) * lib.param.BOHR
         return {**prop, 'charge_atom': charge_atom}
 
 
