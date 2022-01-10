@@ -12,7 +12,6 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto, scf, dft
-from mpi4py import MPI
 from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import DecompCls, sanity_check
@@ -29,9 +28,6 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         """
         # sanity check
         sanity_check(mol, decomp)
-
-        # init time
-        time = MPI.Wtime()
 
         # mf calculation
         mo_coeff, mo_occ = format_mf(mf)
@@ -65,9 +61,5 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                        weights if decomp.part == 'atoms' else None, \
                        rep_idx if decomp.part == 'bonds' else None)
 
-        # collect time
-        decomp.res['time'] = MPI.Wtime() - time
-
         return decomp.res
-
 

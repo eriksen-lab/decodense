@@ -66,14 +66,9 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
                 string += ' spin: 2*S + 1      =  {:.3f}\n'
                 form += (kwargs['s'] + 1.e-6,)
 
-        # timing and git version
-        if 'time' in kwargs:
-            string += '\n total time         =  {:}\n'
-            string += '\n git version: {:}\n\n'
-            form += (_time(kwargs['time']), git_version(),)
-        else:
-            string += '\n git version: {:}\n\n'
-            form += (git_version(),)
+        # git version
+        string += '\n git version: {:}\n\n'
+        form += (git_version(),)
 
         return string.format(*form)
 
@@ -427,31 +422,4 @@ def _format(opt: Any) -> str:
             return 'none'
         else:
             return opt
-
-
-def _time(time: float) -> str:
-        """
-        this function returns time as a HH:MM:SS string
-        """
-        # hours, minutes, and seconds
-        hours = time // 3600.
-        minutes = (time - (time // 3600) * 3600.) // 60.
-        seconds = time - hours * 3600. - minutes * 60.
-
-        # init time string
-        string: str = ''
-        form: Tuple[float, ...] = ()
-
-        # write time string
-        if hours > 0:
-            string += '{:.0f}h '
-            form += (hours,)
-        if minutes > 0:
-            string += '{:.0f}m '
-            form += (minutes,)
-        string += '{:.2f}s'
-        form += (seconds,)
-
-        return string.format(*form)
-
 
