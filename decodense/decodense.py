@@ -29,7 +29,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         # sanity check
         sanity_check(mol, decomp)
 
-        # mf calculation
+        # format orbitals from mean-field calculation
         mo_coeff, mo_occ = format_mf(mf)
 
         # compute localized molecular orbitals
