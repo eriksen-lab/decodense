@@ -22,7 +22,7 @@ from .tools import dim, make_rdm1, format_mf, write_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
-         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT], \
+         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
          loc_lst: Union[None, List[Any]] = None, \
          dipole_origin: Union[List[float], np.ndarray] = [0.] * 3) -> Dict[str, Any]:
         """
@@ -70,8 +70,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # determine spin
         alpha, beta = dim(mol, mo_occ)
-        decomp.res['ss'], decomp.res['s'] = scf.uhf.spin_square((mo_coeff[0][:, alpha], \
-                                                                 mo_coeff[1][:, beta]), s)
+        decomp.res['ss'], decomp.res['s'] = mf.spin_square()
 
         # collect time
         decomp.res['time'] = MPI.Wtime() - time

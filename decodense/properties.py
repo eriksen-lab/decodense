@@ -350,7 +350,7 @@ def _h_core(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> Tuple[np.ndarray, n
         sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
         for k in range(mol.natm):
             with mol.with_rinv_origin(coords[k]):
-                sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
+                sub_nuc[k] = -mol.intor('int1e_rinv') * charges[k]
         # total nuclear potential
         nuc = np.sum(sub_nuc, axis=0)
         # possible mm potential
