@@ -87,7 +87,7 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
 
 
-def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], spin: int) -> Tuple[np.ndarray, np.ndarray]:
+def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.ndarray]:
         """
         format mf information (mo coefficients & occupations)
         """

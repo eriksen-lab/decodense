@@ -21,13 +21,16 @@ LOC_CONV = 1.e-10
 
 
 def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
-             mo_occ: np.ndarray, s: np.ndarray, variant: str, \
+             mo_occ: np.ndarray, variant: str, \
              loc_lst: Union[None, List[Any]]) -> np.ndarray:
         """
         this function returns a set of localized MOs of a specific variant
         """
         # rhf reference
         rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
+
+        # overlap matrix
+        s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
         alpha, beta = dim(mol, mo_occ)
@@ -81,7 +84,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         return mo_coeff_out
 
 
-def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
+def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, \
                  **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
         """
@@ -93,6 +96,9 @@ def assign_rdm1s(mol: gto.Mole, s: np.ndarray, mo_coeff: np.ndarray, \
         # settings
         multiproc = kwargs['multiproc'] if 'multiproc' in kwargs else False
         verbose = kwargs['verbose'] if 'verbose' in kwargs else 0
+
+        # overlap matrix
+        s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
         alpha, beta = dim(mol, mo_occ)
