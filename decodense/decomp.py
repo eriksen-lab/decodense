@@ -14,7 +14,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Any
 
 
 # component keys
@@ -26,6 +26,7 @@ class DecompCls(object):
         """
         def __init__(self, loc: str = '', pop: str = 'mulliken', \
                      part = 'atoms', thres = .75, multiproc: bool = False, \
+                     gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
                 """
                 init molecule attributes
@@ -36,6 +37,7 @@ class DecompCls(object):
                 self.part = part
                 self.thres = thres
                 self.multiproc = multiproc
+                self.gauge_origin = gauge_origin
                 self.prop = prop
                 self.write = write
                 self.verbose = verbose
@@ -68,6 +70,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # multiprocessing
         assert isinstance(decomp.multiproc, bool), \
             'invalid multiprocessing argument. must be a bool'
+        assert isinstance(decomp.gauge_origin, (list, np.ndarray)), \
+            'invalid gauge origin. must be a list or numpy array of ints/floats'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'

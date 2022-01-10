@@ -28,7 +28,7 @@ BLKSIZE = 200
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              pop: str, prop_type: str, part: str, multiproc: bool, \
-             **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -42,7 +42,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # ao dipole integrals with specified gauge origin
         if prop_type == 'dipole':
-            with mol.with_common_origin(kwargs['dipole_origin']):
+            with mol.with_common_origin(gauge_origin):
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
         else:
             ao_dip = None
@@ -76,7 +76,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if prop_type == 'energy':
             prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
-            prop_nuc_rep = _dip_nuc(pmol, charge_atom, kwargs['dipole_origin'])
+            prop_nuc_rep = _dip_nuc(pmol, charge_atom, gauge_origin)
 
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol)

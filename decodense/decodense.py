@@ -23,8 +23,7 @@ from .tools import dim, make_rdm1, format_mf, write_rdm1
 
 def main(mol: gto.Mole, decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-         loc_lst: Union[None, List[Any]] = None, \
-         dipole_origin: Union[List[float], np.ndarray] = [0.] * 3) -> Dict[str, Any]:
+         loc_lst: Union[None, List[Any]] = None) -> Dict[str, Any]:
         """
         main decodense program
         """
@@ -49,7 +48,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
-                                  weights = weights, dipole_origin = dipole_origin)
+                                  decomp.gauge_origin, weights = weights)
         elif decomp.part == 'bonds':
             # compute repetitive indices & centres
             rep_idx, centres = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
@@ -58,7 +57,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
-                                  rep_idx = rep_idx, dipole_origin = dipole_origin)
+                                  decomp.gauge_origin, rep_idx = rep_idx)
             # save centres & inter-atomic distances
             decomp.res['centres'] = centres
             decomp.res['dist'] = gto.mole.inter_distance(mol) * lib.param.BOHR
