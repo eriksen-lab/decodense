@@ -86,16 +86,14 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, \
-                 **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
+                 multiproc: bool, verbose: int, **kwargs: float) -> Tuple[Union[List[np.ndarray], \
+                                                                                 List[List[np.ndarray]]], \
+                                                                           Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
         # declare nested kernel function in global scope
         global get_weights
-
-        # settings
-        multiproc = kwargs['multiproc'] if 'multiproc' in kwargs else False
-        verbose = kwargs['verbose'] if 'verbose' in kwargs else 0
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')

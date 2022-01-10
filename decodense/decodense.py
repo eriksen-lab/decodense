@@ -44,7 +44,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
             weights = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                   multiproc = decomp.multiproc, verbose = decomp.verbose)[0]
+                                   decomp.multiproc, decomp.verbose)[0]
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
                                   decomp.prop, decomp.part, decomp.multiproc, \
@@ -52,7 +52,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         elif decomp.part == 'bonds':
             # compute repetitive indices & centres
             rep_idx, centres = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                            multiproc = decomp.multiproc, verbose = decomp.verbose, \
+                                            decomp.multiproc, decomp.verbose, \
                                             thres = decomp.thres)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
