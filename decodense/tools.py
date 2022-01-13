@@ -25,6 +25,7 @@ from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
 MAX_CYCLE = 100
+NDO_THRES = 1.e-12
 
 class Logger(object):
         """
@@ -84,7 +85,7 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
+        return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
 
 
 def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
@@ -126,7 +127,29 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         """
         this function returns an 1-RDM (in ao basis) corresponding to given mo(s)
         """
-        return contract('ip,jp->ij', occup * mo, mo)
+        return contract('ip,jp->ij', np.abs(occup) * mo, mo)
+
+
+def make_ndo(mol: gto.Mole, mo_coeff: np.ndarray, \
+             rdm1_delta: np.ndarray, thres: float = NDO_THRES) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        this function returns ndo coefficients and occupations corresponding
+        to given mo coefficients and rdm1_delta
+        """
+        # assertions
+        assert mo_coeff.ndim == 3, '`make_ndo` functions expects alpha/beta mo coefficients'
+        assert rdm1_delta.ndim == 3, '`make_ndo` functions expects alpha/beta delta rdm1'
+        # overlap matrix
+        s = mol.intor_symmetric('int1e_ovlp')
+        # ao to mo transformation of dm_delta
+        rdm1_delta_mo = contract('xpi,pq,xqr,rs,xsj->xij', mo_coeff, s, rdm1_delta, s, mo_coeff)
+        # diagonalize dm_delta_mo
+        occ_ndo, u = np.linalg.eigh(rdm1_delta_mo)
+        # transform to ndo basis
+        mo_ndo = contract('xip,xpj->xij', mo_coeff, u)
+        # retain only significant ndos
+        return np.array([mo_ndo[i][:, np.where(np.abs(occ_ndo[i]) >= thres)[0]] for i in range(2)]), \
+               np.array([occ_ndo[i][np.where(np.abs(occ_ndo[i]) >= thres)[0]] for i in range(2)])
 
 
 def write_rdm1(mol: gto.Mole, part: str, \
