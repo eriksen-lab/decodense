@@ -87,8 +87,8 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, \
                  multiproc: bool, verbose: int, **kwargs: float) -> Tuple[Union[List[np.ndarray], \
-                                                                                 List[List[np.ndarray]]], \
-                                                                           Union[None, np.ndarray]]:
+                                                                                List[List[np.ndarray]]], \
+                                                                          Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -209,8 +209,9 @@ def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.nda
         """
         this function returns the mulliken populations on the individual atoms
         """
-        # mulliken population matrix
+        # mulliken population array
         pop = contract('ij,ji->i', rdm1, ovlp)
+        # normalization
         pop /= np.sum(pop)
         # init populations
         populations = np.zeros(natm)
