@@ -120,6 +120,7 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 mo_occ_out[1][np.where(1. < mo_occ_in)] += 1.
             else:
                 mo_occ_out = mo_occ_in
+
         return mo_coeff_out, mo_occ_out
 
 
@@ -147,6 +148,7 @@ def make_ndo(mol: gto.Mole, mo_coeff: np.ndarray, \
         occ_ndo, u = np.linalg.eigh(rdm1_delta_mo)
         # transform to ndo basis
         mo_ndo = contract('xip,xpj->xij', mo_coeff, u)
+
         # retain only significant ndos
         return np.array([mo_ndo[i][:, np.where(np.abs(occ_ndo[i]) >= thres)[0]] for i in range(2)]), \
                np.array([occ_ndo[i][np.where(np.abs(occ_ndo[i]) >= thres)[0]] for i in range(2)])

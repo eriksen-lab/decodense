@@ -47,11 +47,12 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         else:
             ao_dip = None
 
-        # compute total 1-RDM (AO basis)
+        # compute total 1-RDMs (AO basis)
         if rdm1_eval is None:
             rdm1_eval = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
         if rdm1_eval.ndim == 2:
             rdm1_eval = np.array([rdm1_eval, rdm1_eval]) * .5
+        rdm1_eval2 = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # mol object projected into minao basis
         if pop == 'iao':
@@ -151,7 +152,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_eval, axis=0), scaling = .5)
+                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_eval2, axis=0), scaling = .5)
                     res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))

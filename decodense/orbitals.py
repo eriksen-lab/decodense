@@ -211,6 +211,7 @@ def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.nda
         """
         # mulliken population matrix
         pop = contract('ij,ji->i', rdm1, ovlp)
+        pop /= np.sum(pop)
         # init populations
         populations = np.zeros(natm)
 

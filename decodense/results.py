@@ -165,7 +165,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{np.sum(prop["el"]) * scaling:>+13.5f}  ||' \
                       f'{np.sum(prop["struct"]) * scaling:>+13.5f}  |||' \
                       f'{np.sum(prop["tot"]) * scaling:>+13.5f}  |||' \
-                      f'{0.:>11.3f}\n'
+                      f'{np.sum(charge_atom) + TOLERANCE:>11.3f}\n'
             string += divider + '\n'
 
         # tensor property
