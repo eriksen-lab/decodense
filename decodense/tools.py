@@ -87,19 +87,39 @@ def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return np.where(mo_occ[0] > 0.)[0], np.where(mo_occ[1] > 0.)[0]
 
 
-def format_mf(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.ndarray]:
+def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
+            mo_coeff_in: np.ndarray = None, \
+            mo_occ_in: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
         """
-        format mf information (mo coefficients & occupations)
+        retrieve mf information (mo coefficients & occupations)
         """
-        if isinstance(mf.mo_coeff, np.ndarray) and mf.mo_coeff.ndim == 2:
-            mo_coeff = np.asarray((mf.mo_coeff,) * 2)
-            mo_occ = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
-            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
-            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+        # mo coefficients
+        if mo_coeff_in is None:
+            if np.asarray(mf.mo_coeff).ndim == 2:
+                mo_coeff_out = np.asarray((mf.mo_coeff,) * 2)
+            else:
+                mo_coeff_out = mf.mo_coeff
         else:
-            mo_coeff = mf.mo_coeff
-            mo_occ = mf.mo_occ
-        return mo_coeff, mo_occ
+            if np.asarray(mo_coeff_in).ndim == 2:
+                mo_coeff_out = np.asarray((mo_coeff_in,) * 2)
+            else:
+                mo_coeff_out = mo_coeff_in
+        # mo occupations
+        if mo_occ_in is None:
+            if np.asarray(mf.mo_occ).ndim == 1:
+                mo_occ_out = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
+                mo_occ_out[0][np.where(0. < mf.mo_occ)] += 1.
+                mo_occ_out[1][np.where(1. < mf.mo_occ)] += 1.
+            else:
+                mo_occ_out = mf.mo_occ
+        else:
+            if np.asarray(mo_occ_in).ndim == 1:
+                mo_occ_out = np.asarray((np.zeros(mo_occ_in.size, dtype=np.float64),) * 2)
+                mo_occ_out[0][np.where(0. < mo_occ_in)] += 1.
+                mo_occ_out[1][np.where(1. < mo_occ_in)] += 1.
+            else:
+                mo_occ_out = mo_occ_in
+        return mo_coeff_out, mo_occ_out
 
 
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
