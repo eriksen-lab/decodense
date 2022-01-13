@@ -194,7 +194,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_eval[i][select], scaling = .5)
                         res['exch'] -= _trace(vk[i][select], rdm1_eval[i][select], scaling = .5)
                     res['kin'] += _trace(kin[select], np.sum(rdm1_eval, axis=0)[select])
-                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_eval, axis=0), scaling = .5)
+                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_eval2, axis=0), scaling = .5)
                     res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_eval, axis=0)[select], scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_eval, axis=0)[select])
