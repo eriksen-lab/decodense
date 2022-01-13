@@ -25,7 +25,8 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         def __init__(self, loc: str = '', pop: str = 'mulliken', \
-                     part = 'atoms', thres = .75, multiproc: bool = False, \
+                     part = 'atoms', thres = .75, \
+                     no_nuc_rep: bool = False, multiproc: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
                 """
@@ -36,6 +37,7 @@ class DecompCls(object):
                 self.pop = pop
                 self.part = part
                 self.thres = thres
+                self.no_nuc_rep = no_nuc_rep
                 self.multiproc = multiproc
                 self.gauge_origin = gauge_origin
                 self.prop = prop
@@ -67,9 +69,13 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
         assert 0. < decomp.thres < 1., \
             'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
+        # neglect of nuclear repulsion
+        assert isinstance(decomp.no_nuc_rep, bool), \
+            'invalid no_nuc_rep argument. must be a bool'
         # multiprocessing
         assert isinstance(decomp.multiproc, bool), \
             'invalid multiprocessing argument. must be a bool'
+        # gauge origin
         assert isinstance(decomp.gauge_origin, (list, np.ndarray)), \
             'invalid gauge origin. must be a list or numpy array of ints/floats'
         # property

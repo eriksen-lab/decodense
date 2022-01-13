@@ -214,6 +214,13 @@ def write_rdm1(mol: gto.Mole, part: str, \
             raise RuntimeError('invalid choice of partitioning in write_rdm1() function.')
 
 
+def res_subtract(res_a, res_b):
+        """
+        this function subtracts two result dictionaries
+        """
+        return {key: res_a[key] - res_b[key] for key in res_a.keys()}
+
+
 def contract(eqn, *tensors):
         """
         interface to optimized einsum operation

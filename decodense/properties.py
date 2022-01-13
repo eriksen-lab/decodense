@@ -27,7 +27,7 @@ BLKSIZE = 200
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: np.ndarray, mo_occ: np.ndarray, rdm1_eval: np.ndarray, \
-             pop: str, prop_type: str, part: str, multiproc: bool, \
+             pop: str, prop_type: str, part: str, no_nuc_rep: bool, multiproc: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -281,7 +281,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
-            prop['struct'] = prop_nuc_rep
+            if not no_nuc_rep:
+                prop['struct'] = prop_nuc_rep
         else: # bonds
             # get rep_idx
             rep_idx = kwargs['rep_idx']
@@ -303,7 +304,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][0 if k < len(rep_idx[0]) else 1][k % len(rep_idx[0])] = val
-            prop['struct'] = prop_nuc_rep
+            if not no_nuc_rep:
+                prop['struct'] = prop_nuc_rep
             # save centres & inter-atomic distances
             prop['centres'] = kwargs['centres']
             prop['dist'] = gto.mole.inter_distance(mol) * lib.param.BOHR

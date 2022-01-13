@@ -47,7 +47,8 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                    decomp.multiproc, decomp.verbose)[0]
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
-                                  decomp.pop, decomp.prop, decomp.part, decomp.multiproc, \
+                                  decomp.pop, decomp.prop, decomp.part, \
+                                  decomp.no_nuc_rep, decomp.multiproc, \
                                   decomp.gauge_origin, weights = weights)
         elif decomp.part == 'bonds':
             # compute repetitive indices & centres
@@ -56,7 +57,8 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                             thres = decomp.thres)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
-                                  decomp.pop, decomp.prop, decomp.part, decomp.multiproc, \
+                                  decomp.pop, decomp.prop, decomp.part, \
+                                  decomp.no_nuc_rep, decomp.multiproc, \
                                   decomp.gauge_origin, rep_idx = rep_idx, centres = centres)
 
         # write rdm1s
