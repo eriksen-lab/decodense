@@ -27,8 +27,7 @@ BLKSIZE = 200
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: np.ndarray, mo_occ: np.ndarray, rdm1_eval: np.ndarray, \
-             pop: str, prop_type: str, part: str, no_nuc_rep: bool, multiproc: bool, \
-             gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             pop: str, prop_type: str, part: str, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -42,7 +41,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # ao dipole integrals with specified gauge origin
         if prop_type == 'dipole':
-            with mol.with_common_origin(gauge_origin):
+            with mol.with_common_origin(kwargs['gauge_origin']):
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
         else:
             ao_dip = None
@@ -63,14 +62,16 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # effective atomic charges
         if 'weights' in kwargs:
             weights = kwargs['weights']
-            charge_atom = pmol.atom_charges() - np.sum(weights[0] + weights[1], axis=0)
+            charge_atom = -np.sum(weights[0] + weights[1], axis=0)
+            if not kwargs['ndo']:
+                charge_atom += pmol.atom_charges()
         else:
             charge_atom = 0.
 
         # possible mm region
         mm_mol = getattr(mf, 'mm_mol', None)
 
-        # cosmo/pcm solvent model
+        # possible cosmo/pcm solvent model
         if getattr(mf, 'with_solvent', None):
             e_solvent = _solvent(mol, np.sum(rdm1_eval, axis=0), mf.with_solvent)
         else:
@@ -80,7 +81,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if prop_type == 'energy':
             prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
-            prop_nuc_rep = _dip_nuc(pmol, charge_atom, gauge_origin)
+            prop_nuc_rep = _dip_nuc(pmol, charge_atom, kwargs['gauge_origin'])
 
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol)
@@ -144,7 +145,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         # orbital-specific rdm1
                         rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                         # weighted contribution to rdm1_atom
-                        rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx]
+                        rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx] / np.sum(weights[i][m])
                     # coulumb & exchange energy associated with given atom
                     if prop_type == 'energy':
                         res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
@@ -271,7 +272,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
-            if multiproc:
+            if kwargs['multiproc']:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
                     res = pool.map(prop_atom if part == 'atoms' else prop_eda, domain) # type:ignore
@@ -281,7 +282,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
-            if not no_nuc_rep:
+            if not kwargs['ndo']:
                 prop['struct'] = prop_nuc_rep
         else: # bonds
             # get rep_idx
@@ -294,7 +295,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # domain
             domain = np.array([(i, j) for i, _ in enumerate((alpha, beta)) for j in rep_idx[i]])
             # execute kernel
-            if multiproc:
+            if kwargs['multiproc']:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
                     res = pool.starmap(prop_bonds, domain) # type:ignore
@@ -304,7 +305,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][0 if k < len(rep_idx[0]) else 1][k % len(rep_idx[0])] = val
-            if not no_nuc_rep:
+            if not kwargs['ndo']:
                 prop['struct'] = prop_nuc_rep
             # save centres & inter-atomic distances
             prop['centres'] = kwargs['centres']

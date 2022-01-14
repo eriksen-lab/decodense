@@ -44,22 +44,26 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
             weights = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                   decomp.multiproc, decomp.verbose)[0]
+                                   multiproc = decomp.multiproc, \
+                                   verbose = decomp.verbose)[0]
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
                                   decomp.pop, decomp.prop, decomp.part, \
-                                  decomp.no_nuc_rep, decomp.multiproc, \
-                                  decomp.gauge_origin, weights = weights)
+                                  multiproc = decomp.multiproc, \
+                                  gauge_origin = decomp.gauge_origin, \
+                                  ndo = decomp.ndo, weights = weights)
         elif decomp.part == 'bonds':
             # compute repetitive indices & centres
             rep_idx, centres = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                            decomp.multiproc, decomp.verbose, \
+                                            multiproc = decomp.multiproc, \
+                                            verbose = decomp.verbose, \
                                             thres = decomp.thres)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
                                   decomp.pop, decomp.prop, decomp.part, \
-                                  decomp.no_nuc_rep, decomp.multiproc, \
-                                  decomp.gauge_origin, rep_idx = rep_idx, centres = centres)
+                                  multiproc = decomp.multiproc, \
+                                  gauge_origin = decomp.gauge_origin, \
+                                  rep_idx = rep_idx, centres = centres)
 
         # write rdm1s
         if decomp.write != '':

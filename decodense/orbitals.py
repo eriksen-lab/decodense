@@ -86,9 +86,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, \
-                 multiproc: bool, verbose: int, **kwargs: float) -> Tuple[Union[List[np.ndarray], \
-                                                                                List[List[np.ndarray]]], \
-                                                                          Union[None, np.ndarray]]:
+                 **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -151,7 +149,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
             # domain
             domain = np.arange(spin_mo.size)
             # execute kernel
-            if multiproc:
+            if kwargs['multiproc']:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
                     weights[i] = pool.map(get_weights, domain) # type:ignore
@@ -164,7 +162,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                 break
 
         # verbose print
-        if 0 < verbose:
+        if 0 < kwargs['verbose']:
             symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
@@ -211,8 +209,6 @@ def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.nda
         """
         # mulliken population array
         pop = contract('ij,ji->i', rdm1, ovlp)
-        # normalization
-        pop /= np.sum(pop)
         # init populations
         populations = np.zeros(natm)
 
