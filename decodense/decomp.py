@@ -62,8 +62,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.pop in ['mulliken', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` (default) or `iao`'
         # partitioning
-        assert decomp.part in ['atoms', 'eda', 'bonds'], \
-            'invalid partitioning. valid choices: `atoms` (default), `eda`, or `bonds`'
+        assert decomp.part in ['atoms', 'eda', 'bonds', 'orbitals'], \
+            'invalid partitioning. valid choices: `atoms` (default), `eda`, `bonds`, or `orbitals`'
         # bond partitioning threshold
         assert isinstance(decomp.thres, float), \
             'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'

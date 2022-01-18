@@ -128,7 +128,7 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         """
         this function returns an 1-RDM (in ao basis) corresponding to given mo(s)
         """
-        return contract('ip,jp->ij', np.abs(occup) * mo, mo)
+        return contract('ip,jp->ij', occup * mo, mo)
 
 
 def make_ndo(mol: gto.Mole, mo_coeff: np.ndarray, \
@@ -214,7 +214,14 @@ def write_rdm1(mol: gto.Mole, part: str, \
             raise RuntimeError('invalid choice of partitioning in write_rdm1() function.')
 
 
-def res_subtract(res_a, res_b):
+def res_add(res_a, res_b):
+        """
+        this function adds two result dictionaries
+        """
+        return {key: res_a[key] + res_b[key] for key in res_a.keys()}
+
+
+def res_sub(res_a, res_b):
         """
         this function subtracts two result dictionaries
         """

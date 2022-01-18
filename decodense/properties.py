@@ -34,7 +34,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # declare nested kernel functions in global scope
         global prop_atom
         global prop_eda
-        global prop_bonds
+        global prop_orb
 
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
@@ -223,7 +223,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['el'] += res[comp_key]
                 return res
 
-        def prop_bonds(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
+        def prop_orb(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
                 """
                 this function returns bond-wise energy/dipole contributions
                 """
@@ -284,10 +284,11 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop[key][k] = val
             if not kwargs['ndo']:
                 prop['struct'] = prop_nuc_rep
-        else: # bonds
+            return {**prop, 'charge_atom': charge_atom}
+        elif part == 'bonds':
             # get rep_idx
             rep_idx = kwargs['rep_idx']
-            # init orbital-specific energy or dipole array
+            # init bond-specific energy or dipole array
             if prop_type == 'energy':
                 prop = {comp_key: [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)] for comp_key in COMP_KEYS}
             elif prop_type == 'dipole':
@@ -298,19 +299,38 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             if kwargs['multiproc']:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
-                    res = pool.starmap(prop_bonds, domain) # type:ignore
+                    res = pool.starmap(prop_orb, domain) # type:ignore
             else:
-                res = list(starmap(prop_bonds, domain)) # type:ignore
+                res = list(starmap(prop_orb, domain)) # type:ignore
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][0 if k < len(rep_idx[0]) else 1][k % len(rep_idx[0])] = val
             if not kwargs['ndo']:
                 prop['struct'] = prop_nuc_rep
-            # save centres & inter-atomic distances
-            prop['centres'] = kwargs['centres']
-            prop['dist'] = gto.mole.inter_distance(mol) * lib.param.BOHR
-        return {**prop, 'charge_atom': charge_atom}
+            return {**prop, 'centers': kwargs['centres'], 'dist': gto.mole.inter_distance(mol) * lib.param.BOHR}
+        else: # orbs
+            # init orbital-specific energy or dipole array
+            if prop_type == 'energy':
+                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS}
+            elif prop_type == 'dipole':
+                prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
+            # domain
+            domain = np.array([(i, j) for i, orbs in enumerate((alpha, beta)) for j in orbs])
+            # execute kernel
+            if kwargs['multiproc']:
+                n_threads = min(domain.size, lib.num_threads())
+                with mp.Pool(processes=n_threads) as pool:
+                    res = pool.starmap(prop_orb, domain) # type:ignore
+            else:
+                res = list(starmap(prop_orb, domain)) # type:ignore
+            # collect results
+            for k, r in enumerate(res):
+                for key, val in r.items():
+                    prop[key][domain[k, 0]][domain[k, 1]] = val
+            if not kwargs['ndo']:
+                prop['struct'] = prop_nuc_rep
+            return {**prop, 'mo_occ': mo_occ}
 
 
 def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:

@@ -63,7 +63,14 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                   decomp.pop, decomp.prop, decomp.part, \
                                   multiproc = decomp.multiproc, \
                                   gauge_origin = decomp.gauge_origin, \
-                                  rep_idx = rep_idx, centres = centres)
+                                  ndo = decomp.ndo, rep_idx = rep_idx, centres = centres)
+        else: # orbs
+            # compute decomposed results
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
+                                  decomp.pop, decomp.prop, decomp.part, \
+                                  multiproc = decomp.multiproc, \
+                                  gauge_origin = decomp.gauge_origin, \
+                                  ndo = decomp.ndo)
 
         # write rdm1s
         if decomp.write != '':
