@@ -474,25 +474,25 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 string += divider
                 for j in mo_idx:
                     string += f'   {j:>2d}     |' \
-                              f'{prop["coul"][i][j] * scaling:>+12.5f}   |' \
-                              f'{prop["exch"][i][j] * scaling:>+12.5f}   |' \
-                              f'{prop["kin"][i][j] * scaling:>+12.5f}   |' \
-                              f'{prop["nuc_att"][i][j] * scaling:>+12.5f}   |' \
-                              f'{prop["solvent"][i][j] * scaling:>+12.5f}   |' \
-                              f'{prop["xc"][i][j] * scaling:>+12.5f}   ||' \
-                              f'{prop["el"][i][j] * scaling:>+12.5f}   ||' \
+                              f'{prop["coul"][i][j] * scaling:>12.5f}   |' \
+                              f'{prop["exch"][i][j] * scaling:>12.5f}   |' \
+                              f'{prop["kin"][i][j] * scaling:>12.5f}   |' \
+                              f'{prop["nuc_att"][i][j] * scaling:>12.5f}   |' \
+                              f'{prop["solvent"][i][j] * scaling:>12.5f}   |' \
+                              f'{prop["xc"][i][j] * scaling:>12.5f}   ||' \
+                              f'{prop["el"][i][j] * scaling:>12.5f}   ||' \
                               f'{mo_occ[i][j]:>12.2e}\n'
 
                 # summed contributions
                 string += divider
                 string += f'{"sum":^10}|' \
-                          f'{np.sum(prop["coul"][i]) * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["exch"][i]) * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["kin"][i]) * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["nuc_att"][i]) * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["solvent"][i]) * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["xc"][i]) * scaling:>+12.5f}   ||' \
-                          f'{np.sum(prop["el"][i]) * scaling:>+12.5f}   ||' \
+                          f'{np.sum(prop["coul"][i]) * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["exch"][i]) * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["kin"][i]) * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["nuc_att"][i]) * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["solvent"][i]) * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["xc"][i]) * scaling:>12.5f}   ||' \
+                          f'{np.sum(prop["el"][i]) * scaling:>12.5f}   ||' \
                           f'{round(np.sum(mo_occ[i]) + TOLERANCE, 6):>12.2f}\n'
 
             string += divider
@@ -500,25 +500,25 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
             for j in mo_idx:
                 string += f'   {j:>2d}     |' \
-                          f'{np.sum(prop["coul"], axis=0)[j] * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["exch"], axis=0)[j] * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["kin"], axis=0)[j] * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["nuc_att"], axis=0)[j] * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["solvent"], axis=0)[j] * scaling:>+12.5f}   |' \
-                          f'{np.sum(prop["xc"], axis=0)[j] * scaling:>+12.5f}   ||' \
-                          f'{np.sum(prop["el"], axis=0)[j] * scaling:>+12.5f}   ||' \
+                          f'{np.sum(prop["coul"], axis=0)[j] * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["exch"], axis=0)[j] * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["kin"], axis=0)[j] * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["nuc_att"], axis=0)[j] * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["solvent"], axis=0)[j] * scaling:>12.5f}   |' \
+                          f'{np.sum(prop["xc"], axis=0)[j] * scaling:>12.5f}   ||' \
+                          f'{np.sum(prop["el"], axis=0)[j] * scaling:>12.5f}   ||' \
                           f'{np.sum(mo_occ, axis=0)[j]:>12.2e}\n'
 
             # summed contributions
             string += divider
             string += f'{"sum":^10}|' \
-                      f'{np.sum(prop["coul"]) * scaling:>+12.5f}   |' \
-                      f'{np.sum(prop["exch"]) * scaling:>+12.5f}   |' \
-                      f'{np.sum(prop["kin"]) * scaling:>+12.5f}   |' \
-                      f'{np.sum(prop["nuc_att"]) * scaling:>+12.5f}   |' \
-                      f'{np.sum(prop["solvent"]) * scaling:>+12.5f}   |' \
-                      f'{np.sum(prop["xc"]) * scaling:>+12.5f}   ||' \
-                      f'{np.sum(prop["el"]) * scaling:>+12.5f}   ||' \
+                      f'{np.sum(prop["coul"]) * scaling:>12.5f}   |' \
+                      f'{np.sum(prop["exch"]) * scaling:>12.5f}   |' \
+                      f'{np.sum(prop["kin"]) * scaling:>12.5f}   |' \
+                      f'{np.sum(prop["nuc_att"]) * scaling:>12.5f}   |' \
+                      f'{np.sum(prop["solvent"]) * scaling:>12.5f}   |' \
+                      f'{np.sum(prop["xc"]) * scaling:>12.5f}   ||' \
+                      f'{np.sum(prop["el"]) * scaling:>12.5f}   ||' \
                       f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}\n'
             string += divider
             string += divider + '\n'
