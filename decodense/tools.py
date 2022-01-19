@@ -20,7 +20,7 @@ try:
 except ImportError:
     OE_AVAILABLE = False
 from subprocess import Popen, PIPE
-from pyscf import gto, scf, dft
+from pyscf import gto, scf, dft, symm, lib
 from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
@@ -140,6 +140,7 @@ def make_ndo(mol: gto.Mole, mo_coeff: np.ndarray, \
         # assertions
         assert mo_coeff.ndim == 3, '`make_ndo` functions expects alpha/beta mo coefficients'
         assert rdm1_delta.ndim == 3, '`make_ndo` functions expects alpha/beta delta rdm1'
+
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
         # ao to mo transformation of dm_delta
