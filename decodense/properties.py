@@ -18,7 +18,7 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .tools import dim, make_rdm1, contract
+from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import COMP_KEYS
 
 # block size in _mm_pot()
@@ -330,7 +330,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop[key][domain[k, 0]][domain[k, 1]] = val
             if not kwargs['ndo']:
                 prop['struct'] = prop_nuc_rep
-            return {**prop, 'mo_occ': mo_occ}
+            return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff)}
 
 
 def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:

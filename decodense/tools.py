@@ -124,6 +124,22 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         return mo_coeff_out, mo_occ_out
 
 
+def orbsym(mol, mo_coeff):
+        """
+        this functions returns orbital symmetries
+        """
+        if mol.symmetry:
+            if mo_coeff.ndim == 2:
+                return symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff)
+            else:
+                return np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff])
+        else:
+            if mo_coeff.ndim == 2:
+                return np.array(['A'] * mo_coeff.shape[1])
+            else:
+                return np.array([['A'] * c.shape[1] for c in mo_coeff])
+
+
 def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         """
         this function returns an 1-RDM (in ao basis) corresponding to given mo(s)

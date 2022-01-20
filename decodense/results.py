@@ -425,6 +425,8 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
 
         # mo occupations
         mo_occ = kwargs['mo_occ']
+        # orbital symmetries
+        orbsym = kwargs['orbsym']
         # index
         sort_idx = np.argsort(mo_occ[0])
         mo_idx = np.array([[sort_idx[i], sort_idx[-(i+1)]] for i in range(sort_idx.size // 2)]).ravel()
@@ -439,7 +441,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 prop[comp_key] = kwargs[comp_key]
 
             # formatting
-            length = 140
+            length = 155
             divider = '-' * length + '\n'
 
             # units
@@ -464,7 +466,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
             string += divider
             string += f'{"MO":^10}|{"coulomb":^15}|{"exchange":^15}|{"kinetic":^15}|{"nuc. attr.":^15}|'
-            string += f'{"solvent":^15}|{"xc":^15}||{"electronic":^15}||{"occupation":^17}\n'
+            string += f'{"solvent":^15}|{"xc":^15}||{"electronic":^15}||{"occupation":^15}||{"symmetry":^15}\n'
             string += divider
 
             # individual contributions
@@ -481,7 +483,8 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                               f'{prop["solvent"][i][j] * scaling:>12.5f}   |' \
                               f'{prop["xc"][i][j] * scaling:>12.5f}   ||' \
                               f'{prop["el"][i][j] * scaling:>12.5f}   ||' \
-                              f'{mo_occ[i][j]:>12.2e}\n'
+                              f'{mo_occ[i][j]:>12.2e}   ||' \
+                              f'{orbsym[i][j]:^15}\n'
 
                 # summed contributions
                 string += divider
@@ -493,7 +496,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f'{np.sum(prop["solvent"][i]) * scaling:>12.5f}   |' \
                           f'{np.sum(prop["xc"][i]) * scaling:>12.5f}   ||' \
                           f'{np.sum(prop["el"][i]) * scaling:>12.5f}   ||' \
-                          f'{round(np.sum(mo_occ[i]) + TOLERANCE, 6):>12.2f}\n'
+                          f'{round(np.sum(mo_occ[i]) + TOLERANCE, 6):>12.2f}   ||\n'
 
             string += divider
             string += f'{"spin-summed":^{length}}\n'
@@ -507,7 +510,8 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f'{np.sum(prop["solvent"], axis=0)[j] * scaling:>12.5f}   |' \
                           f'{np.sum(prop["xc"], axis=0)[j] * scaling:>12.5f}   ||' \
                           f'{np.sum(prop["el"], axis=0)[j] * scaling:>12.5f}   ||' \
-                          f'{np.sum(mo_occ, axis=0)[j]:>12.2e}\n'
+                          f'{np.sum(mo_occ, axis=0)[j]:>12.2e}   ||' \
+                          '\n'
 
             # summed contributions
             string += divider
@@ -519,7 +523,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{np.sum(prop["solvent"]) * scaling:>12.5f}   |' \
                       f'{np.sum(prop["xc"]) * scaling:>12.5f}   ||' \
                       f'{np.sum(prop["el"]) * scaling:>12.5f}   ||' \
-                      f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}\n'
+                      f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}   ||\n'
             string += divider
             string += divider + '\n'
 
