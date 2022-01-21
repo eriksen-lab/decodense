@@ -17,14 +17,13 @@ from typing import Dict, Tuple, List, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import dim, make_rdm1, mf_info, write_rdm1
+from .tools import dim, make_rdm1, make_no, mf_info, write_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-         mo_coeff: np.ndarray = None, \
-         mo_occ: np.ndarray = None, \
-         rdm1_eval: np.ndarray = None, \
+         rdm1_orb: np.ndarray = None, \
+         rdm1_eff: np.ndarray = None, \
          loc_lst: Union[Tuple[int], List[int]] = None) -> Dict[str, Any]:
         """
         main decodense program
@@ -33,8 +32,10 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         sanity_check(mol, decomp)
 
         # format orbitals from mean-field calculation
-        if mo_coeff is None or mo_occ is None:
-            mo_coeff, mo_occ = mf_info(mf, mo_coeff, mo_occ)
+        if rdm1_orb is None:
+            mo_coeff, mo_occ = mf_info(mf, mf.mo_coeff, mf.mo_occ)
+        else:
+            mo_coeff, mo_occ = make_no(mol, mf.mo_coeff, rdm1_orb)
 
         # compute localized molecular orbitals
         if decomp.loc != '':
@@ -47,7 +48,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                    multiproc = decomp.multiproc, \
                                    verbose = decomp.verbose)[0]
             # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
                                   multiproc = decomp.multiproc, \
                                   gauge_origin = decomp.gauge_origin, \
@@ -59,14 +60,14 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                             verbose = decomp.verbose, \
                                             thres = decomp.thres)
             # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
                                   multiproc = decomp.multiproc, \
                                   gauge_origin = decomp.gauge_origin, \
                                   ndo = decomp.ndo, rep_idx = rep_idx, centres = centres)
         else: # orbs
             # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eval, \
+            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
                                   multiproc = decomp.multiproc, \
                                   gauge_origin = decomp.gauge_origin, \

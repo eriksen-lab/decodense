@@ -25,7 +25,7 @@ from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
 MAX_CYCLE = 100
-NDO_THRES = 1.e-12
+NO_THRES = 1.e-12
 
 class Logger(object):
         """
@@ -147,28 +147,28 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         return contract('ip,jp->ij', occup * mo, mo)
 
 
-def make_ndo(mol: gto.Mole, mo_coeff: np.ndarray, \
-             rdm1_delta: np.ndarray, thres: float = NDO_THRES) -> Tuple[np.ndarray, np.ndarray]:
+def make_no(mol: gto.Mole, mo_coeff: np.ndarray, \
+             rdm1: np.ndarray, thres: float = NO_THRES) -> Tuple[np.ndarray, np.ndarray]:
         """
-        this function returns ndo coefficients and occupations corresponding
-        to given mo coefficients and rdm1_delta
+        this function returns no coefficients and occupations corresponding
+        to given mo coefficients and rdm1
         """
         # assertions
         assert mo_coeff.ndim == 3, '`make_ndo` functions expects alpha/beta mo coefficients'
-        assert rdm1_delta.ndim == 3, '`make_ndo` functions expects alpha/beta delta rdm1'
+        assert rdm1.ndim == 3, '`make_ndo` functions expects alpha/beta rdm1'
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
-        # ao to mo transformation of dm_delta
-        rdm1_delta_mo = contract('xpi,pq,xqr,rs,xsj->xij', mo_coeff, s, rdm1_delta, s, mo_coeff)
-        # diagonalize dm_delta_mo
-        occ_ndo, u = np.linalg.eigh(rdm1_delta_mo)
-        # transform to ndo basis
-        mo_ndo = contract('xip,xpj->xij', mo_coeff, u)
+        # ao to mo transformation of dm
+        rdm1_mo = contract('xpi,pq,xqr,rs,xsj->xij', mo_coeff, s, rdm1, s, mo_coeff)
+        # diagonalize rdm1_mo
+        occ_no, u = np.linalg.eigh(rdm1_mo)
+        # transform to no basis
+        mo_no = contract('xip,xpj->xij', mo_coeff, u)
 
-        # retain only significant ndos
-        return np.array([mo_ndo[i][:, np.where(np.abs(occ_ndo[i]) >= thres)[0]] for i in range(2)]), \
-               np.array([occ_ndo[i][np.where(np.abs(occ_ndo[i]) >= thres)[0]] for i in range(2)])
+        # retain only significant nos
+        return np.array([mo_no[i][:, np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)]), \
+               np.array([occ_no[i][np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)])
 
 
 def write_rdm1(mol: gto.Mole, part: str, \

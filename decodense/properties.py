@@ -26,7 +26,7 @@ BLKSIZE = 200
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-             mo_coeff: np.ndarray, mo_occ: np.ndarray, rdm1_eval: np.ndarray, \
+             mo_coeff: np.ndarray, mo_occ: np.ndarray, rdm1_eff: np.ndarray, \
              pop: str, prop_type: str, part: str, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -47,11 +47,11 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             ao_dip = None
 
         # compute total 1-RDMs (AO basis)
-        if rdm1_eval is None:
-            rdm1_eval = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
-        if rdm1_eval.ndim == 2:
-            rdm1_eval = np.array([rdm1_eval, rdm1_eval]) * .5
-        rdm1_eval2 = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
+        if rdm1_eff is None:
+            rdm1_eff = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
+        if rdm1_eff.ndim == 2:
+            rdm1_eff = np.array([rdm1_eff, rdm1_eff]) * .5
+        rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # mol object projected into minao basis
         if pop == 'iao':
@@ -73,7 +73,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # possible cosmo/pcm solvent model
         if getattr(mf, 'with_solvent', None):
-            e_solvent = _solvent(mol, np.sum(rdm1_eval, axis=0), mf.with_solvent)
+            e_solvent = _solvent(mol, np.sum(rdm1_eff, axis=0), mf.with_solvent)
         else:
             e_solvent = None
 
@@ -86,20 +86,20 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol)
         # fock potential
-        vj, vk = mf.get_jk(mol=mol, dm=rdm1_eval)
+        vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
 
         # calculate xc energy density
         if dft_calc:
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, mf.xc, rdm1_eval, vk)
+            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
             grid_weights = mf.grids.weights
             # compute all intermediates
-            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_eval, xc_type)
+            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_eff, xc_type)
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # nlc (vv10)
@@ -107,7 +107,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 nlc_pars = dft.libxc.nlc_coeff(mf.xc)
                 ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                 grid_weights_nlc = mf.nlcgrids.weights
-                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eval, axis=0), 'GGA')
+                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
                 eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
                                              grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
             else:
@@ -135,7 +135,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
                 # atom-specific rdm1
-                rdm1_atom = np.zeros_like(rdm1_eval)
+                rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
                 for i, spin_mo in enumerate((alpha, beta)):
                     # loop over spin-orbitals
@@ -153,7 +153,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_eval2, axis=0), scaling = .5)
+                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))
@@ -192,13 +192,13 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 if prop_type == 'energy':
                     # loop over spins
                     for i, _ in enumerate((alpha, beta)):
-                        res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_eval[i][select], scaling = .5)
-                        res['exch'] -= _trace(vk[i][select], rdm1_eval[i][select], scaling = .5)
-                    res['kin'] += _trace(kin[select], np.sum(rdm1_eval, axis=0)[select])
-                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_eval2, axis=0), scaling = .5)
-                    res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_eval, axis=0)[select], scaling = .5)
+                        res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
+                        res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+                    res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
+                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
                     if mm_pot is not None:
-                        res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_eval, axis=0)[select])
+                        res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
                     if e_solvent is not None:
                         res['solvent'] += e_solvent[atom_idx]
                     # additional xc energy contribution
@@ -216,7 +216,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                                                               ao_value_nlc[:, :, select], 'GGA')
                             res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
                 elif prop_type == 'dipole':
-                    res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_eval, axis=0)[select])
+                    res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # sum up electronic contributions
                 if prop_type == 'energy':
                     for comp_key in COMP_KEYS[:-2]:
