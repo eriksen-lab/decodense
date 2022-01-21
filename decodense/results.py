@@ -17,7 +17,7 @@ from pyscf import gto, lo
 from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import COMP_KEYS, DecompCls
-from .tools import git_version
+from .tools import git_version, dim
 from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 
 TOLERANCE = 1.e-10
@@ -428,8 +428,11 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # orbital symmetries
         orbsym = kwargs['orbsym']
         # index
-        sort_idx = np.argsort(mo_occ[0])
-        mo_idx = np.array([[sort_idx[i], sort_idx[-(i+1)]] for i in range(sort_idx.size // 2)]).ravel()
+        if kwargs['ndo']:
+            sort_idx = np.argsort(mo_occ[0])
+            mo_idx = (np.array([[sort_idx[i], sort_idx[-(i+1)]] for i in range(sort_idx.size // 2)]).ravel(),) * 2
+        else:
+            mo_idx = dim(mo_occ)
         # electronic, structural, and total contributions to property
         prop = {comp_key: kwargs[comp_key] for comp_key in COMP_KEYS[-2:]}
 
@@ -443,6 +446,8 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             # formatting
             length = 155
             divider = '-' * length + '\n'
+            length_2 = 27
+            divider_2 = '-' * length_2 + '\n'
 
             # units
             if 'unit' in kwargs:
@@ -474,7 +479,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                 string += divider
                 string += f'{spin:^{length}}\n'
                 string += divider
-                for j in mo_idx:
+                for j in mo_idx[i]:
                     string += f'   {j:>2d}     |' \
                               f'{prop["coul"][i][j] * scaling:>12.5f}   |' \
                               f'{prop["exch"][i][j] * scaling:>12.5f}   |' \
@@ -501,7 +506,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
             string += f'{"spin-summed":^{length}}\n'
             string += divider
-            for j in mo_idx:
+            for j in mo_idx[0]:
                 string += f'   {j:>2d}     |' \
                           f'{np.sum(prop["coul"], axis=0)[j] * scaling:>12.5f}   |' \
                           f'{np.sum(prop["exch"], axis=0)[j] * scaling:>12.5f}   |' \
@@ -526,6 +531,18 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}   ||\n'
             string += divider
             string += divider + '\n'
+
+            # total contributions
+            string += divider_2
+            string += f'{"total sum":^{length_2-1}}|\n'
+            string += divider_2
+            string += f'{"electronic":^10}|{(np.sum(prop["el"][0]) + np.sum(prop["el"][1])) * scaling:>+12.5f}   |\n'
+            string += divider_2
+            string += f'{"struct":^10}|{np.sum(prop["struct"]) * scaling:>+12.5f}   |\n'
+            string += divider_2
+            string += divider_2
+            string += f'{"total":^10}|{(np.sum(prop["el"][0]) + np.sum(prop["el"][1]) + np.sum(prop["struct"])) * scaling:>12.5f}   |\n'
+            string += divider_2 + '\n'
 
 #        # tensor property
 #        elif prop['el'][0].ndim == prop['struct'][0].ndim == 2:

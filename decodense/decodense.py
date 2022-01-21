@@ -17,7 +17,7 @@ from typing import Dict, Tuple, List, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import dim, make_rdm1, make_no, mf_info, write_rdm1
+from .tools import make_no, mf_info, write_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
@@ -33,13 +33,14 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # format orbitals from mean-field calculation
         if rdm1_orb is None:
-            mo_coeff, mo_occ = mf_info(mf, np.asarray(mf.mo_coeff), np.asarray(mf.mo_occ))
+            mo_coeff, mo_occ = mf_info(mf)
         else:
             mo_coeff, mo_occ = make_no(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
 
         # compute localized molecular orbitals
         if decomp.loc != '':
             mo_coeff = loc_orbs(mol, mo_coeff, mo_occ, decomp.loc, loc_lst)
+            mol.symmetry = False
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:

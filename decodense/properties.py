@@ -121,7 +121,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             c0_vv10 = c1_vv10 = None
 
         # molecular dimensions
-        alpha, beta = dim(mol, mo_occ)
+        alpha, beta = dim(mo_occ)
         if part == 'eda':
             ao_labels = mol.ao_labels(fmt=None)
 
@@ -330,7 +330,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                     prop[key][domain[k, 0]][domain[k, 1]] = val
             if not kwargs['ndo']:
                 prop['struct'] = prop_nuc_rep
-            return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff)}
+            return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff), 'ndo': kwargs['ndo']}
 
 
 def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:

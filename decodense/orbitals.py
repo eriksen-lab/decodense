@@ -33,7 +33,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
-        alpha, beta = dim(mol, mo_occ)
+        alpha, beta = dim(mo_occ)
 
         # localization list(s)
         if loc_lst is not None:
@@ -97,7 +97,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
         s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
-        alpha, beta = dim(mol, mo_occ)
+        alpha, beta = dim(mo_occ)
 
         # max number of occupied spin-orbs
         n_spin = max(alpha.size, beta.size)

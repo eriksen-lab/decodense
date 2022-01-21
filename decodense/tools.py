@@ -81,47 +81,33 @@ def git_version() -> str:
         return GIT_REVISION
 
 
-def dim(mol: gto.Mole, mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def dim(mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
         return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
 
 
-def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-            mo_coeff_in: np.ndarray = None, \
-            mo_occ_in: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
+def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.ndarray]:
         """
         retrieve mf information (mo coefficients & occupations)
         """
-        # mo coefficients
-        if mo_coeff_in is None:
-            if np.asarray(mf.mo_coeff).ndim == 2:
-                mo_coeff_out = np.asarray((mf.mo_coeff,) * 2)
-            else:
-                mo_coeff_out = mf.mo_coeff
-        else:
-            if np.asarray(mo_coeff_in).ndim == 2:
-                mo_coeff_out = np.asarray((mo_coeff_in,) * 2)
-            else:
-                mo_coeff_out = mo_coeff_in
         # mo occupations
-        if mo_occ_in is None:
-            if np.asarray(mf.mo_occ).ndim == 1:
-                mo_occ_out = np.asarray((np.zeros(mf.mo_occ.size, dtype=np.float64),) * 2)
-                mo_occ_out[0][np.where(0. < mf.mo_occ)] += 1.
-                mo_occ_out[1][np.where(1. < mf.mo_occ)] += 1.
-            else:
-                mo_occ_out = mf.mo_occ
+        if np.asarray(mf.mo_occ).ndim == 1:
+            mo_occ = np.asarray((np.zeros(np.count_nonzero(mf.mo_occ), dtype=np.float64),) * 2)
+            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
+            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
         else:
-            if np.asarray(mo_occ_in).ndim == 1:
-                mo_occ_out = np.asarray((np.zeros(mo_occ_in.size, dtype=np.float64),) * 2)
-                mo_occ_out[0][np.where(0. < mo_occ_in)] += 1.
-                mo_occ_out[1][np.where(1. < mo_occ_in)] += 1.
-            else:
-                mo_occ_out = mo_occ_in
+            mo_occ = np.array([mf.mo_occ[i][np.nonzero(mf.mo_occ[i])] for i in range(2)])
+        # dimensions
+        alpha, beta = dim(mo_occ)
+        # mo coefficients
+        if np.asarray(mf.mo_coeff).ndim == 2:
+            mo_coeff = np.asarray([mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta]])
+        else:
+            mo_coeff = np.asarray([mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta]])
 
-        return mo_coeff_out, mo_occ_out
+        return mo_coeff, mo_occ
 
 
 def orbsym(mol, mo_coeff):
@@ -182,7 +168,7 @@ def write_rdm1(mol: gto.Mole, part: str, \
         # assertion
         assert fmt in ['cube', 'numpy'], 'fmt arg to write_rdm1() must be `cube` or `numpy`'
         # molecular dimensions
-        alpha, beta = dim(mol, mo_occ)
+        alpha, beta = dim(mo_occ)
         # compute total 1-RDM (AO basis)
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
         # write rdm1s for given partitioning
