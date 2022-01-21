@@ -33,9 +33,9 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # format orbitals from mean-field calculation
         if rdm1_orb is None:
-            mo_coeff, mo_occ = mf_info(mf, mf.mo_coeff, mf.mo_occ)
+            mo_coeff, mo_occ = mf_info(mf, np.asarray(mf.mo_coeff), np.asarray(mf.mo_occ))
         else:
-            mo_coeff, mo_occ = make_no(mol, mf.mo_coeff, rdm1_orb)
+            mo_coeff, mo_occ = make_no(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
 
         # compute localized molecular orbitals
         if decomp.loc != '':

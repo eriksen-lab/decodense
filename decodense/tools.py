@@ -154,8 +154,8 @@ def make_no(mol: gto.Mole, mo_coeff: np.ndarray, \
         to given mo coefficients and rdm1
         """
         # assertions
-        assert mo_coeff.ndim == 3, '`make_ndo` functions expects alpha/beta mo coefficients'
-        assert rdm1.ndim == 3, '`make_ndo` functions expects alpha/beta rdm1'
+        assert mo_coeff.ndim == 3, '`make_no` functions expects alpha/beta mo coefficients'
+        assert rdm1.ndim == 3, '`make_no` functions expects alpha/beta rdm1'
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
