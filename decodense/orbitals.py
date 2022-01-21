@@ -21,13 +21,16 @@ LOC_CONV = 1.e-10
 
 
 def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
-             mo_occ: np.ndarray, variant: str, \
+             mo_occ: np.ndarray, variant: str, ndo: bool, \
              loc_lst: Union[None, List[Any]]) -> np.ndarray:
         """
         this function returns a set of localized MOs of a specific variant
         """
         # rhf reference
         rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
+
+        # ndo assertion
+        assert not ndo, 'localization of NDOs is not implemented'
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
@@ -86,7 +89,9 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, \
-                 **kwargs: float) -> Tuple[Union[List[np.ndarray], List[List[np.ndarray]]], Union[None, np.ndarray]]:
+                 multiproc: bool, verbose: bool, **kwargs: Any) -> Tuple[Union[List[np.ndarray], \
+                                                                               List[List[np.ndarray]]], \
+                                                                         Union[None, np.ndarray]]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -149,7 +154,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
             # domain
             domain = np.arange(spin_mo.size)
             # execute kernel
-            if kwargs['multiproc']:
+            if multiproc:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
                     weights[i] = pool.map(get_weights, domain) # type:ignore
@@ -162,7 +167,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                 break
 
         # verbose print
-        if 0 < kwargs['verbose']:
+        if 0 < verbose:
             symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
