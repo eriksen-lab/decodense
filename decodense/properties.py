@@ -27,8 +27,8 @@ BLKSIZE = 200
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: np.ndarray, mo_occ: np.ndarray, rdm1_eff: np.ndarray, \
-             pop: str, prop_type: str, part: str, multiproc: bool, \
-             gauge_origin: np.ndarray, ndo: bool, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
+             gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -91,6 +91,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # calculate xc energy density
         if dft_calc:
+            # ndo assertion
+            assert not ndo, 'NDOs for KS-DFT is not implemented'
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components

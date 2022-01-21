@@ -46,27 +46,27 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
             weights = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                   decomp.multiproc, decomp.verbose)[0]
+                                   decomp.ndo, decomp.multiproc, decomp.verbose)[0]
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
-                                  decomp.multiproc, decomp.gauge_origin, decomp.ndo, \
+                                  decomp.ndo, decomp.multiproc, decomp.gauge_origin, \
                                   weights = weights)
         elif decomp.part == 'bonds':
             # compute repetitive indices & centres
             rep_idx, centres = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                            decomp.multiproc, decomp.verbose, \
+                                            decomp.ndo, decomp.multiproc, decomp.verbose, \
                                             thres = decomp.thres)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
-                                  decomp.multiproc, decomp.gauge_origin, decomp.ndo, \
+                                  decomp.ndo, decomp.multiproc, decomp.gauge_origin, \
                                   rep_idx = rep_idx, centres = centres)
         else: # orbs
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
-                                  decomp.multiproc, decomp.gauge_origin, decomp.ndo)
+                                  decomp.ndo, decomp.multiproc, decomp.gauge_origin)
 
         # write rdm1s
         if decomp.write != '':

@@ -88,7 +88,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
-                 mo_occ: np.ndarray, pop: str, part: str, \
+                 mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
                  multiproc: bool, verbose: bool, **kwargs: Any) -> Tuple[Union[List[np.ndarray], \
                                                                                List[List[np.ndarray]]], \
                                                                          Union[None, np.ndarray]]:
@@ -109,6 +109,8 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
 
         # mol object projected into minao basis
         if pop == 'iao':
+            # ndo assertion
+            assert not ndo, 'IAO-based populations for NDOs is not implemented'
             pmol = lo.iao.reference_mol(mol)
         else:
             pmol = mol
