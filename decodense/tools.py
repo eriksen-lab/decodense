@@ -94,7 +94,7 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.
         """
         # mo occupations
         if np.asarray(mf.mo_occ).ndim == 1:
-            mo_occ = [np.zeros(np.count_nonzero(mf.mo_occ), dtype=np.float64)] * 2
+            mo_occ = [np.zeros(np.count_nonzero(mf.mo_occ)) for i in range(2)]
             mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
             mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
         else:
