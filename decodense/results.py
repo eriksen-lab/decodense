@@ -12,7 +12,6 @@ __status__ = 'Development'
 
 import os
 import numpy as np
-import math
 from pyscf import gto, lo
 from typing import Dict, Tuple, List, Union, Any
 
@@ -218,9 +217,9 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
 
             # total contributions
-            sum_el = np.fromiter(map(math.fsum, prop['el'].T), dtype=np.float64, count=3)
-            sum_struct = np.fromiter(map(math.fsum, prop['struct'].T), dtype=np.float64, count=3)
-            sum_tot = np.fromiter(map(math.fsum, prop['tot'].T), dtype=np.float64, count=3)
+            sum_el = np.fromiter(map(np.sum, prop['el'].T), dtype=np.float64, count=3)
+            sum_struct = np.fromiter(map(np.sum, prop['struct'].T), dtype=np.float64, count=3)
+            sum_tot = np.fromiter(map(np.sum, prop['tot'].T), dtype=np.float64, count=3)
             string += f'{"sum":^6}|' \
                       f' {sum_el[0] * scaling + TOLERANCE:>8.3f}  /' \
                       f' {sum_el[1] * scaling + TOLERANCE:>8.3f}  /' \
@@ -392,8 +391,8 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider + '\n'
 
             # total contributions
-            sum_el = (np.fromiter(map(math.fsum, prop['el'][0].T), dtype=np.float64, count=3) + \
-                      np.fromiter(map(math.fsum, prop['el'][1].T), dtype=np.float64, count=3))
+            sum_el = (np.fromiter(map(np.sum, prop['el'][0].T), dtype=np.float64, count=3) + \
+                      np.fromiter(map(np.sum, prop['el'][1].T), dtype=np.float64, count=3))
             sum_struct = np.sum(prop['struct'], axis=0)
             string += divider_2
             string += f'{"total sum":^{length_2-1}}|\n'

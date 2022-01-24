@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*
 
 import unittest
-import math
 import numpy as np
 from pyscf import gto, scf, dft
 
@@ -40,12 +39,12 @@ class KnownValues(unittest.TestCase):
                         decomp = decodense.DecompCls(loc=loc, pop=pop, part=part, prop='dipole')
                         res = decodense.main(mol, decomp, mf)
                         if part == 'orbitals':
-                            dipmom_tot = np.fromiter(map(math.fsum, res['el'][0].T), dtype=np.float64, count=3) \
-                                          + np.fromiter(map(math.fsum, res['el'][1].T), dtype=np.float64, count=3) \
+                            dipmom_tot = np.fromiter(map(np.sum, res['el'][0].T), dtype=np.float64, count=3) \
+                                          + np.fromiter(map(np.sum, res['el'][1].T), dtype=np.float64, count=3) \
                                           + np.sum(res['struct'], axis=0)
                         else:
-                            dipmom_tot = np.fromiter(map(math.fsum, res['el'].T), dtype=np.float64, count=3) \
-                                          + np.fromiter(map(math.fsum, res['struct'].T), dtype=np.float64, count=3)
+                            dipmom_tot = np.fromiter(map(np.sum, res['el'].T), dtype=np.float64, count=3) \
+                                          + np.fromiter(map(np.sum, res['struct'].T), dtype=np.float64, count=3)
                         np.testing.assert_array_almost_equal(mf_dipmom_tot, dipmom_tot, TOL)
 
 if __name__ == '__main__':
