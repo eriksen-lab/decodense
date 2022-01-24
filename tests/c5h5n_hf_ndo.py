@@ -33,7 +33,7 @@ def ex_calc(mol, mo_coeff, mo_occ):
     return mf_ex
 
 # init mol
-mol = gto.M(verbose = 0, output = None, symmetry = True, basis = 'pcseg1', atom = 'c5h5n.xyz')
+mol = gto.M(verbose = 0, output = None, symmetry = True, basis = 'pcseg1', atom = 'geom/c5h5n.xyz')
 
 # ground-state mf calc
 mf_gs = gs_calc(mol)

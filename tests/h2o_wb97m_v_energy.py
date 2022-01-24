@@ -18,7 +18,7 @@ PART = ('orbitals', 'eda', 'atoms')
 # init molecule
 mol = gto.M(verbose = 0, output = None,
 basis = 'pcseg1', symmetry = True,
-atom = 'h2o.xyz')
+atom = 'geom/h2o.xyz')
 
 # mf calc
 mf = dft.RKS(mol)
