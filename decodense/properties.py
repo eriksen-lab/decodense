@@ -310,7 +310,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             if ndo:
                 prop['struct'] = 0.
             else:
-                prop['struct'] = np.sum(prop_nuc_rep)
+                if prop_type == 'energy':
+                    prop['struct'] = np.sum(prop_nuc_rep)
+                elif prop_type == 'dipole':
+                    prop['struct'] = np.sum(prop_nuc_rep, axis=0)
             return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff), 'ndo': ndo}
 
 
