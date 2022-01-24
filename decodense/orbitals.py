@@ -27,7 +27,10 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         this function returns a set of localized MOs of a specific variant
         """
         # rhf reference
-        rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
+        if mo_occ[0].size == mo_occ[1].size:
+            rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
+        else:
+            rhf = False
 
         # ndo assertion
         assert not ndo, 'localization of NDOs is not implemented'
@@ -46,7 +49,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
                 assert np.sum([len(idx) for idx in idx_arr]) == (alpha, beta)[i].size, 'loc_lst does not cover all occupied orbitals'
 
         # init mo_coeff_out
-        mo_coeff_out = np.zeros_like(mo_coeff_in)
+        mo_coeff_out = [np.zeros_like(mo_coeff_in[i]) for i in range(2)]
 
         # loop over spins
         for i, spin_mo in enumerate((alpha, beta)):
@@ -97,6 +100,12 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
         """
         # declare nested kernel function in global scope
         global get_weights
+
+        # rhf reference
+        if mo_occ[0].size == mo_occ[1].size:
+            rhf = np.allclose(mo_coeff[0], mo_coeff[1]) and np.allclose(mo_occ[0], mo_occ[1])
+        else:
+            rhf = False
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
@@ -164,7 +173,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                 weights[i] = list(map(get_weights, domain)) # type:ignore
 
             # closed-shell reference
-            if np.allclose(mo_coeff[0], mo_coeff[1]) and np.allclose(mo_occ[0], mo_occ[1]):
+            if rhf:
                 weights[i+1] = weights[i]
                 break
 
@@ -197,7 +206,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                         # valence orbitals
                         centres[i][j] = np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
                 # closed-shell reference
-                if np.allclose(mo_coeff[0], mo_coeff[1]) and np.allclose(mo_occ[0], mo_occ[1]):
+                if rhf:
                     centres[i+1] = centres[i]
                     break
             # unique and repetitive centres

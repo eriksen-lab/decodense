@@ -94,18 +94,18 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.
         """
         # mo occupations
         if np.asarray(mf.mo_occ).ndim == 1:
-            mo_occ = np.asarray((np.zeros(np.count_nonzero(mf.mo_occ), dtype=np.float64),) * 2)
+            mo_occ = [np.zeros(np.count_nonzero(mf.mo_occ), dtype=np.float64)] * 2
             mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
             mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
         else:
-            mo_occ = np.array([mf.mo_occ[i][np.nonzero(mf.mo_occ[i])] for i in range(2)])
+            mo_occ = [mf.mo_occ[i][np.nonzero(mf.mo_occ[i])] for i in range(2)]
         # dimensions
         alpha, beta = dim(mo_occ)
         # mo coefficients
         if np.asarray(mf.mo_coeff).ndim == 2:
-            mo_coeff = np.asarray([mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta]])
+            mo_coeff = [mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta]]
         else:
-            mo_coeff = np.asarray([mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta]])
+            mo_coeff = [mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta]]
 
         return mo_coeff, mo_occ
 
@@ -115,13 +115,19 @@ def orbsym(mol, mo_coeff):
         this functions returns orbital symmetries
         """
         if mol.symmetry:
-            if mo_coeff.ndim == 2:
-                return symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff)
+            if isinstance(mo_coeff, np.ndarray):
+                if mo_coeff.ndim == 2:
+                    return symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff)
+                else:
+                    return np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff])
             else:
                 return np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff])
         else:
-            if mo_coeff.ndim == 2:
-                return np.array(['A'] * mo_coeff.shape[1])
+            if isinstance(mo_coeff, np.ndarray):
+                if mo_coeff.ndim == 2:
+                    return np.array(['A'] * mo_coeff.shape[1])
+                else:
+                    return np.array([['A'] * c.shape[1] for c in mo_coeff])
             else:
                 return np.array([['A'] * c.shape[1] for c in mo_coeff])
 
@@ -153,8 +159,8 @@ def make_no(mol: gto.Mole, mo_coeff: np.ndarray, \
         mo_no = contract('xip,xpj->xij', mo_coeff, u)
 
         # retain only significant nos
-        return np.array([mo_no[i][:, np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)]), \
-               np.array([occ_no[i][np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)])
+        return [mo_no[i][:, np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)], \
+               [occ_no[i][np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)]
 
 
 def write_rdm1(mol: gto.Mole, part: str, \

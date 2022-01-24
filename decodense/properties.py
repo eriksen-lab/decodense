@@ -186,7 +186,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 """
                 # init results
                 if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
                 # get AOs on atom k
@@ -232,7 +232,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 """
                 # init res
                 if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
                 else:
                     res = {}
                 # get orbital(s)
@@ -293,7 +293,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             rep_idx = kwargs['rep_idx']
             # init bond-specific energy or dipole array
             if prop_type == 'energy':
-                prop = {comp_key: [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)] for comp_key in COMP_KEYS}
+                prop = {comp_key: [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)] for comp_key in COMP_KEYS[:-1]}
             elif prop_type == 'dipole':
                 prop = {comp_key: [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
@@ -309,13 +309,15 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][0 if k < len(rep_idx[0]) else 1][k % len(rep_idx[0])] = val
-            if not ndo:
-                prop['struct'] = prop_nuc_rep
-            return {**prop, 'centers': kwargs['centres'], 'dist': gto.mole.inter_distance(mol) * lib.param.BOHR}
+            if ndo:
+                prop['struct'] = 0.
+            else:
+                prop['struct'] = np.sum(prop_nuc_rep)
+            return {**prop, 'centres': kwargs['centres'], 'dist': gto.mole.inter_distance(mol) * lib.param.BOHR}
         else: # orbs
             # init orbital-specific energy or dipole array
             if prop_type == 'energy':
-                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS}
+                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-1]}
             elif prop_type == 'dipole':
                 prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
@@ -331,8 +333,10 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][domain[k, 0]][domain[k, 1]] = val
-            if not ndo:
-                prop['struct'] = prop_nuc_rep
+            if ndo:
+                prop['struct'] = 0.
+            else:
+                prop['struct'] = np.sum(prop_nuc_rep)
             return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff), 'ndo': ndo}
 
 
