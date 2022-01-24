@@ -161,7 +161,7 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
         mo_no = contract('xip,xpj->xij', mo_coeff, u)
 
         # retain only significant nos
-        return (mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)], mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)]), \
+        return (mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)[0]], mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)[0]]), \
                (occ_no[0][np.where(np.abs(occ_no[0]) >= thres)], occ_no[1][np.where(np.abs(occ_no[1]) >= thres)])
 
 
