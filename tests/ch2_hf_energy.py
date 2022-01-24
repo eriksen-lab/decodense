@@ -16,17 +16,17 @@ POP = ('mulliken', 'iao')
 PART = ('orbitals', 'eda', 'atoms')
 
 # init molecule
-mol = gto.M(verbose = 0, output = None,
-basis = 'pcseg1', symmetry = True,
-atom = 'h2o.xyz')
+mol = gto.M(verbose = 0, output = None, unit = 'au',
+basis = 'ccpvdz', symmetry = True, spin = 2,
+atom = '''
+C  0.00000000     0.00000000    -0.11608364
+H  0.00000000     1.86931709     0.69109398
+H  0.00000000    -1.86931709     0.69109398
+''')
 
 # mf calc
-mf = dft.RKS(mol)
-mf.xc = 'wb97m_v'
-mf.nlc = 'vv10'
-mf.nlcgrids.atom_grid = (50, 194)
-mf.nlcgrids.prune = dft.gen_grid.sg1_prune
-mf.kernel()
+mf = scf.UHF(mol).density_fit(auxbasis='weigend', only_dfj=True)
+mf = scf.fast_newton(mf, conv_tol=1.e-10)
 
 def tearDownModule():
     global mol, mf
@@ -49,6 +49,6 @@ class KnownValues(unittest.TestCase):
                         self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 if __name__ == '__main__':
-    print('test: h2o_wb97m_v_energy')
+    print('test: ch2_hf_energy')
     unittest.main()
 

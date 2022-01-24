@@ -20,6 +20,7 @@ mol = gto.M(verbose = 0, output = None,
 basis = 'ccpvdz', symmetry = True,
 atom = 'h2o.xyz')
 
+# mf calc
 mf = dft.RKS(mol).density_fit(auxbasis='weigend', only_dfj=True)
 mf.xc = 'b3lyp'
 mf = scf.fast_newton(mf, conv_tol=1.e-10)
