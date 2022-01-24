@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*
 
 import unittest
+import math
 import numpy as np
 from pyscf import gto, scf, dft
 
@@ -31,20 +32,23 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
     def test(self):
-        mf_e_tot = mf.e_tot
+        mf_dipmom_tot = mf.dip_moment(unit='au', verbose=0)
         for loc in LOC:
             for pop in POP:
                 for part in PART:
                     with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part, prop='dipole')
                         res = decodense.main(mol, decomp, mf)
                         if part == 'orbitals':
-                            e_tot = np.sum(res['struct']) + np.sum(res['el'][0]) + np.sum(res['el'][1])
+                            dipmom_tot = np.fromiter(map(math.fsum, res['el'][0].T), dtype=np.float64, count=3) \
+                                          + np.fromiter(map(math.fsum, res['el'][1].T), dtype=np.float64, count=3) \
+                                          + np.sum(res['struct'], axis=0)
                         else:
-                            e_tot = np.sum(res['struct']) + np.sum(res['el'])
-                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+                            dipmom_tot = np.fromiter(map(math.fsum, res['el'].T), dtype=np.float64, count=3) \
+                                          + np.fromiter(map(math.fsum, res['struct'].T), dtype=np.float64, count=3)
+                        np.testing.assert_array_almost_equal(mf_dipmom_tot, dipmom_tot, TOL)
 
 if __name__ == '__main__':
-    print('test: h2o_b3lyp_energy')
+    print('test: h2o_b3lyp_dipmom')
     unittest.main()
 

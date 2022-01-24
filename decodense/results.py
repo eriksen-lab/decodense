@@ -328,7 +328,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
 
             # total contributions
             e_el = (np.sum(prop['el'][0]) + np.sum(prop['el'][1])) * scaling
-            e_struct = prop['struct'] * scaling
+            e_struct = np.sum(prop['struct']) * scaling
             string += divider_2
             string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
@@ -394,7 +394,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             # total contributions
             sum_el = (np.fromiter(map(math.fsum, prop['el'][0].T), dtype=np.float64, count=3) + \
                       np.fromiter(map(math.fsum, prop['el'][1].T), dtype=np.float64, count=3))
-            sum_struct = prop['struct']
+            sum_struct = np.sum(prop['struct'], axis=0)
             string += divider_2
             string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
