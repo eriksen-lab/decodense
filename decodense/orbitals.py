@@ -22,7 +22,7 @@ LOC_CONV = 1.e-10
 
 def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
              mo_occ: np.ndarray, variant: str, ndo: bool, \
-             loc_lst: Union[None, List[Any]]) -> np.ndarray:
+             loc_lst: Union[None, List[Any]]) -> Tuple[np.ndarray, np.ndarray]:
         """
         this function returns a set of localized MOs of a specific variant
         """
@@ -49,7 +49,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
                 assert np.sum([len(idx) for idx in idx_arr]) == (alpha, beta)[i].size, 'loc_lst does not cover all occupied orbitals'
 
         # init mo_coeff_out
-        mo_coeff_out = [np.zeros_like(mo_coeff_in[i]) for i in range(2)]
+        mo_coeff_out = (np.zeros_like(mo_coeff_in[0]), np.zeros_like(mo_coeff_in[1]))
 
         # loop over spins
         for i, spin_mo in enumerate((alpha, beta)):
@@ -92,7 +92,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
-                 multiproc: bool, verbose: bool, **kwargs: Any) -> List[np.ndarray]:
+                 multiproc: bool, verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -177,7 +177,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
 
         # verbose print
         if 0 < verbose:
-            symbols = [pmol.atom_pure_symbol(i) for i in range(pmol.natm)]
+            symbols = tuple(pmol.atom_pure_symbol(i) for i in range(pmol.natm))
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
             for i, spin_mo in enumerate((alpha, beta)):

@@ -88,24 +88,25 @@ def dim(mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
 
 
-def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[np.ndarray, np.ndarray]:
+def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarray, np.ndarray], \
+                                                                 Tuple[np.ndarray, np.ndarray]]:
         """
         retrieve mf information (mo coefficients & occupations)
         """
         # mo occupations
         if np.asarray(mf.mo_occ).ndim == 1:
-            mo_occ = [np.zeros(np.count_nonzero(mf.mo_occ)) for i in range(2)]
+            mo_occ = (np.zeros(np.count_nonzero(mf.mo_occ)), np.zeros(np.count_nonzero(mf.mo_occ)))
             mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
             mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
         else:
-            mo_occ = [mf.mo_occ[i][np.nonzero(mf.mo_occ[i])] for i in range(2)]
+            mo_occ = (mf.mo_occ[0][np.nonzero(mf.mo_occ[0])], mf.mo_occ[1][np.nonzero(mf.mo_occ[1])])
         # dimensions
         alpha, beta = dim(mo_occ)
         # mo coefficients
         if np.asarray(mf.mo_coeff).ndim == 2:
-            mo_coeff = [mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta]]
+            mo_coeff = (mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta])
         else:
-            mo_coeff = [mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta]]
+            mo_coeff = (mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta])
 
         return mo_coeff, mo_occ
 
@@ -140,7 +141,8 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
 
 
 def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
-                rdm1: np.ndarray, thres: float = NATORB_THRES) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+                rdm1: np.ndarray, thres: float = NATORB_THRES) -> Tuple[Tuple[np.ndarray, np.ndarray], \
+                                                                        Tuple[np.ndarray, np.ndarray]]:
         """
         this function returns no coefficients and occupations corresponding
         to given mo coefficients and rdm1
@@ -159,8 +161,8 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
         mo_no = contract('xip,xpj->xij', mo_coeff, u)
 
         # retain only significant nos
-        return [mo_no[i][:, np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)], \
-               [occ_no[i][np.where(np.abs(occ_no[i]) >= thres)[0]] for i in range(2)]
+        return (mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)], mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)]), \
+               (occ_no[0][np.where(np.abs(occ_no[0]) >= thres)], occ_no[1][np.where(np.abs(occ_no[1]) >= thres)])
 
 
 def write_rdm1(mol: gto.Mole, part: str, \

@@ -26,8 +26,8 @@ BLKSIZE = 200
 
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-             mo_coeff: np.ndarray, mo_occ: np.ndarray, rdm1_eff: np.ndarray, \
-             pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
+             mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
+             rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties

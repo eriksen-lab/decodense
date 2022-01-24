@@ -250,8 +250,8 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         orbsym = kwargs['orbsym']
         # index
         if kwargs['ndo']:
-            sort_idx = [np.argsort(mo_occ[i]) for i in range(2)]
-            mo_idx = [np.array([[sort_idx[i][j], sort_idx[i][-(j+1)]] for j in range(sort_idx[i].size // 2)]).ravel() for i in range(2)]
+            sort_idx = tuple(np.argsort(mo_occ[i]) for i in range(2))
+            mo_idx = tuple(np.array([[sort_idx[i][j], sort_idx[i][-(j+1)]] for j in range(sort_idx[i].size // 2)]).ravel() for i in range(2))
         else:
             mo_idx = dim(mo_occ)
         # electronic, structural, and total contributions to property

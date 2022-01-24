@@ -12,7 +12,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto, scf, dft
-from typing import Dict, Tuple, List, Union, Any
+from typing import Dict, Tuple, List, Union, Optional, Any
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
@@ -24,7 +24,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
          rdm1_orb: np.ndarray = None, \
          rdm1_eff: np.ndarray = None, \
-         loc_lst: Union[Tuple[int], List[int]] = None) -> Dict[str, Any]:
+         loc_lst: Optional[Any] = None) -> Dict[str, Any]:
         """
         main decodense program
         """
