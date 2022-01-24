@@ -17,7 +17,7 @@ from typing import Dict, Tuple, List, Union, Any
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
-from .tools import make_no, mf_info, write_rdm1
+from .tools import make_natorb, mf_info, write_rdm1
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
@@ -35,7 +35,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if rdm1_orb is None:
             mo_coeff, mo_occ = mf_info(mf)
         else:
-            mo_coeff, mo_occ = make_no(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
+            mo_coeff, mo_occ = make_natorb(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
 
         # compute localized molecular orbitals
         if decomp.loc != '':
@@ -46,22 +46,12 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
             weights = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                   decomp.ndo, decomp.multiproc, decomp.verbose)[0]
+                                   decomp.ndo, decomp.multiproc, decomp.verbose)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
                                   decomp.pop, decomp.prop, decomp.part, \
                                   decomp.ndo, decomp.multiproc, decomp.gauge_origin, \
                                   weights = weights)
-        elif decomp.part == 'bonds':
-            # compute repetitive indices & centres
-            rep_idx, centres = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
-                                            decomp.ndo, decomp.multiproc, decomp.verbose, \
-                                            thres = decomp.thres)
-            # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop, decomp.prop, decomp.part, \
-                                  decomp.ndo, decomp.multiproc, decomp.gauge_origin, \
-                                  rep_idx = rep_idx, centres = centres)
         else: # orbs
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
@@ -70,9 +60,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # write rdm1s
         if decomp.write != '':
-            write_rdm1(mol, decomp.part, mo_coeff, mo_occ, decomp.write, \
-                       weights if decomp.part == 'atoms' else None, \
-                       rep_idx if decomp.part == 'bonds' else None)
+            write_rdm1(mol, decomp.part, mo_coeff, mo_occ, decomp.write, weights)
 
         return decomp.res
 

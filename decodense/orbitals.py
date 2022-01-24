@@ -92,9 +92,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
 
 def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
-                 multiproc: bool, verbose: bool, **kwargs: Any) -> Tuple[Union[List[np.ndarray], \
-                                                                               List[List[np.ndarray]]], \
-                                                                         Union[None, np.ndarray]]:
+                 multiproc: bool, verbose: bool, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -187,36 +185,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
                         print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', spin_mo[j], weights[i][j]))
 
-        # bond-wise partitioning
-        if part == 'bonds':
-            # init population centres array and get threshold
-            centres = [np.zeros([alpha.size, 2], dtype=np.int), np.zeros([beta.size, 2], dtype=np.int)]
-            thres = kwargs['thres']
-            # loop over spin
-            for i, spin_mo in enumerate((alpha, beta)):
-                # loop over orbitals
-                for j in domain:
-                    # get sorted indices
-                    max_idx = np.argsort(weights[i][j])[::-1]
-                    # compute population centres
-                    if np.abs(weights[i][j][max_idx[0]]) > thres:
-                        # core orbital or lone pair
-                        centres[i][j] = np.array([max_idx[0], max_idx[0]], dtype=np.int)
-                    else:
-                        # valence orbitals
-                        centres[i][j] = np.sort(np.array([max_idx[0], max_idx[1]], dtype=np.int))
-                # closed-shell reference
-                if rhf:
-                    centres[i+1] = centres[i]
-                    break
-            # unique and repetitive centres
-            centres_unique = np.array([np.unique(centres[i], axis=0) for i in range(2)])
-            rep_idx = [[np.where((centres[i] == j).all(axis=1))[0] for j in centres_unique[i]] for i in range(2)]
-
-        if part in ['atoms', 'eda']:
-            return weights, None
-        else:
-            return rep_idx, centres_unique
+        return weights
 
 
 def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> np.ndarray:

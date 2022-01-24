@@ -25,7 +25,7 @@ from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
 MAX_CYCLE = 100
-NO_THRES = 1.e-12
+NATORB_THRES = 1.e-12
 
 class Logger(object):
         """
@@ -139,15 +139,15 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         return contract('ip,jp->ij', occup * mo, mo)
 
 
-def make_no(mol: gto.Mole, mo_coeff: np.ndarray, \
-             rdm1: np.ndarray, thres: float = NO_THRES) -> Tuple[np.ndarray, np.ndarray]:
+def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
+                rdm1: np.ndarray, thres: float = NATORB_THRES) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         this function returns no coefficients and occupations corresponding
         to given mo coefficients and rdm1
         """
         # assertions
-        assert mo_coeff.ndim == 3, '`make_no` functions expects alpha/beta mo coefficients'
-        assert rdm1.ndim == 3, '`make_no` functions expects alpha/beta rdm1'
+        assert mo_coeff.ndim == 3, '`make_natorb` functions expects alpha/beta mo coefficients'
+        assert rdm1.ndim == 3, '`make_natorb` functions expects alpha/beta rdm1'
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
@@ -165,62 +165,39 @@ def make_no(mol: gto.Mole, mo_coeff: np.ndarray, \
 
 def write_rdm1(mol: gto.Mole, part: str, \
                mo_coeff: np.ndarray, mo_occ: np.ndarray, fmt: str, \
-               weights: List[np.ndarray] = None, \
-               rep_idx: List[List[np.ndarray]] = None, \
+               weights: List[np.ndarray], \
                identifier: str = '') -> None:
         """
         this function writes a 1-RDM as a numpy or cube (default) file
         """
         # assertion
-        assert fmt in ['cube', 'numpy'], 'fmt arg to write_rdm1() must be `cube` or `numpy`'
+        assert part == 'atoms', '`write_rdm1` function only implemented for `atoms` partitioning'
+        assert fmt in ['cube', 'numpy'], 'fmt arg to `write_rdm1` must be `cube` or `numpy`'
         # molecular dimensions
         alpha, beta = dim(mo_occ)
         # compute total 1-RDM (AO basis)
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
-        # write rdm1s for given partitioning
-        if part == 'atoms':
-            # assertion
-            assert weights is not None, 'missing `weights` arg in write_rdm1() function'
-            # loop over atoms
-            for a in range(mol.natm):
-                # atom-specific rdm1
-                rdm1_atom = np.zeros_like(rdm1_tot)
-                # loop over spins
-                for i, spin_mo in enumerate((alpha, beta)):
-                    # loop over spin-orbitals
-                    for m, j in enumerate(spin_mo):
-                        # get orbital(s)
-                        orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
-                        # orbital-specific rdm1
-                        rdm1_orb = make_rdm1(orb, mo_occ[i][j])
-                        # weighted contribution to rdm1_atom
-                        rdm1_atom[i] += rdm1_orb * weights[i][m][a]
-                if fmt == 'cube':
-                    # write rdm1_atom as cube file
-                    pyscf_tools.cubegen.density(mol, f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{identifier:}.cube', \
-                                                np.sum(rdm1_atom, axis=0))
-                else:
-                    # write rdm1_atom as numpy file
-                    np.save(f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{identifier:}.npy', np.sum(rdm1_atom, axis=0))
-        elif part == 'bonds':
-            # assertion
-            assert rep_idx is not None, 'missing `rep_idx` arg in write_rdm1() function'
+        # loop over atoms
+        for a in range(mol.natm):
+            # atom-specific rdm1
+            rdm1_atom = np.zeros_like(rdm1_tot)
             # loop over spins
-            for i, _ in enumerate((alpha, beta)):
-                # loop over repeating indices
-                for k, j in enumerate(rep_idx[i]):
+            for i, spin_mo in enumerate((alpha, beta)):
+                # loop over spin-orbitals
+                for m, j in enumerate(spin_mo):
                     # get orbital(s)
                     orb = mo_coeff[i][:, j].reshape(mo_coeff[i].shape[0], -1)
                     # orbital-specific rdm1
                     rdm1_orb = make_rdm1(orb, mo_occ[i][j])
-                    if fmt == 'cube':
-                        # write rdm1_orb as cube file
-                        pyscf_tools.cubegen.density(mol, f'spin_{"a" if i == 0 else "b":s}_rdm1_{k:d}{identifier:}.cube', rdm1_orb)
-                    else:
-                        # write rdm1_orb as numpy file
-                        np.save(f'spin_{"a" if i == 0 else "b":s}_rdm1_{k:d}{identifier:}.npy', rdm1_orb)
-        else:
-            raise RuntimeError('invalid choice of partitioning in write_rdm1() function.')
+                    # weighted contribution to rdm1_atom
+                    rdm1_atom[i] += rdm1_orb * weights[i][m][a]
+            if fmt == 'cube':
+                # write rdm1_atom as cube file
+                pyscf_tools.cubegen.density(mol, f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{identifier:}.cube', \
+                                            np.sum(rdm1_atom, axis=0))
+            else:
+                # write rdm1_atom as numpy file
+                np.save(f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{identifier:}.npy', np.sum(rdm1_atom, axis=0))
 
 
 def res_add(res_a, res_b):

@@ -25,8 +25,7 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         def __init__(self, loc: str = '', pop: str = 'mulliken', \
-                     part = 'atoms', thres = .75, \
-                     ndo: bool = False, multiproc: bool = False, \
+                     part = 'atoms', ndo: bool = False, multiproc: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
                 """
@@ -36,7 +35,6 @@ class DecompCls(object):
                 self.loc = loc
                 self.pop = pop
                 self.part = part
-                self.thres = thres
                 self.ndo = ndo
                 self.multiproc = multiproc
                 self.gauge_origin = gauge_origin
@@ -62,13 +60,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.pop in ['mulliken', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` (default) or `iao`'
         # partitioning
-        assert decomp.part in ['atoms', 'eda', 'bonds', 'orbitals'], \
-            'invalid partitioning. valid choices: `atoms` (default), `eda`, `bonds`, or `orbitals`'
-        # bond partitioning threshold
-        assert isinstance(decomp.thres, float), \
-            'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
-        assert 0. < decomp.thres < 1., \
-            'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
+        assert decomp.part in ['atoms', 'eda', 'orbitals'], \
+            'invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`'
         # ndo decomposition
         assert isinstance(decomp.ndo, bool), \
             'invalid ndo argument. must be a bool'
