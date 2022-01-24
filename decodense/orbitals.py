@@ -33,7 +33,8 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
             rhf = False
 
         # ndo assertion
-        assert not ndo, 'localization of NDOs is not implemented'
+        if ndo:
+            raise NotImplementedError('localization of NDOs is not implemented')
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
@@ -117,7 +118,8 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
         # mol object projected into minao basis
         if pop == 'iao':
             # ndo assertion
-            assert not ndo, 'IAO-based populations for NDOs is not implemented'
+            if ndo:
+                raise NotImplementedError('IAO-based populations for NDOs is not implemented')
             pmol = lo.iao.reference_mol(mol)
         else:
             pmol = mol

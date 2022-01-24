@@ -92,7 +92,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # calculate xc energy density
         if dft_calc:
             # ndo assertion
-            assert not ndo, 'NDOs for KS-DFT is not implemented'
+            if ndo:
+                raise NotImplementedError('NDOs for KS-DFT is not implemented')
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
