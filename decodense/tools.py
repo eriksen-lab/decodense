@@ -95,9 +95,7 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarra
         """
         # mo occupations
         if np.asarray(mf.mo_occ).ndim == 1:
-            mo_occ = (np.zeros(np.count_nonzero(mf.mo_occ)), np.zeros(np.count_nonzero(mf.mo_occ)))
-            mo_occ[0][np.where(0. < mf.mo_occ)] += 1.
-            mo_occ[1][np.where(1. < mf.mo_occ)] += 1.
+            mo_occ = (np.ones(np.count_nonzero(0. < mf.mo_occ)), np.ones(np.count_nonzero(1. < mf.mo_occ)))
         else:
             mo_occ = (mf.mo_occ[0][np.nonzero(mf.mo_occ[0])], mf.mo_occ[1][np.nonzero(mf.mo_occ[1])])
         # dimensions
