@@ -49,6 +49,6 @@ class KnownValues(unittest.TestCase):
                         self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 if __name__ == '__main__':
-    print('test: h2o_wb97m_v_energy')
+    print('test: h2o_wb97m_v_energy_gs')
     unittest.main()
 

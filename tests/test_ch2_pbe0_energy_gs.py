@@ -19,7 +19,8 @@ PART = ('orbitals', 'eda', 'atoms')
 mol = gto.M(verbose = 0, output = None, symmetry = True, basis = 'pcseg1', unit = 'au', spin = 2, atom = 'geom/ch2.xyz')
 
 # mf calc
-mf = scf.UHF(mol).density_fit(auxbasis='weigend', only_dfj=True)
+mf = scf.UKS(mol).density_fit(auxbasis='weigend', only_dfj=True)
+mf.xc = 'pbe0'
 mf = scf.fast_newton(mf, conv_tol=1.e-10)
 
 def tearDownModule():
@@ -43,6 +44,6 @@ class KnownValues(unittest.TestCase):
                         self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 if __name__ == '__main__':
-    print('test: ch2_hf_energy')
+    print('test: ch2_pbe0_energy_gs')
     unittest.main()
 

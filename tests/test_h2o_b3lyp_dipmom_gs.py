@@ -50,6 +50,6 @@ class KnownValues(unittest.TestCase):
                         self.assertAlmostEqual(np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL)
 
 if __name__ == '__main__':
-    print('test: h2o_b3lyp_dipmom')
+    print('test: h2o_b3lyp_dipmom_gs')
     unittest.main()
 
