@@ -16,13 +16,7 @@ POP = ('mulliken', 'iao')
 PART = ('orbitals', 'eda', 'atoms')
 
 # init molecule
-mol = gto.M(verbose = 0, output = None, unit = 'au',
-basis = 'pcseg1', symmetry = True, spin = 2,
-atom = '''
-C  0.00000000     0.00000000    -0.11608364
-H  0.00000000     1.86931709     0.69109398
-H  0.00000000    -1.86931709     0.69109398
-''')
+mol = gto.M(verbose = 0, output = None, symmetry = True, basis = 'pcseg1', unit = 'au', spin = 2, atom = 'geom/ch2.xyz')
 
 # mf calc
 mf = scf.UHF(mol).density_fit(auxbasis='weigend', only_dfj=True)

@@ -146,17 +146,23 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
         to given mo coefficients and rdm1
         """
         # assertions
-        assert mo_coeff.ndim == 3, '`make_natorb` functions expects alpha/beta mo coefficients'
-        assert rdm1.ndim == 3, '`make_natorb` functions expects alpha/beta rdm1'
+        if mo_coeff.ndim == 2:
+            c = np.asarray((mo_coeff,) * 2)
+        else:
+            c = mo_coeff
+        if rdm1.ndim == 2:
+            d = np.array([rdm1, rdm1]) * .5
+        else:
+            d = rdm1
 
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
         # ao to mo transformation of dm
-        rdm1_mo = contract('xpi,pq,xqr,rs,xsj->xij', mo_coeff, s, rdm1, s, mo_coeff)
+        rdm1_mo = contract('xpi,pq,xqr,rs,xsj->xij', c, s, d, s, c)
         # diagonalize rdm1_mo
         occ_no, u = np.linalg.eigh(rdm1_mo)
         # transform to no basis
-        mo_no = contract('xip,xpj->xij', mo_coeff, u)
+        mo_no = contract('xip,xpj->xij', c, u)
 
         # retain only significant nos
         return (mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)[0]], mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)[0]]), \
