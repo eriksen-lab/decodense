@@ -17,7 +17,7 @@ PART = ('orbitals', 'eda', 'atoms')
 
 # init molecule
 mol = gto.M(verbose = 0, output = None, unit = 'au',
-basis = 'ccpvdz', symmetry = True, spin = 2,
+basis = 'pcseg1', symmetry = True, spin = 2,
 atom = '''
 C  0.00000000     0.00000000    -0.11608364
 H  0.00000000     1.86931709     0.69109398

@@ -17,7 +17,7 @@ PART = ('orbitals', 'eda', 'atoms')
 
 # init molecule
 mol = gto.M(verbose = 0, output = None,
-basis = 'ccpvdz', symmetry = True,
+basis = 'pcseg1', symmetry = True,
 atom = 'geom/h2o.xyz')
 
 # mf calc
@@ -47,6 +47,7 @@ class KnownValues(unittest.TestCase):
                             dipmom_tot = np.fromiter(map(np.sum, res['el'].T), dtype=np.float64, count=3) \
                                           + np.fromiter(map(np.sum, res['struct'].T), dtype=np.float64, count=3)
                         np.testing.assert_array_almost_equal(mf_dipmom_tot, dipmom_tot, TOL)
+                        self.assertAlmostEqual(np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL)
 
 if __name__ == '__main__':
     print('test: h2o_b3lyp_dipmom')
