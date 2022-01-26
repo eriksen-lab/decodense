@@ -47,6 +47,48 @@ class KnownValues(unittest.TestCase):
                         else:
                             e_tot = np.sum(res['struct']) + np.sum(res['el'])
                         self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_2(self):
+        mf_e_tot = mf.e_tot
+        rdm1 = mf.make_rdm1()
+        for loc in LOC[:1]:
+            for pop in POP[:1]:
+                for part in PART[1:]:
+                    with self.subTest(loc=loc, pop=pop, part=part):
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        res = decodense.main(mol, decomp, mf, rdm1_orb=rdm1)
+                        if part == 'orbitals':
+                            e_tot= np.sum(res['struct']) + np.sum(res['el'][0]) + np.sum(res['el'][1])
+                        else:
+                            e_tot = np.sum(res['struct']) + np.sum(res['el'])
+                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_3(self):
+        mf_e_tot = mf.e_tot
+        rdm1 = mf.make_rdm1()
+        for loc in LOC[:1]:
+            for pop in POP[:1]:
+                for part in PART[1:]:
+                    with self.subTest(loc=loc, pop=pop, part=part):
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        res = decodense.main(mol, decomp, mf, rdm1_eff=rdm1)
+                        if part == 'orbitals':
+                            e_tot= np.sum(res['struct']) + np.sum(res['el'][0]) + np.sum(res['el'][1])
+                        else:
+                            e_tot = np.sum(res['struct']) + np.sum(res['el'])
+                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_4(self):
+        mf_e_tot = mf.e_tot
+        rdm1 = mf.make_rdm1()
+        for loc in LOC[:1]:
+            for pop in POP[:1]:
+                for part in PART[1:]:
+                    with self.subTest(loc=loc, pop=pop, part=part):
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        res = decodense.main(mol, decomp, mf, rdm1_orb=rdm1, rdm1_eff=rdm1)
+                        if part == 'orbitals':
+                            e_tot= np.sum(res['struct']) + np.sum(res['el'][0]) + np.sum(res['el'][1])
+                        else:
+                            e_tot = np.sum(res['struct']) + np.sum(res['el'])
+                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 if __name__ == '__main__':
     print('test: h2o_wb97m_v_energy_gs')

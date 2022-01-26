@@ -59,7 +59,7 @@ def tearDownModule():
     del mol, mf_gs, mf_ex
 
 class KnownValues(unittest.TestCase):
-    def test(self):
+    def test_1(self):
         mf_e_tot = mf_ex.e_tot
         for loc in LOC:
             for pop in POP:
@@ -67,6 +67,48 @@ class KnownValues(unittest.TestCase):
                     with self.subTest(loc=loc, pop=pop, part=part):
                         decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
                         res_ex = decodense.main(mol, decomp, mf_ex)
+                        if part == 'orbitals':
+                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
+                        else:
+                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
+                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_2(self):
+        mf_e_tot = mf_ex.e_tot
+        rdm1_ex = mf_ex.make_rdm1()
+        for loc in LOC[:1]:
+            for pop in POP[:1]:
+                for part in PART[1:]:
+                    with self.subTest(loc=loc, pop=pop, part=part):
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        res_ex = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_ex)
+                        if part == 'orbitals':
+                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
+                        else:
+                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
+                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_3(self):
+        mf_e_tot = mf_ex.e_tot
+        rdm1_ex = mf_ex.make_rdm1()
+        for loc in LOC[:1]:
+            for pop in POP[:1]:
+                for part in PART[1:]:
+                    with self.subTest(loc=loc, pop=pop, part=part):
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        res_ex = decodense.main(mol, decomp, mf_ex, rdm1_eff=rdm1_ex)
+                        if part == 'orbitals':
+                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
+                        else:
+                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
+                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_4(self):
+        mf_e_tot = mf_ex.e_tot
+        rdm1_ex = mf_ex.make_rdm1()
+        for loc in LOC[:1]:
+            for pop in POP[:1]:
+                for part in PART[1:]:
+                    with self.subTest(loc=loc, pop=pop, part=part):
+                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
+                        res_ex = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_ex, rdm1_eff=rdm1_ex)
                         if part == 'orbitals':
                             e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
                         else:
