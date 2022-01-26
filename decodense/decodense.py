@@ -40,7 +40,6 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         # compute localized molecular orbitals
         if decomp.loc != '':
             mo_coeff = loc_orbs(mol, mo_coeff, mo_occ, decomp.loc, decomp.ndo, loc_lst)
-            mol.symmetry = False
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
