@@ -145,7 +145,7 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
         this function returns no coefficients and occupations corresponding
         to given mo coefficients and rdm1
         """
-        # assertions
+        # reshape mo_coeff and rdm1
         if mo_coeff.ndim == 2:
             c = np.asarray((mo_coeff,) * 2)
         else:
@@ -154,7 +154,6 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
             d = np.array([rdm1, rdm1]) * .5
         else:
             d = rdm1
-
         # overlap matrix
         s = mol.intor_symmetric('int1e_ovlp')
         # ao to mo transformation of dm
@@ -163,10 +162,14 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
         occ_no, u = np.linalg.eigh(rdm1_mo)
         # transform to no basis
         mo_no = contract('xip,xpj->xij', c, u)
-
         # retain only significant nos
-        return (mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)[0]], mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)[0]]), \
-               (occ_no[0][np.where(np.abs(occ_no[0]) >= thres)], occ_no[1][np.where(np.abs(occ_no[1]) >= thres)])
+        mo_no = (mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)[0]], mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)[0]])
+        occ_no = (occ_no[0][np.where(np.abs(occ_no[0]) >= thres)], occ_no[1][np.where(np.abs(occ_no[1]) >= thres)])
+        # sort occupations and nos
+        return (np.hstack((mo_no[0][:, np.where(occ_no[0] < 0.)[0]][:, ::-1], mo_no[0][:, np.where(occ_no[0] > 0.)[0]][:, ::-1])), \
+                np.hstack((mo_no[1][:, np.where(occ_no[1] < 0.)[0]][:, ::-1], mo_no[1][:, np.where(occ_no[1] > 0.)[0]][:, ::-1]))), \
+               (np.append(occ_no[0][np.where(occ_no[0] < 0.)[0]][::-1], occ_no[0][np.where(occ_no[0] > 0.)[0]][::-1]), \
+                np.append(occ_no[1][np.where(occ_no[1] < 0.)[0]][::-1], occ_no[1][np.where(occ_no[1] > 0.)[0]][::-1]))
 
 
 def write_rdm1(mol: gto.Mole, part: str, \
