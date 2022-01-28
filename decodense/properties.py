@@ -126,6 +126,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # molecular dimensions
         alpha, beta = dim(mo_occ)
+
+        # atomic labels
         if part == 'eda':
             ao_labels = mol.ao_labels(fmt=None)
 
