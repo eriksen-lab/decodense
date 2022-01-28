@@ -330,9 +330,9 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider_2
             string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
-            string += f'{"electronic":^10}|{np.sum(prop["el"]) * scaling:>+12.5f}   |\n'
+            string += f'{"electronic":^10}|{np.sum(prop["el"]) * scaling:>12.5f}   |\n'
             string += divider_2
-            string += f'{"structural":^10}|{np.sum(prop["struct"]) * scaling:>+12.5f}   |\n'
+            string += f'{"structural":^10}|{np.sum(prop["struct"]) * scaling:>12.5f}   |\n'
             string += divider_2
             string += divider_2
             string += f'{"total":^10}|{(np.sum(prop["el"]) + np.sum(prop["struct"])) * scaling:>12.5f}   |\n'
@@ -369,18 +369,18 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             # individual contributions
             for i, j in enumerate(mo_idx):
                 string += f'   {i:>2d}     |' \
-                          f' {prop["el"][j][0] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop["el"][j][1] * scaling + TOLERANCE:>+8.3f}  /' \
-                          f' {prop["el"][j][2] * scaling + TOLERANCE:>+8.3f}  ||' \
+                          f' {prop["el"][j][0] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el"][j][1] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el"][j][2] * scaling + TOLERANCE:>8.3f}  ||' \
                           f'{mo_occ[j]:>12.2e}   ||' \
                           f'{orbsym[j]:^15}\n'
 
             # summed contributions
             string += divider
             string += f'{"sum":^10}|' \
-                      f' {np.sum(prop["el"], axis=0)[0]* scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {np.sum(prop["el"], axis=0)[1]* scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {np.sum(prop["el"], axis=0)[2]* scaling + TOLERANCE:>+8.3f}  ||' \
+                      f' {np.sum(prop["el"], axis=0)[0]* scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el"], axis=0)[1]* scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el"], axis=0)[2]* scaling + TOLERANCE:>8.3f}  ||' \
                       f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}   ||\n'
             string += divider
             string += divider + '\n'
@@ -392,20 +392,20 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
             string += f'{"electronic":^10}|' \
-                      f' {sum_el[0] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_el[1] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_el[2] * scaling + TOLERANCE:>+8.3f}  |\n'
+                      f' {sum_el[0] * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {sum_el[1] * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {sum_el[2] * scaling + TOLERANCE:>8.3f}  |\n'
             string += divider_2
             string += f'{"structural":^10}|' \
-                      f' {sum_struct[0] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_struct[1] * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {sum_struct[2] * scaling + TOLERANCE:>+8.3f}  |\n'
+                      f' {sum_struct[0] * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {sum_struct[1] * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {sum_struct[2] * scaling + TOLERANCE:>8.3f}  |\n'
             string += divider_2
             string += divider_2
             string += f'{"total":^10}|' \
-                      f' {(sum_el[0] + sum_struct[0]) * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {(sum_el[1] + sum_struct[1]) * scaling + TOLERANCE:>+8.3f}  /' \
-                      f' {(sum_el[2] + sum_struct[2]) * scaling + TOLERANCE:>+8.3f}  |\n'
+                      f' {(sum_el[0] + sum_struct[0]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {(sum_el[1] + sum_struct[1]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {(sum_el[2] + sum_struct[2]) * scaling + TOLERANCE:>8.3f}  |\n'
             string += divider_2 + '\n'
 
         return string
