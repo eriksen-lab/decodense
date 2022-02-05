@@ -91,15 +91,17 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # init string
         string: str = ''
 
-        # electronic, structural, and total contributions to property
-        prop = {comp_key: kwargs[comp_key] for comp_key in COMP_KEYS[-2:]}
-        prop['tot'] = prop['el'] + prop['struct']
         # property type
-        scalar_prop = prop['el'].ndim == 1
+        scalar_prop = kwargs['el'].ndim == 1
         # property contributions
         if scalar_prop:
-            for comp_key in COMP_KEYS[:-2]:
-                prop[comp_key] = kwargs[comp_key]
+            prop = {comp_key: kwargs[comp_key] for comp_key in COMP_KEYS}
+            prop['tot'] = prop['el'] + prop['struct']
+        else:
+            prop = {comp_key + axis: kwargs[comp_key][:, ax_idx] \
+                    for comp_key in COMP_KEYS[-2:] for ax_idx, axis in enumerate(('-x', '-y', '-z'))}
+            for ax_idx, axis in enumerate(('-x', '-y', '-z')):
+                prop['tot' + axis] = prop['el' + axis] + prop['struct' + axis]
         # effective atomic charges
         prop['charge_atom'] = kwargs['charge_atom']
         # dump dict as dataframe
@@ -212,33 +214,30 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             # individual contributions
             for i in range(mol.natm):
                 string += f' {f"{mol.atom_symbol(i)}{i}":<5s}|' \
-                          f' {prop["el"][i][0] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["el"][i][1] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["el"][i][2] * scaling + TOLERANCE:>8.3f}  |' \
-                          f' {prop["struct"][i][0] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["struct"][i][1] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["struct"][i][2] * scaling + TOLERANCE:>8.3f}  |' \
-                          f' {prop["tot"][i][0] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["tot"][i][1] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["tot"][i][2] * scaling + TOLERANCE:>8.3f}  |' \
+                          f' {prop["el-x"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el-y"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el-z"][i] * scaling + TOLERANCE:>8.3f}  |' \
+                          f' {prop["struct-x"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["struct-y"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["struct-z"][i] * scaling + TOLERANCE:>8.3f}  |' \
+                          f' {prop["tot-x"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["tot-y"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["tot-z"][i] * scaling + TOLERANCE:>8.3f}  |' \
                           f'{prop["charge_atom"][i]:>+11.3f}\n'
             string += divider
             string += divider
 
             # total contributions
-            sum_el = np.fromiter(map(np.sum, prop['el'].T), dtype=np.float64, count=3)
-            sum_struct = np.fromiter(map(np.sum, prop['struct'].T), dtype=np.float64, count=3)
-            sum_tot = np.fromiter(map(np.sum, prop['tot'].T), dtype=np.float64, count=3)
             string += f'{"sum":^6}|' \
-                      f' {sum_el[0] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_el[1] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_el[2] * scaling + TOLERANCE:>8.3f}  |' \
-                      f' {sum_struct[0] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_struct[1] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_struct[2] * scaling + TOLERANCE:>8.3f}  |' \
-                      f' {sum_tot[0] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_tot[1] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_tot[2] * scaling + TOLERANCE:>8.3f}  |' \
+                      f' {np.sum(prop["el-x"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el-y"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el-z"]) * scaling + TOLERANCE:>8.3f}  |' \
+                      f' {np.sum(prop["struct-x"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["struct-y"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["struct-z"]) * scaling + TOLERANCE:>8.3f}  |' \
+                      f' {np.sum(prop["tot-x"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["tot-y"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["tot-z"]) * scaling + TOLERANCE:>8.3f}  |' \
                       f'{np.sum(prop["charge_atom"]) + TOLERANCE:>11.3f}\n'
             string += divider + '\n'
 
@@ -269,12 +268,15 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # property contributions
         if scalar_prop:
             prop = {comp_key: np.append(kwargs[comp_key][0], kwargs[comp_key][1])[mo_idx] for comp_key in COMP_KEYS[:-1]}
+            prop['struct'] = np.sum(kwargs['struct'])
         else:
-            prop = {comp_key: np.vstack((kwargs[comp_key][0], kwargs[comp_key][1]))[mo_idx] for comp_key in COMP_KEYS[:-1]}
+            prop = {'el' + axis: np.vstack((kwargs['el'][0], kwargs['el'][1]))[mo_idx[:, None], ax_idx].ravel() \
+                    for ax_idx, axis in enumerate(('-x', '-y', '-z'))}
+            for ax_idx, axis in enumerate(('-x', '-y', '-z')):
+                prop['struct' + axis] = np.sum(kwargs['struct'], axis=0)[ax_idx]
         # add mo occupations, orbital symmetries, and structural contributions to dict
         prop['mo_occ'] = mo_occ[mo_idx]
         prop['orbsym'] = orbsym[mo_idx]
-        prop['struct'] = np.sum(kwargs['struct'], axis=0)
         # dump dict as dataframe
         if 'dump_res' in kwargs:
             if kwargs['dump_res']:
@@ -386,43 +388,41 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             # individual contributions
             for i in range(mo_idx.size):
                 string += f'   {i:>2d}     |' \
-                          f' {prop["el"][i][0] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["el"][i][1] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["el"][i][2] * scaling + TOLERANCE:>8.3f}  ||' \
+                          f' {prop["el-x"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el-y"][i] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el-z"][i] * scaling + TOLERANCE:>8.3f}  ||' \
                           f'{prop["mo_occ"][i]:>12.2e}   ||' \
                           f'{prop["orbsym"][i]:^15}\n'
 
             # summed contributions
             string += divider
             string += f'{"sum":^10}|' \
-                      f' {np.sum(prop["el"], axis=0)[0]* scaling + TOLERANCE:>8.3f}  /' \
-                      f' {np.sum(prop["el"], axis=0)[1]* scaling + TOLERANCE:>8.3f}  /' \
-                      f' {np.sum(prop["el"], axis=0)[2]* scaling + TOLERANCE:>8.3f}  ||' \
+                      f' {np.sum(prop["el-x"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el-y"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el-z"]) * scaling + TOLERANCE:>8.3f}  ||' \
                       f'{round(np.sum(prop["mo_occ"]) + TOLERANCE, 6):>12.2f}   ||\n'
             string += divider
             string += divider + '\n'
 
             # total contributions
-            sum_el = np.fromiter(map(np.sum, prop['el'].T), dtype=np.float64, count=3)
-            sum_struct = prop['struct']
             string += divider_2
             string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
             string += f'{"electronic":^10}|' \
-                      f' {sum_el[0] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_el[1] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_el[2] * scaling + TOLERANCE:>8.3f}  |\n'
+                      f' {np.sum(prop["el-x"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el-y"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {np.sum(prop["el-z"]) * scaling + TOLERANCE:>8.3f}  |\n'
             string += divider_2
             string += f'{"structural":^10}|' \
-                      f' {sum_struct[0] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_struct[1] * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {sum_struct[2] * scaling + TOLERANCE:>8.3f}  |\n'
+                      f' {prop["struct-x"] * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {prop["struct-y"] * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {prop["struct-z"] * scaling + TOLERANCE:>8.3f}  |\n'
             string += divider_2
             string += divider_2
             string += f'{"total":^10}|' \
-                      f' {(sum_el[0] + sum_struct[0]) * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {(sum_el[1] + sum_struct[1]) * scaling + TOLERANCE:>8.3f}  /' \
-                      f' {(sum_el[2] + sum_struct[2]) * scaling + TOLERANCE:>8.3f}  |\n'
+                      f' {(np.sum(prop["el-x"]) + prop["struct-x"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {(np.sum(prop["el-y"]) + prop["struct-y"]) * scaling + TOLERANCE:>8.3f}  /' \
+                      f' {(np.sum(prop["el-z"]) + prop["struct-z"]) * scaling + TOLERANCE:>8.3f}  |\n'
             string += divider_2 + '\n'
 
         return string
