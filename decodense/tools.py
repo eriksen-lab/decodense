@@ -172,7 +172,7 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
 def write_rdm1(mol: gto.Mole, part: str, \
                mo_coeff: np.ndarray, mo_occ: np.ndarray, fmt: str, \
                weights: List[np.ndarray], \
-               identifier: str = '') -> None:
+               suffix: str = '') -> None:
         """
         this function writes a 1-RDM as a numpy or cube (default) file
         """
@@ -199,11 +199,11 @@ def write_rdm1(mol: gto.Mole, part: str, \
                     rdm1_atom[i] += rdm1_orb * weights[i][m][a]
             if fmt == 'cube':
                 # write rdm1_atom as cube file
-                pyscf_tools.cubegen.density(mol, f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{identifier:}.cube', \
+                pyscf_tools.cubegen.density(mol, f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{suffix:}.cube', \
                                             np.sum(rdm1_atom, axis=0))
             else:
                 # write rdm1_atom as numpy file
-                np.save(f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{identifier:}.npy', np.sum(rdm1_atom, axis=0))
+                np.save(f'atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{suffix:}.npy', np.sum(rdm1_atom, axis=0))
 
 
 def res_add(res_a, res_b):

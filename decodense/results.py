@@ -12,6 +12,7 @@ __status__ = 'Development'
 
 import os
 import numpy as np
+import pandas as pd
 from pyscf import gto, lo
 from typing import Dict, Tuple, List, Union, Any
 
@@ -93,15 +94,23 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         # electronic, structural, and total contributions to property
         prop = {comp_key: kwargs[comp_key] for comp_key in COMP_KEYS[-2:]}
         prop['tot'] = prop['el'] + prop['struct']
-        # effective atomic charges
-        charge_atom = kwargs['charge_atom']
-
-        # scalar property
-        if prop['el'].ndim == prop['struct'].ndim == 1:
-
-            # remaining energetic contributions
+        # property type
+        scalar_prop = prop['el'].ndim == 1
+        # property contributions
+        if scalar_prop:
             for comp_key in COMP_KEYS[:-2]:
                 prop[comp_key] = kwargs[comp_key]
+        # effective atomic charges
+        prop['charge_atom'] = kwargs['charge_atom']
+        # dump dict as dataframe
+        if 'dump_res' in kwargs:
+            if kwargs['dump_res']:
+                df = pd.DataFrame.from_dict(prop)
+                suffix = '' if 'suffix' not in kwargs else kwargs['suffix']
+                df.to_csv(f'res{suffix:}.csv', index=False)
+
+        # scalar property
+        if scalar_prop:
 
             # formatting
             length = 189
@@ -148,7 +157,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f'{prop["el"][i] * scaling:>13.5f}  ||' \
                           f'{prop["struct"][i] * scaling:>13.5f}  |||' \
                           f'{prop["tot"][i] * scaling:>13.5f}  |||' \
-                          f'{charge_atom[i]:>11.3f}\n'
+                          f'{prop["charge_atom"][i]:>11.3f}\n'
             string += divider
             string += divider
 
@@ -164,11 +173,11 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{np.sum(prop["el"]) * scaling:>13.5f}  ||' \
                       f'{np.sum(prop["struct"]) * scaling:>13.5f}  |||' \
                       f'{np.sum(prop["tot"]) * scaling:>13.5f}  |||' \
-                      f'{np.sum(charge_atom) + TOLERANCE:>11.3f}\n'
+                      f'{np.sum(prop["charge_atom"]) + TOLERANCE:>11.3f}\n'
             string += divider + '\n'
 
         # tensor property
-        elif prop['el'].ndim == prop['struct'].ndim == 2:
+        else:
 
             # formatting
             length = 131
@@ -212,7 +221,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                           f' {prop["tot"][i][0] * scaling + TOLERANCE:>8.3f}  /' \
                           f' {prop["tot"][i][1] * scaling + TOLERANCE:>8.3f}  /' \
                           f' {prop["tot"][i][2] * scaling + TOLERANCE:>8.3f}  |' \
-                          f'{charge_atom[i]:>+11.3f}\n'
+                          f'{prop["charge_atom"][i]:>+11.3f}\n'
             string += divider
             string += divider
 
@@ -230,7 +239,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f' {sum_tot[0] * scaling + TOLERANCE:>8.3f}  /' \
                       f' {sum_tot[1] * scaling + TOLERANCE:>8.3f}  /' \
                       f' {sum_tot[2] * scaling + TOLERANCE:>8.3f}  |' \
-                      f'{0.:>11.3f}\n'
+                      f'{np.sum(prop["charge_atom"]) + TOLERANCE:>11.3f}\n'
             string += divider + '\n'
 
         return string
@@ -259,11 +268,19 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
         scalar_prop = kwargs['el'][0].ndim == 1
         # property contributions
         if scalar_prop:
-            prop = {comp_key: np.append(kwargs[comp_key][0], kwargs[comp_key][1]) for comp_key in COMP_KEYS[:-1]}
+            prop = {comp_key: np.append(kwargs[comp_key][0], kwargs[comp_key][1])[mo_idx] for comp_key in COMP_KEYS[:-1]}
         else:
-            prop = {comp_key: np.vstack((kwargs[comp_key][0], kwargs[comp_key][1])) for comp_key in COMP_KEYS[:-1]}
-        # remaining structural contribution
-        prop['struct'] = kwargs['struct']
+            prop = {comp_key: np.vstack((kwargs[comp_key][0], kwargs[comp_key][1]))[mo_idx] for comp_key in COMP_KEYS[:-1]}
+        # add mo occupations, orbital symmetries, and structural contributions to dict
+        prop['mo_occ'] = mo_occ[mo_idx]
+        prop['orbsym'] = orbsym[mo_idx]
+        prop['struct'] = np.sum(kwargs['struct'], axis=0)
+        # dump dict as dataframe
+        if 'dump_res' in kwargs:
+            if kwargs['dump_res']:
+                df = pd.DataFrame.from_dict(prop)
+                suffix = '' if 'suffix' not in kwargs else kwargs['suffix']
+                df.to_csv(f'res{suffix:}.csv', index=False)
 
         # scalar property
         if scalar_prop:
@@ -300,17 +317,17 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
 
             # individual contributions
-            for i, j in enumerate(mo_idx):
+            for i in range(mo_idx.size):
                 string += f'  {i:>3d}     |' \
-                          f'{prop["coul"][j] * scaling:>12.5f}   |' \
-                          f'{prop["exch"][j] * scaling:>12.5f}   |' \
-                          f'{prop["kin"][j] * scaling:>12.5f}   |' \
-                          f'{prop["nuc_att"][j] * scaling:>12.5f}   |' \
-                          f'{prop["solvent"][j] * scaling:>12.5f}   |' \
-                          f'{prop["xc"][j] * scaling:>12.5f}   ||' \
-                          f'{prop["el"][j] * scaling:>12.5f}   ||' \
-                          f'{mo_occ[j]:>12.2e}   ||' \
-                          f'{orbsym[j]:^15}\n'
+                          f'{prop["coul"][i] * scaling:>12.5f}   |' \
+                          f'{prop["exch"][i] * scaling:>12.5f}   |' \
+                          f'{prop["kin"][i] * scaling:>12.5f}   |' \
+                          f'{prop["nuc_att"][i] * scaling:>12.5f}   |' \
+                          f'{prop["solvent"][i] * scaling:>12.5f}   |' \
+                          f'{prop["xc"][i] * scaling:>12.5f}   ||' \
+                          f'{prop["el"][i] * scaling:>12.5f}   ||' \
+                          f'{prop["mo_occ"][i]:>12.2e}   ||' \
+                          f'{prop["orbsym"][i]:^15}\n'
 
             # summed contributions
             string += divider
@@ -322,7 +339,7 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f'{np.sum(prop["solvent"]) * scaling:>12.5f}   |' \
                       f'{np.sum(prop["xc"]) * scaling:>12.5f}   ||' \
                       f'{np.sum(prop["el"]) * scaling:>12.5f}   ||' \
-                      f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}   ||\n'
+                      f'{round(np.sum(prop["mo_occ"]) + TOLERANCE, 6):>12.2f}   ||\n'
             string += divider
             string += divider + '\n'
 
@@ -332,10 +349,10 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider_2
             string += f'{"electronic":^10}|{np.sum(prop["el"]) * scaling:>12.5f}   |\n'
             string += divider_2
-            string += f'{"structural":^10}|{np.sum(prop["struct"]) * scaling:>12.5f}   |\n'
+            string += f'{"structural":^10}|{prop["struct"] * scaling:>12.5f}   |\n'
             string += divider_2
             string += divider_2
-            string += f'{"total":^10}|{(np.sum(prop["el"]) + np.sum(prop["struct"])) * scaling:>12.5f}   |\n'
+            string += f'{"total":^10}|{(np.sum(prop["el"]) + prop["struct"]) * scaling:>12.5f}   |\n'
             string += divider_2 + '\n'
 
         # tensor property
@@ -367,13 +384,13 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             string += divider
 
             # individual contributions
-            for i, j in enumerate(mo_idx):
+            for i in range(mo_idx.size):
                 string += f'   {i:>2d}     |' \
-                          f' {prop["el"][j][0] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["el"][j][1] * scaling + TOLERANCE:>8.3f}  /' \
-                          f' {prop["el"][j][2] * scaling + TOLERANCE:>8.3f}  ||' \
-                          f'{mo_occ[j]:>12.2e}   ||' \
-                          f'{orbsym[j]:^15}\n'
+                          f' {prop["el"][i][0] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el"][i][1] * scaling + TOLERANCE:>8.3f}  /' \
+                          f' {prop["el"][i][2] * scaling + TOLERANCE:>8.3f}  ||' \
+                          f'{prop["mo_occ"][i]:>12.2e}   ||' \
+                          f'{prop["orbsym"][i]:^15}\n'
 
             # summed contributions
             string += divider
@@ -381,13 +398,13 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
                       f' {np.sum(prop["el"], axis=0)[0]* scaling + TOLERANCE:>8.3f}  /' \
                       f' {np.sum(prop["el"], axis=0)[1]* scaling + TOLERANCE:>8.3f}  /' \
                       f' {np.sum(prop["el"], axis=0)[2]* scaling + TOLERANCE:>8.3f}  ||' \
-                      f'{round(np.sum(mo_occ) + TOLERANCE, 6):>12.2f}   ||\n'
+                      f'{round(np.sum(prop["mo_occ"]) + TOLERANCE, 6):>12.2f}   ||\n'
             string += divider
             string += divider + '\n'
 
             # total contributions
             sum_el = np.fromiter(map(np.sum, prop['el'].T), dtype=np.float64, count=3)
-            sum_struct = np.sum(prop['struct'], axis=0)
+            sum_struct = prop['struct']
             string += divider_2
             string += f'{"total sum":^{length_2-1}}|\n'
             string += divider_2
