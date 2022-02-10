@@ -10,10 +10,13 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import sys
 import numpy as np
 import multiprocessing as mp
 from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
+from pyscf.pbc import gto as cgto  
+from pyscf.pbc import scf as cscf 
 from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
@@ -25,7 +28,7 @@ from .decomp import COMP_KEYS
 BLKSIZE = 200
 
 
-def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
+def prop_tot(mol: Union[None, gto.Mole, cgto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, cscf.RHF], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              pop: str, prop_type: str, part: str, multiproc: bool, \
              **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
@@ -39,6 +42,13 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
+
+        # if cell obj -> only execute what's implemented
+        if isinstance(mol, cgto.Cell) and prop_type == 'energy':
+            sys.exit('PBC module is in development, but can compute (atomwise) nuc-nuc repulsion term')
+            #return {**prop }
+        if isinstance(mol, cgto.Cell) and prop_type != 'energy':
+            sys.exit('PBC module is in development, the only valid choice for property: energy')
 
         # ao dipole integrals with specified gauge origin
         if prop_type == 'dipole':
@@ -323,6 +333,9 @@ def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:
                 r = lib.norm(r2 - mm_coords, axis=1)
                 e_nuc[j] += q2 * np.sum(mm_charges / r)
         return e_nuc
+
+
+# TODO ewald here
 
 
 def _dip_nuc(mol: gto.Mole, atom_charges: np.ndarray, gauge_origin: np.ndarray) -> np.ndarray:

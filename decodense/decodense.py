@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 from pyscf import lib, gto, scf, dft
 from pyscf.pbc import gto as cgto
-from pyscf.pbc import scf as kscf
+from pyscf.pbc import scf as cscf
 from mpi4py import MPI
 from typing import Dict, Tuple, List, Union, Any
 
@@ -26,7 +26,7 @@ from .tools import dim, make_rdm1, format_mf, write_rdm1
 
 
 def main(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls, \
-         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT, kscf.RHF], \
+         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT, cscf.RHF], \
          loc_lst: Union[None, List[Any]] = None, \
          dipole_origin: Union[List[float], np.ndarray] = [0.] * 3) -> Dict[str, Any]:
         """
@@ -40,9 +40,9 @@ def main(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls, \
 
         if isinstance(mol, cgto.Cell) and (decomp.prop == 'energy'):
             if decomp.part == 'atoms':
-               # decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
-               #                       decomp.prop, decomp.part, decomp.multiproc, \
-               #                       weights = weights, dipole_origin = dipole_origin)
+                decomp.res = prop_tot(mol, mf, (None, None), (None, None), decomp.pop, \
+                                      decomp.prop, decomp.part, decomp.multiproc, \
+                                      weights = None, dipole_origin = dipole_origin)
                 decomp.res['time'] = MPI.Wtime() - time
 
                 warnings.warn('PBC module is in development, but atomwise nuclear-nuclear repulsion' + \
