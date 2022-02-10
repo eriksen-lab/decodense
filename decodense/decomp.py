@@ -14,6 +14,7 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto
+from pyscf.pbc import gto as cgto
 from typing import List, Dict, Union
 
 
@@ -47,7 +48,7 @@ class DecompCls(object):
                 self.centres: np.ndarray = None
 
 
-def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
+def sanity_check(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls) -> None:
         """
         this function performs sanity checks of decomp attributes
         """

@@ -10,8 +10,11 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import sys
 import numpy as np
 from pyscf import lib, gto, scf, dft
+from pyscf.pbc import gto as cgto
+from pyscf.pbc import scf as kscf
 from mpi4py import MPI
 from typing import Dict, Tuple, List, Union, Any
 
@@ -21,8 +24,8 @@ from .properties import prop_tot
 from .tools import dim, make_rdm1, format_mf, write_rdm1
 
 
-def main(mol: gto.Mole, decomp: DecompCls, \
-         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT], \
+def main(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls, \
+         mf: Union[None, scf.hf.SCF, dft.rks.KohnShamDFT, kscf.RHF], \
          loc_lst: Union[None, List[Any]] = None, \
          dipole_origin: Union[List[float], np.ndarray] = [0.] * 3) -> Dict[str, Any]:
         """
@@ -30,6 +33,8 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         """
         # sanity check
         sanity_check(mol, decomp)
+    
+        sys.exit('PBC module is not functional yet')
 
         # init time
         time = MPI.Wtime()
