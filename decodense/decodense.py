@@ -11,6 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import sys
+import warnings
 import numpy as np
 from pyscf import lib, gto, scf, dft
 from pyscf.pbc import gto as cgto
@@ -34,10 +35,24 @@ def main(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls, \
         # sanity check
         sanity_check(mol, decomp)
     
-        sys.exit('PBC module is not functional yet')
-
         # init time
         time = MPI.Wtime()
+
+        if isinstance(mol, cgto.Cell) and (decomp.prop == 'energy'):
+            if decomp.part == 'atoms':
+               # decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, decomp.pop, \
+               #                       decomp.prop, decomp.part, decomp.multiproc, \
+               #                       weights = weights, dipole_origin = dipole_origin)
+                decomp.res['time'] = MPI.Wtime() - time
+
+                warnings.warn('PBC module is in development, but atomwise nuclear-nuclear repulsion' + \
+                         ' term of energy at gamma point has been computed', Warning)
+                return decomp.res
+            else:
+                sys.exit('PBC module is in development, can only compute atomwise ' + \
+                         'nuclear-nuclear repulsion term of energy at gamma point')
+        elif isinstance(mol, cgto.Cell) and (decomp.prop != 'energy'):
+            sys.exit('PBC module is in development, the only valid choice for property: energy')
 
         # mf calculation
         mo_coeff, mo_occ = format_mf(mf, mol.spin)
