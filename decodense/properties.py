@@ -30,7 +30,7 @@ from .decomp import COMP_KEYS
 # block size in _mm_pot()
 BLKSIZE = 200
 
-
+#FIXME see if the mol/cell object can get a general name
 def prop_tot(mol: Union[None, gto.Mole, cgto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, cscf.RHF], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              pop: str, prop_type: str, part: str, multiproc: bool, \
@@ -48,10 +48,8 @@ def prop_tot(mol: Union[None, gto.Mole, cgto.Cell], mf: Union[scf.hf.SCF, dft.rk
 
         # if cell obj -> only execute what's implemented
         if isinstance(mol, cgto.Cell) and prop_type == 'energy':
-            # FIXME see if there's a smarter way to rename
-            cell = mol
-            prop = {comp_key: np.zeros(cell.natm, dtype=np.float64) for comp_key in COMP_KEYS}
-            prop_nuc_rep = _ewald_e_nuc(cell)
+            prop = {comp_key: np.zeros(mol.natm, dtype=np.float64) for comp_key in COMP_KEYS}
+            prop_nuc_rep = _ewald_e_nuc(mol)
             prop['struct'] = prop_nuc_rep
             #sys.exit('PBC module is in development, but can compute (atomwise) nuc-nuc repulsion term')
             return {**prop }
