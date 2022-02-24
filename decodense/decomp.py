@@ -15,7 +15,7 @@ __status__ = 'Development'
 import numpy as np
 from pyscf import gto
 from pyscf.pbc import gto as cgto
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Any
 
 
 # component keys
@@ -26,7 +26,8 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         def __init__(self, loc: str = '', pop: str = 'mulliken', \
-                     part = 'atoms', thres = .75, multiproc: bool = False, \
+                     part = 'atoms', ndo: bool = False, multiproc: bool = False, \
+                     gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
                 """
                 init molecule attributes
@@ -35,8 +36,9 @@ class DecompCls(object):
                 self.loc = loc
                 self.pop = pop
                 self.part = part
-                self.thres = thres
+                self.ndo = ndo
                 self.multiproc = multiproc
+                self.gauge_origin = gauge_origin
                 self.prop = prop
                 self.write = write
                 self.verbose = verbose
@@ -59,16 +61,17 @@ def sanity_check(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls) -> No
         assert decomp.pop in ['mulliken', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` (default) or `iao`'
         # partitioning
-        assert decomp.part in ['atoms', 'eda', 'bonds'], \
-            'invalid partitioning. valid choices: `atoms` (default), `eda`, or `bonds`'
-        # bond partitioning threshold
-        assert isinstance(decomp.thres, float), \
-            'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
-        assert 0. < decomp.thres < 1., \
-            'invalid bond partitioning threshold. valid choices: 0. < `thres` < 1. (default: .75)'
+        assert decomp.part in ['atoms', 'eda', 'orbitals'], \
+            'invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`'
+        # ndo decomposition
+        assert isinstance(decomp.ndo, bool), \
+            'invalid ndo argument. must be a bool'
         # multiprocessing
         assert isinstance(decomp.multiproc, bool), \
             'invalid multiprocessing argument. must be a bool'
+        # gauge origin
+        assert isinstance(decomp.gauge_origin, (list, np.ndarray)), \
+            'invalid gauge origin. must be a list or numpy array of ints/floats'
         # property
         assert decomp.prop in ['energy', 'dipole'], \
             'invalid property. valid choices: `energy` (default) and `dipole`'
