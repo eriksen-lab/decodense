@@ -18,7 +18,7 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .tools import dim, make_rdm1, contract
+from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import COMP_KEYS
 
 # block size in _mm_pot()
@@ -27,27 +27,31 @@ BLKSIZE = 200
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             pop: str, prop_type: str, part: str, multiproc: bool, \
-             **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
+             gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
         # declare nested kernel functions in global scope
         global prop_atom
         global prop_eda
-        global prop_bonds
+        global prop_orb
 
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
 
         # ao dipole integrals with specified gauge origin
         if prop_type == 'dipole':
-            with mol.with_common_origin(kwargs['dipole_origin']):
+            with mol.with_common_origin(gauge_origin):
                 ao_dip = mol.intor_symmetric('int1e_r', comp=3)
         else:
             ao_dip = None
 
-        # compute total 1-RDM (AO basis)
+        # compute total 1-RDMs (AO basis)
+        if rdm1_eff is None:
+            rdm1_eff = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
+        if rdm1_eff.ndim == 2:
+            rdm1_eff = np.array([rdm1_eff, rdm1_eff]) * .5
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # mol object projected into minao basis
@@ -59,16 +63,18 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # effective atomic charges
         if 'weights' in kwargs:
             weights = kwargs['weights']
-            charge_atom = pmol.atom_charges() - np.sum(weights[0] + weights[1], axis=0)
+            charge_atom = -np.sum(weights[0] + weights[1], axis=0)
+            if not ndo:
+                charge_atom += pmol.atom_charges()
         else:
             charge_atom = 0.
 
         # possible mm region
         mm_mol = getattr(mf, 'mm_mol', None)
 
-        # cosmo/pcm solvent model
+        # possible cosmo/pcm solvent model
         if getattr(mf, 'with_solvent', None):
-            e_solvent = _solvent(mol, np.sum(rdm1_tot, axis=0), mf.with_solvent)
+            e_solvent = _solvent(mol, np.sum(rdm1_eff, axis=0), mf.with_solvent)
         else:
             e_solvent = None
 
@@ -76,25 +82,28 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if prop_type == 'energy':
             prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
-            prop_nuc_rep = _dip_nuc(pmol, charge_atom, kwargs['dipole_origin'])
+            prop_nuc_rep = _dip_nuc(pmol, charge_atom, gauge_origin)
 
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol)
         # fock potential
-        vj, vk = mf.get_jk(mol=mol, dm=rdm1_tot)
+        vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
 
         # calculate xc energy density
         if dft_calc:
+            # ndo assertion
+            if ndo:
+                raise NotImplementedError('NDOs for KS-DFT is not implemented')
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, mf.xc, rdm1_tot, vk)
+            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
             grid_weights = mf.grids.weights
             # compute all intermediates
-            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_tot, xc_type)
+            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_eff, xc_type)
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # nlc (vv10)
@@ -102,7 +111,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 nlc_pars = dft.libxc.nlc_coeff(mf.xc)
                 ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                 grid_weights_nlc = mf.nlcgrids.weights
-                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_tot, axis=0), 'GGA')
+                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
                 eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
                                              grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
             else:
@@ -116,7 +125,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             c0_vv10 = c1_vv10 = None
 
         # molecular dimensions
-        alpha, beta = dim(mol, mo_occ)
+        alpha, beta = dim(mo_occ)
+
+        # atomic labels
         if part == 'eda':
             ao_labels = mol.ao_labels(fmt=None)
 
@@ -140,7 +151,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         # orbital-specific rdm1
                         rdm1_orb = make_rdm1(orb, mo_occ[i][j])
                         # weighted contribution to rdm1_atom
-                        rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx]
+                        rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx] / np.sum(weights[i][m])
                     # coulumb & exchange energy associated with given atom
                     if prop_type == 'energy':
                         res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
@@ -178,7 +189,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 """
                 # init results
                 if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
                 # get AOs on atom k
@@ -218,13 +229,13 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                         res['el'] += res[comp_key]
                 return res
 
-        def prop_bonds(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
+        def prop_orb(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
                 """
                 this function returns bond-wise energy/dipole contributions
                 """
                 # init res
                 if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
                 else:
                     res = {}
                 # get orbital(s)
@@ -277,30 +288,33 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
-            prop['struct'] = prop_nuc_rep
-        else: # bonds
-            # get rep_idx
-            rep_idx = kwargs['rep_idx']
+            if not ndo:
+                prop['struct'] = prop_nuc_rep
+            return {**prop, 'charge_atom': charge_atom}
+        else: # orbs
             # init orbital-specific energy or dipole array
             if prop_type == 'energy':
-                prop = {comp_key: [np.zeros(len(rep_idx[0]), dtype=np.float64), np.zeros(len(rep_idx[1]), dtype=np.float64)] for comp_key in COMP_KEYS}
+                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-1]}
             elif prop_type == 'dipole':
-                prop = {comp_key: [np.zeros([len(rep_idx[0]), 3], dtype=np.float64), np.zeros([len(rep_idx[1]), 3], dtype=np.float64)] for comp_key in COMP_KEYS}
+                prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
-            domain = np.array([(i, j) for i, _ in enumerate((alpha, beta)) for j in rep_idx[i]])
+            domain = np.array([(i, j) for i, orbs in enumerate((alpha, beta)) for j in orbs])
             # execute kernel
             if multiproc:
                 n_threads = min(domain.size, lib.num_threads())
                 with mp.Pool(processes=n_threads) as pool:
-                    res = pool.starmap(prop_bonds, domain) # type:ignore
+                    res = pool.starmap(prop_orb, domain) # type:ignore
             else:
-                res = list(starmap(prop_bonds, domain)) # type:ignore
+                res = list(starmap(prop_orb, domain)) # type:ignore
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
-                    prop[key][0 if k < len(rep_idx[0]) else 1][k % len(rep_idx[0])] = val
-            prop['struct'] = prop_nuc_rep
-        return {**prop, 'charge_atom': charge_atom}
+                    prop[key][domain[k, 0]][domain[k, 1]] = val
+            if ndo:
+                prop['struct'] = np.zeros_like(prop_nuc_rep)
+            else:
+                prop['struct'] = prop_nuc_rep
+            return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff), 'ndo': ndo}
 
 
 def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:
@@ -350,7 +364,7 @@ def _h_core(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> Tuple[np.ndarray, n
         sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
         for k in range(mol.natm):
             with mol.with_rinv_origin(coords[k]):
-                sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
+                sub_nuc[k] = -mol.intor('int1e_rinv') * charges[k]
         # total nuclear potential
         nuc = np.sum(sub_nuc, axis=0)
         # possible mm potential
