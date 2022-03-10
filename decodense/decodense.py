@@ -14,8 +14,8 @@ import sys
 import warnings
 import numpy as np
 from pyscf import gto, scf, dft
-from pyscf.pbc import gto as cgto
-from pyscf.pbc import scf as cscf
+from pyscf.pbc import gto as pbc_gto
+from pyscf.pbc import scf as pbc_scf
 from typing import Dict, Tuple, List, Union, Optional, Any
 
 from .decomp import DecompCls, sanity_check
@@ -23,9 +23,9 @@ from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
 from .tools import make_natorb, mf_info, write_rdm1
 
-
-def main(mol: Union[gto.Mole, cgto.Cell], decomp: DecompCls, \
-         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, cscf.RHF], \
+# TODO prob. should be pbc_scf.hf.RHF
+def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
+         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
          rdm1_orb: np.ndarray = None, \
          rdm1_eff: np.ndarray = None, \
          loc_lst: Optional[Any] = None) -> Dict[str, Any]:
@@ -35,7 +35,7 @@ def main(mol: Union[gto.Mole, cgto.Cell], decomp: DecompCls, \
         # sanity check
         sanity_check(mol, decomp)
     
-        if isinstance(mol, cgto.Cell) and (decomp.prop == 'energy'):
+        if isinstance(mol, pbc_gto.Cell) and (decomp.prop == 'energy'):
             if decomp.part == 'atoms':
                 decomp.res = prop_tot(mol, mf, (None, None), (None, None), (None, None), decomp.pop, \
                                       decomp.prop, decomp.part, decomp.ndo, decomp.multiproc, decomp.gauge_origin, \
@@ -47,7 +47,7 @@ def main(mol: Union[gto.Mole, cgto.Cell], decomp: DecompCls, \
             else:
                 sys.exit('PBC module is in development, can only compute atomwise ' + \
                          'nuclear-nuclear repulsion term of energy at gamma point')
-        elif isinstance(mol, cgto.Cell) and (decomp.prop != 'energy'):
+        elif isinstance(mol, pbc_gto.Cell) and (decomp.prop != 'energy'):
             sys.exit('PBC module is in development, the only valid choice for property: energy')
 
         # format orbitals from mean-field calculation
