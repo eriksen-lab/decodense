@@ -21,7 +21,7 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .pbctools import ewald_e_nuc
+from .pbctools import ewald_e_nuc, get_nuc_atomic
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import COMP_KEYS
 
@@ -95,7 +95,10 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
 
         # nuclear repulsion property
         if prop_type == 'energy':
-            prop_nuc_rep = _e_nuc(pmol, mm_mol)
+            if isinstance(mol, pbc_gto.Cell):
+                prop_nuc_rep = ewald_e_nuc(mol)
+            else:
+                prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
             prop_nuc_rep = _dip_nuc(pmol, charge_atom, gauge_origin)
 
@@ -365,21 +368,28 @@ def _dip_nuc(mol: gto.Mole, atom_charges: np.ndarray, gauge_origin: np.ndarray) 
         return contract('i,ix->ix', form_charges, coords) - contract('i,x->ix', act_charges, gauge_origin)
 
 
-def _h_core(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> Tuple[np.ndarray, np.ndarray, \
+def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole]) -> Tuple[np.ndarray, np.ndarray, \
                                                                    np.ndarray, Union[None, np.ndarray]]:
         """
         this function returns the components of the core hamiltonian
         """
-        # kinetic integrals
-        kin = mol.intor_symmetric('int1e_kin')
-        # coordinates and charges of nuclei
-        coords = mol.atom_coords()
-        charges = mol.atom_charges()
-        # individual atomic potentials
-        sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
-        for k in range(mol.natm):
-            with mol.with_rinv_origin(coords[k]):
-                sub_nuc[k] = -mol.intor('int1e_rinv') * charges[k]
+        if (isinstance(mol, pbc_gto.Cell) and isinstance(mf, pbc_scf.hf.RHF)):
+            # kinetic integrals
+            kin = mol.pbc_intor('int1e_kin')
+            mydf = mf.with_df
+            # individual atomic potentials
+            sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
+        else:
+            # kinetic integrals
+            kin = mol.intor_symmetric('int1e_kin')
+            # coordinates and charges of nuclei
+            coords = mol.atom_coords()
+            charges = mol.atom_charges()
+            # individual atomic potentials
+            sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
+            for k in range(mol.natm):
+                with mol.with_rinv_origin(coords[k]):
+                    sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
         # total nuclear potential
         nuc = np.sum(sub_nuc, axis=0)
         # possible mm potential
