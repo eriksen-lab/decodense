@@ -33,7 +33,7 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         main decodense program
         """
         # sanity check
-        sanity_check(mol, decomp)
+        sanity_check(mol, mf, decomp)
 
         # format orbitals from mean-field calculation
         if rdm1_orb is None:

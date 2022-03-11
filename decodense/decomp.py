@@ -12,9 +12,12 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import warnings
 import numpy as np
-from pyscf import gto
-from pyscf.pbc import gto as cgto
+from pyscf import gto, scf, dft
+from pyscf.pbc import gto as pbc_gto
+from pyscf.pbc import scf as pbc_scf
+from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 from typing import List, Dict, Union, Any
 
 
@@ -49,8 +52,10 @@ class DecompCls(object):
                 self.weights: np.ndarray = None
                 self.centres: np.ndarray = None
 
-
-def sanity_check(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls) -> None:
+# TODO why mol can be None
+def sanity_check(mol: Union[None, gto.Mole, pbc_gto.Cell], \
+                 mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
+                 decomp: DecompCls) -> None:
         """
         this function performs sanity checks of decomp attributes
         """
@@ -85,5 +90,18 @@ def sanity_check(mol: Union[None, gto.Mole, cgto.Cell], decomp: DecompCls) -> No
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'
         assert 0 <= decomp.verbose, \
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'
-
+        # pbc implementation
+        if isinstance(mol, pbc_gto.Cell):
+            assert np.shape(mf.kpt) == (3,), \
+                'PBC module is in development, only gamma-point methods implemented.'
+            assert gamma_point(mf.kpt), \
+                'PBC module is in development, only gamma-point methods implemented.'
+            assert mol.dimension == 3, \
+               'PBC module is in development, current implementation treats 3D-cells only.' 
+            assert mol.pseudo is None, \
+                'PBC module is in development, only all-electron methods implemented.'
+            assert decomp.prop == 'energy' and decomp.part in ['atoms', 'eda'], \
+                'PBC module is in development. Only all-electron gamma-point RHF calculation of energy for 3D-periodic systems can be decomposed into atomwise contributions.'
+            if decomp.part == 'eda':
+                warnings.warn('The eda partitioning for periodic systems is not properly tested!')
 
