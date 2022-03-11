@@ -34,21 +34,6 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         """
         # sanity check
         sanity_check(mol, decomp)
-    
-        if isinstance(mol, pbc_gto.Cell) and (decomp.prop == 'energy'):
-            if decomp.part == 'atoms':
-                decomp.res = prop_tot(mol, mf, (None, None), (None, None), (None, None), decomp.pop, \
-                                      decomp.prop, decomp.part, decomp.ndo, decomp.multiproc, decomp.gauge_origin, \
-                                      weights = None)
-
-                warnings.warn('PBC module is in development, but atomwise nuclear-nuclear repulsion' + \
-                         ' term of energy at gamma point has been computed', Warning)
-                return decomp.res
-            else:
-                sys.exit('PBC module is in development, can only compute atomwise ' + \
-                         'nuclear-nuclear repulsion term of energy at gamma point')
-        elif isinstance(mol, pbc_gto.Cell) and (decomp.prop != 'energy'):
-            sys.exit('PBC module is in development, the only valid choice for property: energy')
 
         # format orbitals from mean-field calculation
         if rdm1_orb is None:
