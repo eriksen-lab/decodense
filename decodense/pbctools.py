@@ -5,20 +5,26 @@
 pbc module
 """
 
-__author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
-__maintainer__ = 'Dr. Janus Juul Eriksen'
-__email__ = 'janus.eriksen@bristol.ac.uk'
+__author__ = 'Luna Zamok, Technical University of Denmark, DK'
+__maintainer__ = 'Luna Zamok'
+__email__ = 'luza@kemi.dtu.dk'
 __status__ = 'Development'
 
 import numpy as np
 from scipy.special import erf, erfc
 #from typing import List, Tuple, Dict, Union, Any
 
-import pyscf.lib
+#import pyscf.lib
+import copy
+from pyscf import gto
+from pyscf import lib
+from pyscf import __config__
 from pyscf.lib import logger
+from pyscf.pbc import tools
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
-from pyscf import __config__
+from pyscf.pbc.df import ft_ao
+from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 
 PRECISION = getattr(__config__, 'pbc_df_aft_estimate_eta_precision', 1e-8)
 
