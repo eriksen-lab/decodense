@@ -45,16 +45,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
 
-        # if cell obj -> only execute what's implemented
-        if isinstance(mol, pbc_gto.Cell) and prop_type == 'energy':
-            prop = {comp_key: np.zeros(mol.natm, dtype=np.float64) for comp_key in COMP_KEYS}
-            prop_nuc_rep = ewald_e_nuc(mol)
-            prop['struct'] = prop_nuc_rep
-            #sys.exit('PBC module is in development, but can compute (atomwise) nuc-nuc repulsion term')
-            return {**prop }
-        if isinstance(mol, pbc_gto.Cell) and prop_type != 'energy':
-            sys.exit('PBC module is in development, the only valid choice for property: energy')
-
         # ao dipole integrals with specified gauge origin
         if prop_type == 'dipole':
             with mol.with_common_origin(gauge_origin):
@@ -103,7 +93,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             prop_nuc_rep = _dip_nuc(pmol, charge_atom, gauge_origin)
 
         # core hamiltonian
-        kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol)
+        kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
         # fock potential
         vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
 
@@ -368,8 +358,9 @@ def _dip_nuc(mol: gto.Mole, atom_charges: np.ndarray, gauge_origin: np.ndarray) 
         return contract('i,ix->ix', form_charges, coords) - contract('i,x->ix', act_charges, gauge_origin)
 
 
-def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole]) -> Tuple[np.ndarray, np.ndarray, \
-                                                                   np.ndarray, Union[None, np.ndarray]]:
+def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
+            mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF]) -> \
+            Tuple[np.ndarray, np.ndarray, np.ndarray, Union[None, np.ndarray]]:
         """
         this function returns the components of the core hamiltonian
         """
