@@ -24,6 +24,7 @@ from pyscf.pbc import tools
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
+from pyscf.pbc.df import incore
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 
 PRECISION = getattr(__config__, 'pbc_df_aft_estimate_eta_precision', 1e-8)
@@ -208,7 +209,7 @@ def get_pp_loc_part1_atomic(mydf, kpts=None):
         nuccell = _compensate_nuccell(mydf)
         # PP-loc part1 is handled by fakenuc in _int_nuc_vloc
         # TODO why lib.asarray? without also returned as array..
-        vj = lib.asarray(mydf._int_nuc_vloc_atomic(nuccell, kpts_lst))
+        vj = lib.asarray(_int_nuc_vloc_atomic(mydf, nuccell, kpts_lst))
 
         coulG = tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
         aoaux = ft_ao.ft_ao(nuccell, Gv)
