@@ -139,8 +139,8 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
                     cell.dimension)
         raise NotImplementedError
     
-    #TODO maybe our own warnings instead of pyscf logger
-    logger.debug(cell, 'Ewald components = %.15g, %.15g, %.15g', ewovrl_atomic, ewself_atomic, ewg_atomic)
+    ##TODO maybe our own warnings instead of pyscf logger
+    #logger.debug(cell, 'Ewald components = %.15g, %.15g, %.15g', ewovrl_atomic, ewself_atomic, ewg_atomic)
     return ewovrl_atomic + ewself_atomic + ewg_atomic
 
 
