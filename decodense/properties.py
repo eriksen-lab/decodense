@@ -21,7 +21,7 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .pbctools import ewald_e_nuc, get_nuc_atomic
+from .pbctools import ewald_e_nuc, get_nuc_atomic, get_pp_atomic
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import COMP_KEYS
 
@@ -369,7 +369,11 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             kin = mol.pbc_intor('int1e_kin')
             mydf = mf.with_df
             # individual atomic potentials
-            sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
+            if mol.pseudo:
+                sub_nuc = get_pp_atomic(mydf, kpts=np.zeros(3))
+            else:
+                sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
+            #sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')
