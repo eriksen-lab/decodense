@@ -182,16 +182,17 @@ def get_pp_atomic(mydf, kpts=None):
     vpp = get_pp_nl_atomic(cell, kpts_lst)
     
     # TODO see if to leave this out
-    # vpp_total = np.zeros(np.shape(vloc1))
+    vpp_total = np.zeros(np.shape(vloc1))
     for k in range(nkpts):
-        vpp[k] += vloc1[k] + vloc2[k]
-        #vpp_total[k] += vloc1[k] + vloc2[k] + vpp[k]
+        #vpp[k] += vloc1[k] + vloc2[k]
+        vpp_total[k] += vloc1[k] + vloc2[k] + vpp[k]
 
     # never true
     if kpts is None or np.shape(kpts) == (3,):
         vpp = vpp[0]
-    #return vpp_total, vloc1, vloc2, vpp
-    return vpp
+        vpp_total = vpp_total[0]
+    return vpp_total, vloc1, vloc2, vpp
+    #return vpp
 
 
 def get_pp_loc_part1_atomic(mydf, kpts=None):

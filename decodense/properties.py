@@ -370,7 +370,7 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             mydf = mf.with_df
             # individual atomic potentials
             if mol.pseudo:
-                sub_nuc = get_pp_atomic(mydf, kpts=np.zeros(3))
+                sub_nuc, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = get_pp_atomic(mydf, kpts=np.zeros(3))
             else:
                 sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
             #sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
