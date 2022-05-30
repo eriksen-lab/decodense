@@ -13,6 +13,7 @@ __status__ = 'Development'
 import multiprocessing as mp
 import numpy as np
 from pyscf import gto, scf, dft, lo, lib
+from pyscf.pbc import gto as pbc_gto
 from typing import List, Tuple, Dict, Union, Any
 
 from .tools import dim, make_rdm1, contract
@@ -20,7 +21,7 @@ from .tools import dim, make_rdm1, contract
 LOC_CONV = 1.e-10
 
 
-def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
+def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mo_coeff_in: np.ndarray, \
              mo_occ: np.ndarray, variant: str, ndo: bool, \
              loc_lst: Union[None, List[Any]]) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -37,7 +38,10 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
             raise NotImplementedError('localization of NDOs is not implemented')
 
         # overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
+        if isinstance(mol, pbc_gto.Cell):
+            s = mol.pbc_intor('int1e_ovlp_sph') 
+        else:
+            s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
         alpha, beta = dim(mo_occ)
@@ -91,7 +95,7 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         return mo_coeff_out
 
 
-def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
+def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mo_coeff: np.ndarray, \
                  mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
                  multiproc: bool, verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
@@ -106,8 +110,10 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
         else:
             rhf = False
 
-        # overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
+        if isinstance(mol, pbc_gto.Cell):
+            s = mol.pbc_intor('int1e_ovlp_sph') 
+        else:
+            s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
         alpha, beta = dim(mo_occ)

@@ -99,9 +99,7 @@ def sanity_check(mol: Union[None, gto.Mole, pbc_gto.Cell], \
             assert mol.dimension == 3, \
                'PBC module is in development, current implementation treats 3D-cells only.' 
             assert decomp.prop == 'energy' and decomp.part in ['atoms', 'eda'], \
-                'PBC module is in development. Only all-electron gamma-point RHF calculation of energy for 3D-periodic systems can be decomposed into atomwise contributions.'
-            if mol.pseudo:
-                warnings.warn('PBC module is in development, does not work for supercells yet.')
+                'PBC module is in development. Only gamma-point RHF calculation of energy for 3D-periodic systems can be decomposed into atomwise contributions.'
             if decomp.part == 'eda':
                 warnings.warn('The eda partitioning for periodic systems is not properly tested!')
 

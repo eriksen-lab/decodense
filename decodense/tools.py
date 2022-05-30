@@ -21,6 +21,7 @@ except ImportError:
     OE_AVAILABLE = False
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft, symm, lib
+from pyscf.pbc import gto as pbc_gto
 from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
@@ -140,7 +141,7 @@ def make_rdm1(mo: np.ndarray, occup: np.ndarray) -> np.ndarray:
         return contract('ip,jp->ij', occup * mo, mo)
 
 
-def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
+def make_natorb(mol: Union[gto.Mole, pbc_gto.Cell], mo_coeff: np.ndarray, \
                 rdm1: np.ndarray, thres: float = NATORB_THRES) -> Tuple[Tuple[np.ndarray, np.ndarray], \
                                                                         Tuple[np.ndarray, np.ndarray]]:
         """
@@ -157,7 +158,10 @@ def make_natorb(mol: gto.Mole, mo_coeff: np.ndarray, \
         else:
             d = rdm1
         # overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
+        if isinstance(mol, pbc_gto.Cell):
+            s = mol.pbc_intor('int1e_ovlp_sph')
+        else:
+            s = mol.intor_symmetric('int1e_ovlp')
         # ao to mo transformation of dm
         rdm1_mo = contract('xpi,pq,xqr,rs,xsj->xij', c, s, d, s, c)
         # diagonalize rdm1_mo
