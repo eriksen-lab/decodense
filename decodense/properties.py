@@ -17,6 +17,7 @@ from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
+from pyscf.pbc.dft import numint as pbc_numint
 from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
@@ -115,13 +116,14 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # nlc (vv10)
-            if mf.nlc.upper() == 'VV10':
-                nlc_pars = dft.libxc.nlc_coeff(mf.xc)
-                ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
-                grid_weights_nlc = mf.nlcgrids.weights
-                c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
-                eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
-                                             grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
+            if not isinstance(mol, pbc_gto.Cell):
+                if mf.nlc.upper() == 'VV10':
+                    nlc_pars = dft.libxc.nlc_coeff(mf.xc)
+                    ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
+                    grid_weights_nlc = mf.nlcgrids.weights
+                    c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
+                    eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
+                                                 grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
             else:
                 eps_xc_nlc = None
         else:
@@ -566,7 +568,10 @@ def _ao_val(mol: gto.Mole, grids_coords: np.ndarray, ao_deriv: int) -> np.ndarra
         """
         this function returns ao function values on the given grid
         """
-        return numint.eval_ao(mol, grids_coords, deriv=ao_deriv)
+        if not isinstance(mol, pbc_gto.Cell): 
+            return numint.eval_ao(mol, grids_coords, deriv=ao_deriv)
+        else:
+            return pbc_numint.eval_ao(mol, grids_coords, deriv=ao_deriv)
 
 
 def _trace(op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.) -> Union[float, np.ndarray]:
