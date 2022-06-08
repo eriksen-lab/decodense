@@ -135,6 +135,7 @@ def atoms(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
             elif unit == 'kj_mol':
                 scaling = AU_TO_KJ_MOL
 
+            # TODO see if separate parts of Vpp nuc. att. should be added
             # headers
             string += '\n\n' + divider
             string += f'{f"{header} (unit: {unit})":^{length}}\n'
