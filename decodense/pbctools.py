@@ -186,11 +186,12 @@ def get_pp_atomic(mydf, kpts=None):
     for k in range(nkpts):
         vpp_total[k] += vloc1[k] + vloc2[k] + vpp[k]
 
-    # never true
-    if kpts is None or np.shape(kpts) == (3,):
-        vpp = vpp[0]
+    # when only gamma point, the n_k x natm x nao x nao tensor -> natm x nao x nao matrix 
+    if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
         vpp_total = vpp_total[0]
-    # TODO gamma point not noticed here, see if needs fixing/remove
+        vloc1 = vloc1[0]
+        vloc2 = vloc2[0]
+        vpp = vpp[0]
     return vpp_total, vloc1, vloc2, vpp
 
 
@@ -286,9 +287,6 @@ def get_pp_loc_part1_atomic(mydf, kpts=None):
                 vj_1atm_kpts.append(lib.unpack_tril(vj[k,i,:]))
             vj_kpts.append(vj_1atm_kpts)
 
-    if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
-        # when only gamma point, the n_k x natm x nao x nao tensor -> natm x nao x nao matrix 
-        vj_kpts = vj_kpts[0]
     return np.asarray(vj_kpts)
 
 
@@ -375,9 +373,6 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
                 vpploc_1atm_kpts.append(v_1atm_ints)
             vpploc.append(vpploc_1atm_kpts)
 
-    # when only gamma point, the n_k x nao x nao tensor -> nao x nao matrix 
-    if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
-        vpploc = vpploc[0]
     return np.asarray(vpploc)
 
 
@@ -452,8 +447,8 @@ def get_pp_nl_atomic(cell, kpts=None):
     if abs(kpts_lst).sum() < 1e-9:  # gamma_point:
         ppnl = ppnl.real
 
-    if kpts is None or np.shape(kpts) == (3,):
-        ppnl = ppnl[0]
+    #if kpts is None or np.shape(kpts) == (3,):
+    #    ppnl = ppnl[0]
     return ppnl
 
 
