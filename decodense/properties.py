@@ -169,8 +169,24 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                    res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                    if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
+                        sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = sub_nuc
+                        res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        # nuc. attraction split up in separate terms in calc. using a pseudopotential
+                        # TODO description
+                        # term from ...
+                        res['nuc_att_vloc1_glob'] += _trace(sub_nuc_vloc1[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_vloc1_loc'] += _trace(np.sum(sub_nuc_vloc1, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                        # term from the local part of the pp?
+                        res['nuc_att_vloc2_glob'] += _trace(sub_nuc_vloc2[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_vloc2_loc'] += _trace(np.sum(sub_nuc_vloc2, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                        # term from the nonlocal part of the pp
+                        res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vpp[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vpp, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                    else:
+                        res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))
                     if e_solvent is not None:
@@ -372,10 +388,14 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             mydf = mf.with_df
             # individual atomic potentials
             if mol.pseudo:
-                sub_nuc, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = get_pp_atomic(mydf, kpts=np.zeros(3))
+                sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = get_pp_atomic(mydf, kpts=np.zeros(3))
+                sub_nuc = (sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp)
+                # total nuclear potential
+                nuc = np.sum(sub_nuc_tot, axis=0)
             else:
                 sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
-            #sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
+                # total nuclear potential
+                nuc = np.sum(sub_nuc, axis=0)
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')
@@ -387,8 +407,8 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             for k in range(mol.natm):
                 with mol.with_rinv_origin(coords[k]):
                     sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
-        # total nuclear potential
-        nuc = np.sum(sub_nuc, axis=0)
+            # total nuclear potential
+            nuc = np.sum(sub_nuc, axis=0)
         # possible mm potential
         if mm_mol is not None:
             mm_pot = _mm_pot(mol, mm_mol)
