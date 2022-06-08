@@ -286,8 +286,8 @@ def get_pp_loc_part1_atomic(mydf, kpts=None):
                 vj_1atm_kpts.append(lib.unpack_tril(vj[k,i,:]))
             vj_kpts.append(vj_1atm_kpts)
 
-    if kpts is None or np.shape(kpts) == (3,):
-        # when only gamma point, the n_k x nao x nao tensor -> nao x nao matrix 
+    if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
+        # when only gamma point, the n_k x natm x nao x nao tensor -> natm x nao x nao matrix 
         vj_kpts = vj_kpts[0]
     return np.asarray(vj_kpts)
 
@@ -376,9 +376,9 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
             vpploc.append(vpploc_1atm_kpts)
 
     # when only gamma point, the n_k x nao x nao tensor -> nao x nao matrix 
-    if kpts is None or np.shape(kpts) == (3,):
+    if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
         vpploc = vpploc[0]
-    return vpploc
+    return np.asarray(vpploc)
 
 
 def get_pp_nl_atomic(cell, kpts=None):
