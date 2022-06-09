@@ -124,6 +124,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
                     eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
                                                  grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
+                else:
+                    eps_xc_nlc = None
             else:
                 eps_xc_nlc = None
         else:
