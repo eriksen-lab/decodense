@@ -219,7 +219,10 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 # init results
                 if prop_type == 'energy':
                     #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
-                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
+                    #res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
+                    struct_idx = COMP_KEYS.index('struct')
+                    COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
+                    res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
                 # get AOs on atom k
@@ -231,8 +234,26 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                         res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
                         res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
                     res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                    res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                    #
+                    if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
+                        sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = sub_nuc
+                        res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                        # nuc. attraction split up in separate terms in calc. using a pseudopotential
+                        # TODO description
+                        # term from ...
+                        res['nuc_att_vloc1_glob'] += _trace(sub_nuc_vloc1[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_vloc1_loc'] += _trace(np.sum(sub_nuc_vloc1, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                        # term from the local part of the pp?
+                        res['nuc_att_vloc2_glob'] += _trace(sub_nuc_vloc2[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_vloc2_loc'] += _trace(np.sum(sub_nuc_vloc2, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                        # term from the nonlocal part of the pp
+                        res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vpp[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vpp, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                    else:
+                        res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                    #
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
                     if e_solvent is not None:
