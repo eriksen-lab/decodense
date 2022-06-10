@@ -207,7 +207,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    for comp_key in COMP_KEYS[:-2]:
+                    #for comp_key in COMP_KEYS[:-2]:
+                    for comp_key in COMP_KEYS[:-8]:
                         res['el'] += res[comp_key]
                 return res
 
@@ -217,7 +218,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 """
                 # init results
                 if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
+                    #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
                 # get AOs on atom k
@@ -253,7 +255,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    for comp_key in COMP_KEYS[:-2]:
+                    #for comp_key in COMP_KEYS[:-2]:
+                    for comp_key in COMP_KEYS[:-8]:
                         res['el'] += res[comp_key]
                 return res
 
@@ -263,7 +266,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 """
                 # init res
                 if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
+                    #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
                 else:
                     res = {}
                 # get orbital(s)
@@ -292,7 +296,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     res['el'] = -_trace(ao_dip, rdm1_orb)
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    for comp_key in COMP_KEYS[:-2]:
+                    #for comp_key in COMP_KEYS[:-2]:
+                    for comp_key in COMP_KEYS[:-8]:
                         res['el'] += res[comp_key]
                 return res
 
@@ -302,7 +307,9 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             if prop_type == 'energy':
                 prop = {comp_key: np.zeros(pmol.natm, dtype=np.float64) for comp_key in COMP_KEYS}
             elif prop_type == 'dipole':
-                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
+                # TODO needs to be changed due to new keys for pp calc.
+                #prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
+                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[8:10]}
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
@@ -322,7 +329,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
         else: # orbs
             # init orbital-specific energy or dipole array
             if prop_type == 'energy':
-                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-1]}
+                #prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-1]}
+                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-7]}
             elif prop_type == 'dipole':
                 prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain

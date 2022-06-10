@@ -22,7 +22,7 @@ from typing import List, Dict, Union, Any
 
 
 # component keys
-COMP_KEYS = ['coul', 'exch', 'kin', 'solvent', 'nuc_att_glob', 'nuc_att_loc', 'nuc_att_vloc1_glob', 'nuc_att_vloc1_loc', 'nuc_att_vloc2_glob', 'nuc_att_vloc2_loc', 'nuc_att_vnlc_glob', 'nuc_att_vnlc_loc', 'nuc_att', 'xc', 'el', 'struct']
+COMP_KEYS = ['coul', 'exch', 'kin', 'solvent', 'nuc_att_glob', 'nuc_att_loc', 'nuc_att', 'xc', 'el', 'struct', 'nuc_att_vloc1_glob', 'nuc_att_vloc1_loc', 'nuc_att_vloc2_glob', 'nuc_att_vloc2_loc', 'nuc_att_vnlc_glob', 'nuc_att_vnlc_loc']
 
 class DecompCls(object):
         """
