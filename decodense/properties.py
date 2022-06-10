@@ -29,6 +29,15 @@ from .decomp import COMP_KEYS
 # block size in _mm_pot()
 BLKSIZE = 200
 
+# FIXME felt short on time, might change later
+# shortened key arrays to skip (or only compute) some prop (el, struct)
+# assumes that struct comes after el in COMP_KEYS
+struct_idx = COMP_KEYS.index('struct')
+el_idx = COMP_KEYS.index('el')
+COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
+COMP_KEYS_noel = COMP_KEYS[:el_idx] + COMP_KEYS[struct_idx+1:]
+COMP_KEYS_elstruct = COMP_KEYS[el_idx:struct_idx+1]
+
 #FIXME see if the mol/cell object can get a general name
 # TODO prob. should be pbc_scf.hf.RHF
 def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
@@ -208,7 +217,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 # sum up electronic contributions
                 if prop_type == 'energy':
                     #for comp_key in COMP_KEYS[:-2]:
-                    for comp_key in COMP_KEYS[:-8]:
+                    for comp_key in COMP_KEYS_noel:
                         res['el'] += res[comp_key]
                 return res
 
@@ -220,8 +229,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 if prop_type == 'energy':
                     #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
                     #res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
-                    struct_idx = COMP_KEYS.index('struct')
-                    COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
                     res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
@@ -277,7 +284,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 # sum up electronic contributions
                 if prop_type == 'energy':
                     #for comp_key in COMP_KEYS[:-2]:
-                    for comp_key in COMP_KEYS[:-8]:
+                    for comp_key in COMP_KEYS_noel:
                         res['el'] += res[comp_key]
                 return res
 
@@ -288,7 +295,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 # init res
                 if prop_type == 'energy':
                     #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
-                    res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
+                    res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
                 else:
                     res = {}
                 # get orbital(s)
@@ -318,7 +325,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 # sum up electronic contributions
                 if prop_type == 'energy':
                     #for comp_key in COMP_KEYS[:-2]:
-                    for comp_key in COMP_KEYS[:-8]:
+                    for comp_key in COMP_KEYS_noel:
                         res['el'] += res[comp_key]
                 return res
 
@@ -330,7 +337,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             elif prop_type == 'dipole':
                 # TODO needs to be changed due to new keys for pp calc.
                 #prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
-                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[8:10]}
+                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS_elstruct}
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
@@ -351,7 +358,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             # init orbital-specific energy or dipole array
             if prop_type == 'energy':
                 #prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-1]}
-                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-7]}
+                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS_nostruct}
             elif prop_type == 'dipole':
                 prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
