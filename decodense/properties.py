@@ -35,7 +35,7 @@ BLKSIZE = 200
 struct_idx = COMP_KEYS.index('struct')
 el_idx = COMP_KEYS.index('el')
 COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
-COMP_KEYS_noel = COMP_KEYS[:el_idx] + COMP_KEYS[struct_idx+1:]
+COMP_KEYS_noel = COMP_KEYS[:el_idx] #+ COMP_KEYS[struct_idx+1:]
 COMP_KEYS_elstruct = COMP_KEYS[el_idx:struct_idx+1]
 
 #FIXME see if the mol/cell object can get a general name
