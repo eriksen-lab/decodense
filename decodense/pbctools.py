@@ -159,6 +159,9 @@ def get_nuc_atomic(mydf, kpts=None):
     # Pseudopotential is ignored when computing just the nuclear attraction
     with lib.temporary_env(mydf.cell, _pseudo={}):
         nuc = get_pp_loc_part1_atomic(mydf, kpts)
+    # when only gamma point, the n_k x natm x nao x nao tensor -> natm x nao x nao matrix 
+    if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
+        nuc = nuc[0]
     return nuc
 
 
