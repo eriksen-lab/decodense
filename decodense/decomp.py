@@ -96,8 +96,8 @@ def sanity_check(mol: Union[None, gto.Mole, pbc_gto.Cell], \
                 'PBC module is in development, only gamma-point methods implemented.'
             assert gamma_point(mf.kpt), \
                 'PBC module is in development, only gamma-point methods implemented.'
-            assert mol.dimension == 3, \
-               'PBC module is in development, current implementation treats 3D-cells only.' 
+            assert mol.dimension == 3 or mol.dimension == 1, \
+               'PBC module is in development, current implementation treats 1D- and 3D-cells only.' 
             assert decomp.prop == 'energy' and decomp.part in ['atoms', 'eda'], \
-                'PBC module is in development. Only gamma-point RHF calculation of energy for 3D-periodic systems can be decomposed into atomwise contributions.'
+                'PBC module is in development. Only gamma-point RHF calculation of energy for 1D- and 3D-periodic systems can be decomposed into atomwise contributions.'
 
