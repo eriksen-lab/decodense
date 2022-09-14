@@ -27,8 +27,7 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
 from pyscf.pbc.df import incore
-#from pyscf.pbc.df.incore import _IntNucBuilder, _compensate_nuccell
-from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis
+from pyscf.pbc.df.incore import _IntNucBuilder, _compensate_nuccell
 from pyscf.pbc.gto import pseudo
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 
@@ -161,7 +160,7 @@ def get_nuc_atomic(mydf, kpts=None):
     '''
     # Pseudopotential is ignored when computing just the nuclear attraction
     with lib.temporary_env(mydf.cell, _pseudo={}):
-        nuc = get_pp_loc_part1_atomic_v0(mydf, kpts)
+        nuc = get_pp_loc_part1_atomic(mydf, kpts)
     # when only gamma point, the n_k x natm x nao x nao tensor -> natm x nao x nao matrix 
     if kpts is None or np.shape(kpts) == (3,) or np.shape(kpts) == (1,3):
         nuc = nuc[0]
@@ -179,7 +178,7 @@ def get_pp_atomic(mydf, kpts=None):
     nkpts = len(kpts_lst)
 
     # vloc1 is electron-core part in calc. with pseudopotential
-    vloc1 = get_pp_loc_part1_atomic_v0(mydf, kpts_lst)
+    vloc1 = get_pp_loc_part1_atomic(mydf, kpts_lst)
     
     # vloc2 is the electron-pseudopotential part (local)
     vloc2 = get_pp_loc_part2_atomic(cell, kpts_lst)
@@ -201,7 +200,7 @@ def get_pp_atomic(mydf, kpts=None):
     return vpp_total, vloc1, vloc2, vpp
 
 
-def get_pp_loc_part1_atomic_v0(mydf, kpts=None):
+def get_pp_loc_part1_atomic(mydf, kpts=None):
     cell = mydf.cell
     if kpts is None:
         kpts_lst = np.zeros((1,3))
@@ -251,10 +250,10 @@ def get_pp_loc_part1_atomic_v0(mydf, kpts=None):
                 mesh = mesh_min
         Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
 
-        nuccell = _compensate_nuccell_v0(mydf)
+        nuccell = _compensate_nuccell(mydf)
         # PP-loc part1 is handled by fakenuc in _int_nuc_vloc
         # TODO why lib.asarray? without also returned as array..
-        vj = lib.asarray(_int_nuc_vloc_atomic_v0(mydf, nuccell, kpts_lst))
+        vj = lib.asarray(_int_nuc_vloc_atomic(mydf, nuccell, kpts_lst))
 
         coulG = tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
         aoaux = ft_ao.ft_ao(nuccell, Gv)
@@ -303,9 +302,89 @@ def get_pp_atomic_v2(mydf, kpts=None):
         kpts_lst = np.reshape(kpts, (-1,3))
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
 
-    # rn returns nkpts x nao x nao
-    vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
-    return vloc1[0], vloc1_at[0]
+    vloc1 = get_pp_loc_part1_atomic_v2(dfbuilder, mesh=None, with_pseudo=False)
+    return vloc1
+
+def get_pp_loc_part1_atomic_v2(mydf, mesh=None, with_pseudo=False):
+    ''' I think this is just Vnuc '''
+    from pyscf.pbc.df.gdf_builder import _guess_eta
+    cell = mydf.cell
+    kpts = mydf.kpts
+    nkpts = len(kpts)
+    nao = cell.nao_nr()
+    aosym = 's2'
+    nao_pair = nao * (nao+1) // 2
+
+    kpt_allow = np.zeros(3)
+    eta, mesh, ke_cutoff = _guess_eta(cell, kpts, mesh)
+    
+    # Initialize mydf.supmol
+# TODO mydf -> Int.. obj??
+    if mydf.rs_cell is None:
+        mydf.build()
+    mydf.supmol = supmol = _strip_basis(mydf.supmol, eta)
+
+    modchg_cell = _compensate_nuccell_v2(cell, eta)
+    # TODO vj is n_k x nao_pairs -> n_k x natm x nao_pairs
+    vj = _int_nuc_vloc_atomic_v2(modchg_cell, with_pseudo=with_pseudo,
+                            supmol=supmol)
+    Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
+    coulG = pyscf_pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
+    # ngrid x natm
+    aoaux = ft_ao.ft_ao(modchg_cell, Gv)
+    charges = cell.atom_charges()
+    # ngrid -> ngrid x natm TODO change einsum
+    vG = np.einsum('i,xi->x', -charges, aoaux) * coulG
+
+    supmol_ft = ft_ao._ExtendedMole.from_cell(mydf.rs_cell, mydf.bvk_kmesh, verbose=log)
+    supmol_ft = supmol_ft.strip_basis()
+    ft_kern = supmol_ft.gen_ft_kernel(aosym, return_complex=False, verbose=log)
+
+    Gv, Gvbase, kws = modchg_cell.get_Gv_weights(mesh)
+    gxyz = lib.cartesian_prod([np.arange(len(x)) for x in Gvbase])
+    max_memory = max(2000, mydf.max_memory-lib.current_memory()[0])
+    ngrids = Gv.shape[0]
+    Gblksize = max(16, int(max_memory*1e6/16/nao_pair/nkpts))
+    Gblksize = min(Gblksize, ngrids, 200000)
+    vGR = vG.real
+    vGI = vG.imag
+
+    buf = np.empty((2, nkpts, Gblksize, nao_pair))
+    for p0, p1 in lib.prange(0, ngrids, Gblksize):
+        # shape of Gpq (2, nkpts, nGv, nao_pair), 2 as in R, I
+        # Gpq for each ao? TODO check this
+        # for each k, column is ao*ao value on a grid grid=nGv
+        Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, kpts, out=buf)
+        # for each k, separates R and I into 2 matrices (ao values on the grid) 
+        # ngrid x natm
+        for k, (GpqR, GpqI) in enumerate(zip(*Gpq)):
+            # rho_ij(G) nuc(-G) / G^2
+            # = [Re(rho_ij(G)) + Im(rho_ij(G))*1j] [Re(nuc(G)) - Im(nuc(G))*1j] / G^2
+            # contract potential on grid points with value of the ao on that grid point (column in Gpq is ao*ao value on a grid)
+            # x is ao pair index (maps to specific ij pair) in triangular matrix
+            # logically each vj[k] is a matrix
+            # vj[k] choose matrix for k; ji,jx->x where i is n_at, j is gridpoint index TODO fix einsum
+            # vj[k] choose matrix for k; ji,jx->ix where i is natm, j is gridpoint index
+            vR = np.einsum('k,kx->x', vGR[p0:p1], GpqR)
+            vR+= np.einsum('k,kx->x', vGI[p0:p1], GpqI)
+            vj[k] += vR
+            # if not gamma point
+            if not is_zero(kpts[k]):
+                vI = np.einsum('k,kx->x', vGR[p0:p1], GpqI)
+                vI-= np.einsum('k,kx->x', vGI[p0:p1], GpqR)
+                vj[k] += vI * 1j
+    
+    # now there's a triangular matrix for each k (triangular of nao x nao is nao_pairs)
+    # unpack here to nao x nao
+    # TODO here unpack vj_1atm for each atm in a loop, then append
+    # for both gamma and other points
+    vj_kpts = []
+    for k, kpt in enumerate(kpts):
+        if is_zero(kpt):
+            vj_kpts.append(lib.unpack_tril(vj[k].real))
+        else:
+            vj_kpts.append(lib.unpack_tril(vj[k]))
+    return np.asarray(vj_kpts)
 
 
 
@@ -495,7 +574,7 @@ def _estimate_ke_cutoff_for_eta(cell, eta, precision=PRECISION):
     Ecut = max(Ecut, .5)
     return Ecut
 
-def _compensate_nuccell_v0(mydf):
+def _compensate_nuccell(mydf):
     '''A cell of the compensated Gaussian charges for nucleus'''
     cell = mydf.cell
     nuccell = copy.copy(cell)
@@ -510,10 +589,23 @@ def _compensate_nuccell_v0(mydf):
     nuccell._env = np.hstack((cell._env, chg_env))
     return nuccell
 
+def _compensate_nuccell_v2(cell, eta):
+    '''A cell of the compensated Gaussian charges for nucleus'''
+    modchg_cell = copy.copy(cell)
+    half_sph_norm = .5/np.sqrt(np.pi)
+    norm = half_sph_norm/gto.gaussian_int(2, eta)
+    chg_env = [eta, norm]
+    ptr_eta = cell._env.size
+    ptr_norm = ptr_eta + 1
+    chg_bas = [[ia, 0, 1, 1, 0, ptr_eta, ptr_norm, 0] for ia in range(cell.natm)]
+    modchg_cell._atm = cell._atm
+    modchg_cell._bas = np.asarray(chg_bas, dtype=np.int32)
+    modchg_cell._env = np.hstack((cell._env, chg_env))
+    return modchg_cell
 
 # Since the real-space lattice-sum for nuclear attraction is not implemented,
 # use the 3c2e code with steep gaussians to mimic nuclear density
-def _fake_nuc_v0(cell):
+def _fake_nuc(cell):
     fakenuc = copy.copy(cell)
     fakenuc._atm = cell._atm.copy()
     fakenuc._atm[:,gto.PTR_COORD] = np.arange(gto.PTR_ENV_START,
@@ -539,14 +631,40 @@ def _fake_nuc_v0(cell):
     fakenuc.rcut = cell.rcut
     return fakenuc
 
+def _fake_nuc_v2(cell, with_pseudo=True):
+    # TODO only diff is with_pseudo, and the check of it
+    fakenuc = copy.copy(cell)
+    fakenuc._atm = cell._atm.copy()
+    fakenuc._atm[:,gto.PTR_COORD] = np.arange(gto.PTR_ENV_START,
+                                              gto.PTR_ENV_START+cell.natm*3,3)
+    _bas = []
+    _env = [0]*gto.PTR_ENV_START + [cell.atom_coords().ravel()]
+    ptr = gto.PTR_ENV_START + cell.natm * 3
+    half_sph_norm = .5/np.sqrt(np.pi)
+    for ia in range(cell.natm):
+        symb = cell.atom_symbol(ia)
+        if with_pseudo and symb in cell._pseudo:
+            pp = cell._pseudo[symb]
+            rloc, nexp, cexp = pp[1:3+1]
+            eta = .5 / rloc**2
+        else:
+            eta = 1e16
+        norm = half_sph_norm/gto.gaussian_int(2, eta)
+        _env.extend([eta, norm])
+        _bas.append([ia, 0, 1, 1, 0, ptr, ptr+1, 0])
+        ptr += 2
+    fakenuc._bas = np.asarray(_bas, dtype=np.int32)
+    fakenuc._env = np.asarray(np.hstack(_env), dtype=np.double)
+    fakenuc.rcut = cell.rcut
+    return fakenuc
 
-def _int_nuc_vloc_atomic_v0(mydf, nuccell, kpts, intor='int3c2e', aosym='s2', comp=1):
+def _int_nuc_vloc_atomic(mydf, nuccell, kpts, intor='int3c2e', aosym='s2', comp=1):
     '''Vnuc - Vloc'''
     cell = mydf.cell
     nkpts = len(kpts)
 
     # Use the 3c2e code with steep s gaussians to mimic nuclear density
-    fakenuc = _fake_nuc_v0(cell)
+    fakenuc = _fake_nuc(cell)
     fakenuc._atm, fakenuc._bas, fakenuc._env = \
             gto.conc_env(nuccell._atm, nuccell._bas, nuccell._env,
                          fakenuc._atm, fakenuc._bas, fakenuc._env)
@@ -595,363 +713,54 @@ def _int_nuc_vloc_atomic_v0(mydf, nuccell, kpts, intor='int3c2e', aosym='s2', co
                     mat[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
     return mat
 
-#--------------------------------------------------------GDF PP new
-#
-class _IntNucBuilder(_Int3cBuilder):
-    '''In this builder, ovlp_mask can be reused for different types of intor
+
+def _int_nuc_vloc_atomic_v2(mydf, nuccell, intor='int3c2e', aosym='s2', comp=None, with_pseudo=True, supmol=None):
+    '''Vnuc - Vloc. nuccell is the cell for model charges
     '''
-    def __init__(self, cell, kpts=np.zeros((1,3))):
-        # cache ovlp_mask
-        self._supmol = None
-        self._ovlp_mask = None
-        self._cell0_ovlp_mask = None
-        _Int3cBuilder.__init__(self, cell, None, kpts)
+    cell = mydf.cell
+    kpts = mydf.kpts
+    nkpts = len(kpts)
 
-    def get_ovlp_mask(self, cutoff, supmol=None, cintopt=None):
-        if self._ovlp_mask is None or supmol is not self._supmol:
-            self._ovlp_mask, self._cell0_ovlp_mask = \
-                    _Int3cBuilder.get_ovlp_mask(self, cutoff, supmol, cintopt)
-            self._supmol = supmol
-        return self._ovlp_mask, self._cell0_ovlp_mask
+    # Use the 3c2e code with steep s gaussians to mimic nuclear density
+    fakenuc = _fake_nuc(cell, with_pseudo=with_pseudo)
+    fakenuc._atm, fakenuc._bas, fakenuc._env = \
+            gto.conc_env(nuccell._atm, nuccell._bas, nuccell._env,
+                         fakenuc._atm, fakenuc._bas, fakenuc._env)
 
-    def _int_nuc_vloc(self, nuccell, intor='int3c2e', aosym='s2', comp=None,
-                      with_pseudo=True, supmol=None):
-        '''Vnuc - Vloc. nuccell is the cell for model charges
-        '''
+    int3c = self.gen_int3c_kernel(intor, aosym, comp=comp, j_only=True,
+                                  auxcell=fakenuc, supmol=supmol)
+    # nkpts x nao_pair x nchg2 (nchg2: nr of real and model charges)
+    bufR, bufI = int3c()
 
-        cell = self.cell
-        kpts = self.kpts
-        nkpts = len(kpts)
-        nao = cell.nao_nr()
-        nao_pair = nao * (nao+1) // 2
+    charge = cell.atom_charges()
+    charge = np.append(charge, -charge)  # (charge-of-nuccell, charge-of-fakenuc)
+    # TODO mat is nkpts x naopair -> nkpts x natm x naopair
+    # reshape buf, chcek comp and sum over halves of z, chrg and -chrg ints 
+    if is_zero(kpts):
+        mat = np.einsum('k...z,z->k...', bufR, charge)
+    else:
+        mat = (np.einsum('k...z,z->k...', bufR, charge) +
+               np.einsum('k...z,z->k...', bufI, charge) * 1j)
 
-        # Use the 3c2e code with steep s gaussians to mimic nuclear density
-        fakenuc = _fake_nuc(cell, with_pseudo=with_pseudo)
-        fakenuc._atm, fakenuc._bas, fakenuc._env = \
-                gto.conc_env(nuccell._atm, nuccell._bas, nuccell._env,
-                             fakenuc._atm, fakenuc._bas, fakenuc._env)
+    # vbar is the interaction between the background charge
+    # and the compensating function.  0D, 1D, 2D do not have vbar.
+    if cell.dimension == 3 and intor in ('int3c2e', 'int3c2e_sph',
+                                         'int3c2e_cart'):
+        charge = -cell.atom_charges()
 
-        int3c = self.gen_int3c_kernel(intor, aosym, comp=comp, j_only=True,
-                                      auxcell=fakenuc, supmol=supmol)
-        # nkpts x nao_pair x nchg2 (nchg2: nr of real and model charges)
-        bufR, bufI = int3c()
+        nucbar = sum([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
+        nucbar *= np.pi/cell.vol
 
-        charge = cell.atom_charges()
-        nchg   = len(charge)
-        charge = np.append(charge, -charge)  # (charge-of-nuccell, charge-of-fakenuc)
-        nchg2  = len(charge)
-        # TODO mat is nkpts x naopair -> nkpts x natm x naopair
-        # check comp? sum over halves of z, chrg and -chrg ints 
-        if is_zero(kpts):
-            mat = np.einsum('k...z,z->k...', bufR, charge)
-            mat_at1 = np.einsum('kxz,z->kzx', bufR, charge)
-            mat_at  = mat_at1[:,nchg:,:] + mat_at1[:,:nchg,:] 
-        else:
-            mat = (np.einsum('k...z,z->k...', bufR, charge) +
-                   np.einsum('k...z,z->k...', bufI, charge) * 1j)
-            mat_at1 = (np.einsum('kxz,z->kzx', bufR, charge) +
-                      np.einsum('kxz,z->kzx', bufI, charge) * 1j)
-            mat_at  = mat_at1[:,nchg:,:] + mat_at1[:,:nchg,:] 
-
-        # vbar is the interaction between the background charge
-        # and the compensating function.  0D, 1D, 2D do not have vbar.
-        if cell.dimension == 3 and intor in ('int3c2e', 'int3c2e_sph',
-                                             'int3c2e_cart'):
-            charge = -cell.atom_charges()
-
-            nucbar = sum([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
-            nucbar1 = np.asarray([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
-            nucbar *= np.pi/cell.vol
-            nucbar1 *= np.pi/cell.vol
-
-            # nkpts x nao x nao (ravel -> nao x nao)
-            ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
-            # TODO mat is nkpts x naopair -> nkpts x natm x naopair
-            # inner loop over chrg i: mat[k,i,:] nucbar[i] reshape ovlp to naopair
-            print('')
-            print('mat, bufR', np.shape(mat), np.shape(bufR), np.shape(nucbar) )
-            print('mat_at', np.shape(mat_at), np.shape(ovlp), np.shape(ovlp[0].ravel()) )
-            print('')
-            for k in range(nkpts):
-                if aosym == 's1':
-                    for i in range(nchg):
-                        mat_at[k,i,:] -= nucbar1[i] * ovlp[k].reshape(nao_pair) 
-                    mat[k] -= nucbar * ovlp[k].ravel()
-                else:
-                    for i in range(nchg):
-                        mat_at[k,i,:] -= nucbar1[i] * lib.pack_tril(ovlp[k])
-                    mat[k] -= nucbar * lib.pack_tril(ovlp[k])
-        print('')
-        print('mat_at', np.shape(mat_at))
-        print('')
-        return mat, mat_at
-
-    def _get_nuc(self, mesh=None, with_pseudo=False):
-        print('my part1')
-        ''' I think this is just Vnuc '''
-        from pyscf.pbc.df.gdf_builder import _guess_eta
-        log = logger.Logger(self.stdout, self.verbose)
-        cell = self.cell
-        kpts = self.kpts
-        nkpts = len(kpts)
-        nao = cell.nao_nr()
-        aosym = 's2'
-        nao_pair = nao * (nao+1) // 2
-
-        kpt_allow = np.zeros(3)
-        eta, mesh, ke_cutoff = _guess_eta(cell, kpts, mesh)
-
-        # Initialize self.supmol
-        if self.rs_cell is None:
-            self.build()
-        self.supmol = supmol = _strip_basis(self.supmol, eta)
-
-        modchg_cell = _compensate_nuccell(cell, eta)
-        # TODO vj is n_k x nao_pairs -> n_k x natm x nao_pairs
-        # checked, summed over atm gives same
-        vj, vj_at = self._int_nuc_vloc(modchg_cell, with_pseudo=with_pseudo,
-                                supmol=supmol)
-
-        Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
-        coulG = pyscf_pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
-        # ngrid x natm
-        aoaux = ft_ao.ft_ao(modchg_cell, Gv)
-        charges = cell.atom_charges()
-        # ngrid -> ngrid x natm TODO change einsum
-        # checked, vG vG_at same up to 1e-18
-        vG = np.einsum('i,xi->x', -charges, aoaux) * coulG
-        vG1 = np.einsum('i,xi->xi', -charges, aoaux) 
-        vG_at = np.einsum('x,xi->xi', coulG, vG1)
-
-        supmol_ft = ft_ao._ExtendedMole.from_cell(self.rs_cell, self.bvk_kmesh, verbose=log)
-        supmol_ft = supmol_ft.strip_basis()
-        ft_kern = supmol_ft.gen_ft_kernel(aosym, return_complex=False, verbose=log)
-
-        Gv, Gvbase, kws = modchg_cell.get_Gv_weights(mesh)
-        gxyz = lib.cartesian_prod([np.arange(len(x)) for x in Gvbase])
-        ngrids = Gv.shape[0]
-        max_memory = max(2000, self.max_memory-lib.current_memory()[0])
-        Gblksize = max(16, int(max_memory*1e6/16/nao_pair/nkpts))
-        Gblksize = min(Gblksize, ngrids, 200000)
-        vGR = vG.real
-        vGI = vG.imag
-        vG_atR = vG_at.real
-        vG_atI = vG_at.imag
-        log.debug1('max_memory = %s  Gblksize = %s  ngrids = %s',
-                   max_memory, Gblksize, ngrids)
-
-        buf = np.empty((2, nkpts, Gblksize, nao_pair))
-        for p0, p1 in lib.prange(0, ngrids, Gblksize):
-            # shape of Gpq (2, nkpts, nGv, nao_pair), 2 as in R, I
-            # Gpq for each ao? TODO check this
-            # for each k, column is ao*ao value on a grid grid=nGv
-            Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, kpts, out=buf)
-            # for each k, separates R and I into 2 matrices (ao values on the grid) 
-            # ngrid x natm
-            for k, (GpqR, GpqI) in enumerate(zip(*Gpq)):
-                # rho_ij(G) nuc(-G) / G^2
-                # = [Re(rho_ij(G)) + Im(rho_ij(G))*1j] [Re(nuc(G)) - Im(nuc(G))*1j] / G^2
-                # contract potential on grid points with value of the ao on that grid point (column in Gpq is ao*ao value on a grid)
-                # x is ao pair index (maps to specific ij pair) in triangular matrix
-                # logically each vj[k] is a matrix
-                # vj[k] choose matrix for k; ji,jx->x where i is n_at, j is gridpoint index TODO fix einsum
-                # vj[k] choose matrix for k; ji,jx->ix where i is natm, j is gridpoint index
-                vR = np.einsum('k,kx->x', vGR[p0:p1], GpqR)
-                vR+= np.einsum('k,kx->x', vGI[p0:p1], GpqI)
-                vj[k] += vR
-                vR_at  = np.einsum('ji,jx->ix', vG_atR[p0:p1], GpqR)
-                vR_at += np.einsum('ji,jx->ix', vG_atI[p0:p1], GpqI)
-                vj_at[k] += vR_at
-                # if not gamma point
-                if not is_zero(kpts[k]):
-                    vI = np.einsum('k,kx->x', vGR[p0:p1], GpqI)
-                    vI-= np.einsum('k,kx->x', vGI[p0:p1], GpqR)
-                    vj[k] += vI * 1j
-                    vI_at  = np.einsum('ji,jx->ix', vG_atR[p0:p1], GpqI)
-                    vI_at += np.einsum('ji,jx->ix', vG_atI[p0:p1], GpqR)
-                    vj_at[k] += vI_at * 1j
-        print('')
-        print('vj, vj_at', np.shape(vj), np.shape(vj_at) )
-        print('before unpacking, same?', np.allclose(np.einsum('kzx->x', vj_at), vj, atol=1e-58) )
-        print('')
-
-        # now there's a triangular matrix for each k (triangular of nao x nao is nao_pairs)
-        # unpack here to nao x nao
-        # TODO here unpack vj_1atm for each atm in a loop, then append
-        # for both gamma and other points
-        vj_kpts = []
-        vj_kpts_at = []
-        for k, kpt in enumerate(kpts):
-            if is_zero(kpt):
-                vj_1atm_kpts = []
-                for i in range(len(charges)):
-                    vj_1atm_kpts.append(lib.unpack_tril(vj_at[k,i,:].real))
-                vj_kpts_at.append(vj_1atm_kpts)
-                #
-                vj_kpts.append(lib.unpack_tril(vj[k].real))
-            else:
-                vj_1atm_kpts = []
-                for i in range(len(charges)):
-                    vj_1atm_kpts.append(lib.unpack_tril(vj_at[k,i,:]))
-                vj_kpts_at.append(vj_1atm_kpts)
-                #
-                vj_kpts.append(lib.unpack_tril(vj[k]))
-        return np.asarray(vj_kpts), np.asarray(vj_kpts_at)
-
-    def get_nuc(self, mesh=None):
-        '''Get the periodic nuc-el AO matrix, with G=0 removed.
-
-        Kwargs:
-            mesh: custom mesh grids. By default mesh is determined by the
-            function _guess_eta from module pbc.df.gdf_builder.
-        '''
-        t0 = (logger.process_clock(), logger.perf_counter())
-        nuc = self._get_nuc(mesh, with_pseudo=False)
-        logger.timer(self, 'get_nuc', *t0)
-        return nuc
-
-    def get_pp_loc_part1(self, mesh=None):
-        return self._get_nuc(mesh, with_pseudo=True)
-
-    def get_pp_loc_part2(self):
-        print('part2')
-        if self.rs_cell is None:
-            self.build()
-        cell = self.cell
-        supmol = self.supmol
-        if supmol.nbas == supmol.bas_mask.size:  # supmol not stripped
-            supmol = self.supmol.strip_basis(inplace=False)
-        kpts = self.kpts
-        nkpts = len(kpts)
-        intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
-                  'int3c1e_r4_origk', 'int3c1e_r6_origk')
-        bufR = 0
-        bufI = 0
-        for cn in range(1, 5):
-            fake_cell = pp_int.fake_cell_vloc(cell, cn)
-            if fake_cell.nbas > 0:
-                int3c = self.gen_int3c_kernel(intors[cn], 's2', comp=1, j_only=True,
-                                              auxcell=fake_cell, supmol=supmol)
-                vR, vI = int3c()
-                bufR += np.einsum('...i->...', vR)
-                if vI is not None:
-                    bufI += np.einsum('...i->...', vI)
-
-        if isinstance(bufR, int):
-            if any(cell.atom_symbol(ia) in cell._pseudo for ia in range(cell.natm)):
-                pass
-            else:
-                lib.logger.warn(cell, 'cell.pseudo was specified but its elements %s '
-                                 'were not found in the system.', cell._pseudo.keys())
-            vpploc = [0] * nkpts
-        else:
-            buf = (bufR + bufI * 1j).reshape(nkpts,-1)
-            vpploc = []
-            for k, kpt in enumerate(kpts):
-                v = lib.unpack_tril(buf[k])
-                if abs(kpt).sum() < 1e-9:  # gamma_point:
-                    v = v.real
-                vpploc.append(v)
-        return vpploc
-
-    def get_pp(self, mesh=None):
-        '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
-
-        Kwargs:
-            mesh: custom mesh grids. By default mesh is determined by the
-            function _guess_eta from module pbc.df.gdf_builder.
-        '''
-        print('GOOOOO')
-        t0 = (logger.process_clock(), logger.perf_counter())
-        vloc1 = self.get_pp_loc_part1(mesh)
-        t1 = logger.timer_debug1(self, 'get_pp_loc_part1', *t0)
-        vloc2 = self.get_pp_loc_part2()
-        t1 = logger.timer_debug1(self, 'get_pp_loc_part2', *t1)
-        vpp = pp_int.get_pp_nl(self.cell, self.kpts)
-        nkpts = len(self.kpts)
+        # nkpts x nao x nao (ravel -> nao x nao)
+        ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
+    # TODO mat is nkpts x naopair -> nkpts x natm x naopair
+    # inner loop over chrg i: mat[k,i,:] nucbar[i] reshape ovlp to naopair
         for k in range(nkpts):
-            vpp[k] += vloc1[k] + vloc2[k]
-        t1 = logger.timer_debug1(self, 'get_pp_nl', *t1)
-        logger.timer(self, 'get_pp', *t0)
-        return vpp
-
-# TODO delete when imported
-# Since the real-space lattice-sum for nuclear attraction is not implemented,
-# use the 3c2e code with steep gaussians to mimic nuclear density
-#def _fake_nuc(cell, with_pseudo=True):
-#    fakenuc = copy.copy(cell)
-#    fakenuc._atm = cell._atm.copy()
-#    fakenuc._atm[:,gto.PTR_COORD] = np.arange(gto.PTR_ENV_START,
-#                                              gto.PTR_ENV_START+cell.natm*3,3)
-#    _bas = []
-#    _env = [0]*gto.PTR_ENV_START + [cell.atom_coords().ravel()]
-#    ptr = gto.PTR_ENV_START + cell.natm * 3
-#    half_sph_norm = .5/np.sqrt(np.pi)
-#    for ia in range(cell.natm):
-#        symb = cell.atom_symbol(ia)
-#        if with_pseudo and symb in cell._pseudo:
-#            pp = cell._pseudo[symb]
-#            rloc, nexp, cexp = pp[1:3+1]
-#            eta = .5 / rloc**2
-#        else:
-#            eta = 1e16
-#        norm = half_sph_norm/gto.gaussian_int(2, eta)
-#        _env.extend([eta, norm])
-#        _bas.append([ia, 0, 1, 1, 0, ptr, ptr+1, 0])
-#        ptr += 2
-#    fakenuc._bas = np.asarray(_bas, dtype=np.int32)
-#    fakenuc._env = np.asarray(np.hstack(_env), dtype=np.double)
-#    fakenuc.rcut = cell.rcut
-#    return fakenuc
-#
-#def _compensate_nuccell(cell, eta):
-#    '''A cell of the compensated Gaussian charges for nucleus'''
-#    modchg_cell = copy.copy(cell)
-#    half_sph_norm = .5/np.sqrt(np.pi)
-#    norm = half_sph_norm/gto.gaussian_int(2, eta)
-#    chg_env = [eta, norm]
-#    ptr_eta = cell._env.size
-#    ptr_norm = ptr_eta + 1
-#    chg_bas = [[ia, 0, 1, 1, 0, ptr_eta, ptr_norm, 0] for ia in range(cell.natm)]
-#    modchg_cell._atm = cell._atm
-#    modchg_cell._bas = np.asarray(chg_bas, dtype=np.int32)
-#    modchg_cell._env = np.hstack((cell._env, chg_env))
-#    return modchg_cell
-#
-#def _strip_basis(supmol, eta, cutoff=None, inplace=True):
-#    rs_cell = supmol.rs_cell
-#
-#    supmol_exps = np.array([e.min() for e in supmol.bas_exps()])
-#    supmol_bas_coords = supmol.atom_coords()[supmol._bas[:,gto.ATOM_OF]]
-#
-#    dim = rs_cell.dimension
-#    if dim == 0:
-#        bas_mask = np.ones(supmol.nbas, dtype=bool)
-#    else:
-#        if cutoff is None:
-#            cutoff = supmol.precision
-#        # estimation based on 3-center gaussian overlap integrals
-#        # ejk = minimize (ai*aj*|ri-rj|^2+ai*eta*ri^2+aj*eta*rj^2)/(ai+aj+eta)
-#        ajk = supmol_exps + eta
-#        ejk = supmol_exps * eta / ajk
-#        rb = np.linalg.norm(supmol_bas_coords[:,:dim], axis=1)
-#        a = rs_cell.lattice_vectors()
-#        dr = rb - np.linalg.norm(a[:dim])
-#        dr[dr < 0] = 0
-#        ovlp = ejk * dr**2
-#        bas_mask = ovlp < -np.log(cutoff)
-#
-#    if not inplace:
-#        supmol = copy.copy(supmol)
-#    if bas_mask.size == supmol.bas_mask.size:
-#        supmol.bas_mask = bas_mask.reshape(supmol.bas_mask.shape)
-#    else:
-#        supmol.bas_mask = supmol.bas_mask.copy()
-#        supmol.bas_mask[supmol.bas_mask] = bas_mask
-#    supmol._bas = supmol._bas[bas_mask]
-#    supmol.sh_loc = supmol.bas_mask_to_sh_loc(rs_cell, supmol.bas_mask)
-#    return supmol
-
+            if aosym == 's1':
+                mat[k] -= nucbar * ovlp[k].ravel()
+            else:
+                mat[k] -= nucbar * lib.pack_tril(ovlp[k])
+    return mat
 
 #def _int_vnl(cell, fakecell, hl_blocks, kpts):
 #    '''Vnuc - Vloc'''
