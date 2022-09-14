@@ -770,10 +770,6 @@ class _IntNucBuilder(_Int3cBuilder):
                     vI_at  = np.einsum('ji,jx->ix', vG_atR[p0:p1], GpqI)
                     vI_at += np.einsum('ji,jx->ix', vG_atI[p0:p1], GpqR)
                     vj_at[k] += vI_at * 1j
-        print('')
-        print('vj, vj_at', np.shape(vj), np.shape(vj_at) )
-        print('before unpacking, same?', np.allclose(np.einsum('kzx->x', vj_at), vj, atol=1e-58) )
-        print('')
 
         # now there's a triangular matrix for each k (triangular of nao x nao is nao_pairs)
         # unpack here to nao x nao

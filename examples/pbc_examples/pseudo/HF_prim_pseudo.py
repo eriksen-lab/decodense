@@ -201,7 +201,7 @@ print('Testing v2 of e_nuc_pp atomic code')
 vloc1_v2, vloc1_v2_at = pbctools.get_pp_atomic_v2(mydf)
 print('vloc1, vloc1_v2, vloc1_v2_at shapes', np.shape(vloc1), np.shape(vloc1_v2), np.shape(vloc1_v2_at) )
 print('all close vloc1?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-58) )
-print('all close vloc1_at?', np.allclose(vloc1, vloc1_v2_at, atol=1e-18) )
+print('all close vloc1_at?', np.allclose(vloc1, vloc1_v2_at, atol=1e-13) )
 print('')
 #check_decomp(cell, mf)
 
