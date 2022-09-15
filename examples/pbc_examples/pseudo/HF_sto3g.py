@@ -134,8 +134,8 @@ print('CELL_NUC_ATT_ATOMIC ', cell_nuc_att_atomic)
 print('Their difference ', cell_nuc_att - np.einsum('z->', cell_nuc_att_atomic) )
 #
 print('test the new version for nuc ints')
-nuc_att_ints_v2, nuc_att_ints_atomic_v2 = pbctools.get_nuc_atomic_v2(mydf)
-nuc_att_ints_v2, nuc_att_ints_atomic_v2 = pbctools.get_nuc_atomic_v2(mydf)
+nuc_att_ints_atomic_v2 = pbctools.get_nuc_atomic_v2(mydf)
+nuc_att_ints_v2 = np.einsum('zij->ij', nuc_att_ints_v2_atomic)
 print('total ints allclose, 1e-14?', np.allclose(nuc_att_ints_v2, nuc_att_ints, atol=1e-14) )
 print('atomic ints allclose, 1e-14?', np.allclose(nuc_att_ints_atomic_v2, nuc_att_ints_atomic, atol=1e-14) )
 #

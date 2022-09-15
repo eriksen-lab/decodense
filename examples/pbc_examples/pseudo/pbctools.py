@@ -301,11 +301,10 @@ def get_nuc_atomic_v2(mydf, kpts=None):
     else:
         kpts_lst = np.reshape(kpts, (-1,3))
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
-    vj, vj_at = dfbuilder.get_nuc(mydf.mesh)
+    vj_at = dfbuilder.get_nuc(mydf.mesh)
     if kpts is None or numpy.shape(kpts) == (3,):
-        vj = vj[0]
         vj_at = vj_at[0]
-    return vj, vj_at
+    return vj_at
 
 def get_pp_atomic_v2(mydf, kpts=None):
     # this is from aft/get_pp and df/incore/get_pp levels
@@ -319,6 +318,7 @@ def get_pp_atomic_v2(mydf, kpts=None):
     #vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
     vloc1, vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
     return vloc1[0], vloc1_at[0]
+    #return vpp_total, vloc1, vloc2, vpp
 
 
 
@@ -681,10 +681,6 @@ class _IntNucBuilder(_Int3cBuilder):
             ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
             # TODO mat is nkpts x naopair -> nkpts x natm x naopair
             # inner loop over chrg i: mat[k,i,:] nucbar[i] reshape ovlp to naopair
-            print('')
-            print('mat, bufR', np.shape(mat), np.shape(bufR), np.shape(nucbar) )
-            print('mat_at', np.shape(mat_at), np.shape(ovlp), np.shape(ovlp[0].ravel()) )
-            print('')
             for k in range(nkpts):
                 if aosym == 's1':
                     for i in range(nchg):
@@ -694,9 +690,6 @@ class _IntNucBuilder(_Int3cBuilder):
                     for i in range(nchg):
                         mat_at[k,i,:] -= nucbar1[i] * lib.pack_tril(ovlp[k])
                     mat[k] -= nucbar * lib.pack_tril(ovlp[k])
-        print('')
-        print('mat_at', np.shape(mat_at))
-        print('')
         return mat, mat_at
 
     def _get_nuc(self, mesh=None, with_pseudo=False):
@@ -817,7 +810,7 @@ class _IntNucBuilder(_Int3cBuilder):
         t0 = (logger.process_clock(), logger.perf_counter())
         nuc, nuc_at = self._get_nuc(mesh, with_pseudo=False)
         logger.timer(self, 'get_nuc', *t0)
-        return nuc, nuc_at
+        return nuc_at
 
     def get_pp_loc_part1(self, mesh=None):
         return self._get_nuc(mesh, with_pseudo=True)
@@ -870,7 +863,7 @@ class _IntNucBuilder(_Int3cBuilder):
             mesh: custom mesh grids. By default mesh is determined by the
             function _guess_eta from module pbc.df.gdf_builder.
         '''
-        print('GOOOOO')
+        print('GET_PP')
         t0 = (logger.process_clock(), logger.perf_counter())
         vloc1 = self.get_pp_loc_part1(mesh)
         t1 = logger.timer_debug1(self, 'get_pp_loc_part1', *t0)
