@@ -111,26 +111,34 @@ print("HF energy (per unit cell) = %.17g" % ehf)
 
 # kin, nuc atrraction 
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
-##kinetic, nuc, sub_nuc = _h_core(cell, mf)
-##e_kin = np.einsum('ij,ij', kinetic, dm)
-###
-##nuc_att_glob = np.einsum('ij,ij', nuc, dm)
-##nuc_att_glob *= .5
-##nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
-##nuc_att_loc *= .5
+kinetic, nuc, sub_nuc = _h_core(cell, mf)
+e_kin = np.einsum('ij,ij', kinetic, dm)
+#
+nuc_att_glob = np.einsum('ij,ij', nuc, dm)
+nuc_att_glob *= .5
+nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
+nuc_att_loc *= .5
 
 ##########################################
 ##########################################
 ## printing, debugging, etc.
-##nuc_att_ints, nuc_att_ints_atomic = mf.get_nuc_att()
-##cell_nuc_att = np.einsum('ij,ji', nuc_att_ints, dm)
-##cell_nuc_att_atomic = np.einsum('zij,ji->z', nuc_att_ints_atomic, dm)
-##print('cell_nuc_att_atomic ints ', np.shape(nuc_att_ints_atomic) )
-##print('CELL_NUC_ATT ', cell_nuc_att)
-##print('CELL_NUC_ATT_ATOMIC ', cell_nuc_att_atomic)
-##print('Their difference ', cell_nuc_att - np.einsum('z->', cell_nuc_att_atomic) )
-###
-###
+#nuc_att_ints, nuc_att_ints_atomic = mf.get_nuc_att()
+nuc_att_ints = mf.get_nuc_att()
+mydf = mf.with_df
+nuc_att_ints_atomic = pbctools.get_nuc_atomic(mydf)
+cell_nuc_att = np.einsum('ij,ji', nuc_att_ints, dm)
+cell_nuc_att_atomic = np.einsum('zij,ji->z', nuc_att_ints_atomic, dm)
+print('cell_nuc_att_atomic ints ', np.shape(nuc_att_ints_atomic) )
+print('CELL_NUC_ATT ', cell_nuc_att)
+print('CELL_NUC_ATT_ATOMIC ', cell_nuc_att_atomic)
+print('Their difference ', cell_nuc_att - np.einsum('z->', cell_nuc_att_atomic) )
+#
+print('test the new version for nuc ints')
+nuc_att_ints_v2, nuc_att_ints_atomic_v2 = pbctools.get_nuc_atomic_v2(mydf)
+nuc_att_ints_v2, nuc_att_ints_atomic_v2 = pbctools.get_nuc_atomic_v2(mydf)
+print('total ints allclose, 1e-14?', np.allclose(nuc_att_ints_v2, nuc_att_ints, atol=1e-14) )
+print('atomic ints allclose, 1e-14?', np.allclose(nuc_att_ints_atomic_v2, nuc_att_ints_atomic, atol=1e-14) )
+#
 #######print results
 #####print(dir(res))
 #print()
@@ -188,5 +196,5 @@ print()
 ###print('e_nuc_att_pp_atomic', np.sum(e_nuc_att_pp_atomic), e_nuc_att_pp_atomic )
 ###print('e_nuc_att_pp - e_nuc_att_pp_atomic', e_nuc_att_pp - np.einsum('z->', e_nuc_att_pp_atomic) )
 
-check_decomp(cell, mf)
+#check_decomp(cell, mf)
 

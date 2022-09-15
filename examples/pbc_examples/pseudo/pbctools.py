@@ -295,8 +295,20 @@ def get_pp_loc_part1_atomic_v0(mydf, kpts=None):
 
     return np.asarray(vj_kpts)
 
+def get_nuc_atomic_v2(mydf, kpts=None):
+    if kpts is None:
+        kpts_lst = np.zeros((1,3))
+    else:
+        kpts_lst = np.reshape(kpts, (-1,3))
+    dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
+    vj, vj_at = dfbuilder.get_nuc(mydf.mesh)
+    if kpts is None or numpy.shape(kpts) == (3,):
+        vj = vj[0]
+        vj_at = vj_at[0]
+    return vj, vj_at
+
 def get_pp_atomic_v2(mydf, kpts=None):
-    # this is from aft, .. levels
+    # this is from aft/get_pp and df/incore/get_pp levels
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -304,7 +316,8 @@ def get_pp_atomic_v2(mydf, kpts=None):
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
 
     # rn returns nkpts x nao x nao
-    vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
+    #vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
+    vloc1, vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
     return vloc1[0], vloc1_at[0]
 
 
@@ -802,9 +815,9 @@ class _IntNucBuilder(_Int3cBuilder):
             function _guess_eta from module pbc.df.gdf_builder.
         '''
         t0 = (logger.process_clock(), logger.perf_counter())
-        nuc = self._get_nuc(mesh, with_pseudo=False)
+        nuc, nuc_at = self._get_nuc(mesh, with_pseudo=False)
         logger.timer(self, 'get_nuc', *t0)
-        return nuc
+        return nuc, nuc_at
 
     def get_pp_loc_part1(self, mesh=None):
         return self._get_nuc(mesh, with_pseudo=True)
