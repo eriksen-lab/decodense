@@ -27,6 +27,7 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
 from pyscf.pbc.df import incore
+#from pyscf.pbc.gto.pseudo import pp_int
 #from pyscf.pbc.df.incore import _IntNucBuilder, _compensate_nuccell
 from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis
 from pyscf.pbc.gto import pseudo
@@ -308,6 +309,7 @@ def get_nuc_atomic_v2(mydf, kpts=None):
 
 def get_pp_atomic_v2(mydf, kpts=None):
     # this is from aft/get_pp and df/incore/get_pp levels
+    # TODO evt should just be analogue to get_nuc_atomic_v2
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -316,8 +318,9 @@ def get_pp_atomic_v2(mydf, kpts=None):
 
     # rn returns nkpts x nao x nao
     #vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
-    vloc1, vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
-    return vloc1[0], vloc1_at[0]
+    vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
+    vloc2_at = dfbuilder.get_pp_loc_part2()
+    return vloc1_at[0], vloc2_at[0]
     #return vpp_total, vloc1, vloc2, vpp
 
 
@@ -376,8 +379,10 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
                               kptij_lst=kptij_lst)
             # Put the ints for this Ci coeff. in the right places in the 
             # buffer (i.e. assign to the right atom)
+            print('old part2 v    ', np.shape(v) )
             v = np.einsum('ij->ji', v)
             buf[fakebas_atom_lst] += v
+            print('old part2 buf    ', np.shape(buf) )
     
     # if fakecell.nbas are all < 0, buf consists of zeros and we check for elements in the system 
     all_zeros = not np.any(buf)
@@ -391,6 +396,7 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
         vpploc = [0] * nkpts
     else:
         buf = buf.reshape(natm, nkpts,-1)
+        print('old part2 reshaped buf    ', np.shape(buf) )
         # indices: k-kpoint, i-atom, x-aopair
         buf = np.einsum('ikx->kix', buf)
         vpploc = []
@@ -653,15 +659,13 @@ class _IntNucBuilder(_Int3cBuilder):
         nchg   = len(charge)
         charge = np.append(charge, -charge)  # (charge-of-nuccell, charge-of-fakenuc)
         nchg2  = len(charge)
-        # TODO mat is nkpts x naopair -> nkpts x natm x naopair
-        # check comp? sum over halves of z, chrg and -chrg ints 
+        # mat is nkpts x natm x naopair
+        # check for component not necessary anymore? 
+        # sum over halves of z, chrg and -chrg ints 
         if is_zero(kpts):
-            mat = np.einsum('k...z,z->k...', bufR, charge)
             mat_at1 = np.einsum('kxz,z->kzx', bufR, charge)
             mat_at  = mat_at1[:,nchg:,:] + mat_at1[:,:nchg,:] 
         else:
-            mat = (np.einsum('k...z,z->k...', bufR, charge) +
-                   np.einsum('k...z,z->k...', bufI, charge) * 1j)
             mat_at1 = (np.einsum('kxz,z->kzx', bufR, charge) +
                       np.einsum('kxz,z->kzx', bufI, charge) * 1j)
             mat_at  = mat_at1[:,nchg:,:] + mat_at1[:,:nchg,:] 
@@ -672,29 +676,26 @@ class _IntNucBuilder(_Int3cBuilder):
                                              'int3c2e_cart'):
             charge = -cell.atom_charges()
 
-            nucbar = sum([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
-            nucbar1 = np.asarray([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
+            #nucbar = sum([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
+            nucbar = np.asarray([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
+            #nucbar *= np.pi/cell.vol
             nucbar *= np.pi/cell.vol
-            nucbar1 *= np.pi/cell.vol
 
             # nkpts x nao x nao (ravel -> nao x nao)
             ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
-            # TODO mat is nkpts x naopair -> nkpts x natm x naopair
+            # mat is nkpts x natm x naopair
             # inner loop over chrg i: mat[k,i,:] nucbar[i] reshape ovlp to naopair
             for k in range(nkpts):
                 if aosym == 's1':
                     for i in range(nchg):
-                        mat_at[k,i,:] -= nucbar1[i] * ovlp[k].reshape(nao_pair) 
-                    mat[k] -= nucbar * ovlp[k].ravel()
+                        mat_at[k,i,:] -= nucbar[i] * ovlp[k].reshape(nao_pair) 
                 else:
                     for i in range(nchg):
-                        mat_at[k,i,:] -= nucbar1[i] * lib.pack_tril(ovlp[k])
-                    mat[k] -= nucbar * lib.pack_tril(ovlp[k])
-        return mat, mat_at
+                        mat_at[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
+        return mat_at
 
     def _get_nuc(self, mesh=None, with_pseudo=False):
-        print('my part1')
-        ''' I think this is just Vnuc '''
+        ''' Vnuc '''
         from pyscf.pbc.df.gdf_builder import _guess_eta
         log = logger.Logger(self.stdout, self.verbose)
         cell = self.cell
@@ -702,6 +703,7 @@ class _IntNucBuilder(_Int3cBuilder):
         nkpts = len(kpts)
         nao = cell.nao_nr()
         aosym = 's2'
+        # nao_pairs for i<=j upper triangular fx, incl diagonal
         nao_pair = nao * (nao+1) // 2
 
         kpt_allow = np.zeros(3)
@@ -713,9 +715,8 @@ class _IntNucBuilder(_Int3cBuilder):
         self.supmol = supmol = _strip_basis(self.supmol, eta)
 
         modchg_cell = _compensate_nuccell(cell, eta)
-        # TODO vj is n_k x nao_pairs -> n_k x natm x nao_pairs
-        # checked, summed over atm gives same
-        vj, vj_at = self._int_nuc_vloc(modchg_cell, with_pseudo=with_pseudo,
+        # vj is nkpts x natm x nao_pairs
+        vj_at = self._int_nuc_vloc(modchg_cell, with_pseudo=with_pseudo,
                                 supmol=supmol)
 
         Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
@@ -723,9 +724,7 @@ class _IntNucBuilder(_Int3cBuilder):
         # ngrid x natm
         aoaux = ft_ao.ft_ao(modchg_cell, Gv)
         charges = cell.atom_charges()
-        # ngrid -> ngrid x natm TODO change einsum
-        # checked, vG vG_at same up to 1e-18
-        vG = np.einsum('i,xi->x', -charges, aoaux) * coulG
+        # ngrid x natm
         vG1 = np.einsum('i,xi->xi', -charges, aoaux) 
         vG_at = np.einsum('x,xi->xi', coulG, vG1)
 
@@ -739,8 +738,6 @@ class _IntNucBuilder(_Int3cBuilder):
         max_memory = max(2000, self.max_memory-lib.current_memory()[0])
         Gblksize = max(16, int(max_memory*1e6/16/nao_pair/nkpts))
         Gblksize = min(Gblksize, ngrids, 200000)
-        vGR = vG.real
-        vGI = vG.imag
         vG_atR = vG_at.real
         vG_atI = vG_at.imag
         log.debug1('max_memory = %s  Gblksize = %s  ngrids = %s',
@@ -760,28 +757,18 @@ class _IntNucBuilder(_Int3cBuilder):
                 # contract potential on grid points with value of the ao on that grid point (column in Gpq is ao*ao value on a grid)
                 # x is ao pair index (maps to specific ij pair) in triangular matrix
                 # logically each vj[k] is a matrix
-                # vj[k] choose matrix for k; ji,jx->x where i is n_at, j is gridpoint index TODO fix einsum
                 # vj[k] choose matrix for k; ji,jx->ix where i is natm, j is gridpoint index
-                vR = np.einsum('k,kx->x', vGR[p0:p1], GpqR)
-                vR+= np.einsum('k,kx->x', vGI[p0:p1], GpqI)
-                vj[k] += vR
                 vR_at  = np.einsum('ji,jx->ix', vG_atR[p0:p1], GpqR)
                 vR_at += np.einsum('ji,jx->ix', vG_atI[p0:p1], GpqI)
                 vj_at[k] += vR_at
                 # if not gamma point
                 if not is_zero(kpts[k]):
-                    vI = np.einsum('k,kx->x', vGR[p0:p1], GpqI)
-                    vI-= np.einsum('k,kx->x', vGI[p0:p1], GpqR)
-                    vj[k] += vI * 1j
                     vI_at  = np.einsum('ji,jx->ix', vG_atR[p0:p1], GpqI)
                     vI_at += np.einsum('ji,jx->ix', vG_atI[p0:p1], GpqR)
                     vj_at[k] += vI_at * 1j
 
         # now there's a triangular matrix for each k (triangular of nao x nao is nao_pairs)
         # unpack here to nao x nao
-        # TODO here unpack vj_1atm for each atm in a loop, then append
-        # for both gamma and other points
-        vj_kpts = []
         vj_kpts_at = []
         for k, kpt in enumerate(kpts):
             if is_zero(kpt):
@@ -789,16 +776,12 @@ class _IntNucBuilder(_Int3cBuilder):
                 for i in range(len(charges)):
                     vj_1atm_kpts.append(lib.unpack_tril(vj_at[k,i,:].real))
                 vj_kpts_at.append(vj_1atm_kpts)
-                #
-                vj_kpts.append(lib.unpack_tril(vj[k].real))
             else:
                 vj_1atm_kpts = []
                 for i in range(len(charges)):
                     vj_1atm_kpts.append(lib.unpack_tril(vj_at[k,i,:]))
                 vj_kpts_at.append(vj_1atm_kpts)
-                #
-                vj_kpts.append(lib.unpack_tril(vj[k]))
-        return np.asarray(vj_kpts), np.asarray(vj_kpts_at)
+        return np.asarray(vj_kpts_at)
 
     def get_nuc(self, mesh=None):
         '''Get the periodic nuc-el AO matrix, with G=0 removed.
@@ -816,6 +799,23 @@ class _IntNucBuilder(_Int3cBuilder):
         return self._get_nuc(mesh, with_pseudo=True)
 
     def get_pp_loc_part2(self):
+        '''PRB, 58, 3641 Eq (1), integrals associated to C1, C2, C3, C4
+        '''
+        '''
+            Fake cell created to "house" each coeff.*gaussian (on each atom that has it) 
+            for V_loc of pseudopotential (1 fakecell has max 1 gaussian per atom). 
+            Ergo different nr of coeff. ->diff. nr of ints to loop and sum over for diff. atoms
+            See: "Each term of V_{loc} (erf, C_1, C_2, C_3, C_4) is a gaussian type
+            function. The integral over V_{loc} can be transfered to the 3-center
+            integrals, in which the auxiliary basis is given by the fake cell."
+            Later the cell and fakecells are concatenated to compute 3c overlaps between 
+            basis funcs on the real cell & coeff*gaussians on fake cell?
+            TODO check if this is correct
+            <X_P(r)| sum_A^Nat [ -Z_Acore/r erf(r/sqrt(2)r_loc) + sum_i C_iA (r/r_loc)^(2i-2) ] |X_Q(r)>
+            -> 
+            int X_P(r - R_P)     :X_P actual basis func. that sits on atom P  ??
+            * Ci                 :coeff for atom A, coeff nr i
+        '''
         print('part2')
         if self.rs_cell is None:
             self.build()
@@ -825,36 +825,94 @@ class _IntNucBuilder(_Int3cBuilder):
             supmol = self.supmol.strip_basis(inplace=False)
         kpts = self.kpts
         nkpts = len(kpts)
+        natm = cell.natm
+        nao = cell.nao_nr()
+        # nao_pairs for i<=j upper triangular fx, incl diagonal
+        nao_pair = nao * (nao+1) // 2
+
         intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
                   'int3c1e_r4_origk', 'int3c1e_r6_origk')
+
+        # TODO i do this with np.zeros instead natm x nao_pair, check
         bufR = 0
         bufI = 0
+        bufR_at = np.zeros((nkpts, natm, nao_pair))
+        bufI_at = np.zeros((nkpts, natm, nao_pair))
+        # Loop over coefficients to generate: erf, C1, C2, C3, C4
+        # each coeff.-gaussian put in its own fakecell
+        # If cn = 0, the erf term is generated.  C_1,..,C_4 are generated with cn = 1..4
+        # buf is a buffer array to gather all integrals into before unpacking
         for cn in range(1, 5):
-            fake_cell = pp_int.fake_cell_vloc(cell, cn)
+            fake_cell = pseudo.pp_int.fake_cell_vloc(cell, cn)
+            #fake_cell = pp_int.fake_cell_vloc(cell, cn)
             if fake_cell.nbas > 0:
+                # TODO my atom-wise code
+                # Make a list on which atoms the gaussians sit (for the current Ci coeff.)
+                fakebas_atom_lst = []
+                for i in range(fake_cell.nbas):
+                    fakebas_atom_lst.append(fake_cell.bas_atom(i))
+                fakebas_atom_ids = np.array(fakebas_atom_lst)
+                #
                 int3c = self.gen_int3c_kernel(intors[cn], 's2', comp=1, j_only=True,
                                               auxcell=fake_cell, supmol=supmol)
+                # The int over V_{loc} can be transfered to the 3-center
+                # integrals, in which the aux. basis is given by the fake cell.
+                # v is TODO check (nkpts, naopairs, naux)
                 vR, vI = int3c()
+                print('new part2 vR    ', np.shape(vR) )
                 bufR += np.einsum('...i->...', vR)
+                print('new part2 bufR    ', np.shape(bufR) )
+                # Put the ints for this Ci coeff. in the right places in the 
+                # buffer (i.e. assign to the right atom)
+                # k is kpt, i is aux, j is aopair
+                vR_at = np.einsum('kij->kji', vR) 
+                vI_at = np.einsum('kij->kji', vI) 
+                print('fakebas_atom_lst', np.shape(fakebas_atom_lst), fakebas_atom_lst)
+                # how to do this for each kpt? TODO
+                for k, kpt in enumerate(kpts):
+                    bufR_at[k, fakebas_atom_lst] += vR_at[k]
+                print('check bufR_at     ', np.allclose(np.einsum('kix->kx', bufR_at), bufR, atol=1e-58) )
+                #bufR_at[fakebas_atom_lst] += vR_at
+                #print('check bufR_at     ', np.allclose(np.einsum('', bufR_at), bufR) )
                 if vI is not None:
                     bufI += np.einsum('...i->...', vI)
+                    for k, kpt in enumerate(kpts):
+                        bufI_at[k, fakebas_atom_lst] += vI_at[k]
+                # TODO continue here
 
+        # if fakecell.nbas are all < 0, buf consists of zeros and we check for elements in the system 
         if isinstance(bufR, int):
             if any(cell.atom_symbol(ia) in cell._pseudo for ia in range(cell.natm)):
                 pass
             else:
                 lib.logger.warn(cell, 'cell.pseudo was specified but its elements %s '
                                  'were not found in the system.', cell._pseudo.keys())
+               #warnings.warn('cell.pseudo was specified but its elements %s '
+               #              'were not found in the system (pp_part2).', cell._pseudo.keys())
+            # list of zeros, length nkpts returned when no pp found on atoms
             vpploc = [0] * nkpts
         else:
+            # TODO my code: reshape natm, nkpts, -1 or similar 
+            # rearrange with einsum
             buf = (bufR + bufI * 1j).reshape(nkpts,-1)
+            print('new part2 reshaped buf    ', np.shape(buf) )
             vpploc = []
+            vpploc_at = []
+            # now have the triangular matrix for each k (triangular of nao x nao is n_aopairs)
+            # unpack here to nao x nao for each atom
             for k, kpt in enumerate(kpts):
+                #vpploc_1atm_kpts = [] #
                 v = lib.unpack_tril(buf[k])
+                #for i in range(natm):
+                #    v_1atm_ints = lib.unpack_tril(buf_at[k,i,:]) #
+                #    if abs(kpt).sum() < 1e-9:  # gamma_point:
+                #         v_1atm_ints = v_1atm_ints.real #
+                #    vpploc_1atm_kpts.append(v_1atm_ints) #
+                #vpploc.append(vpploc_1atm_kpts) #
                 if abs(kpt).sum() < 1e-9:  # gamma_point:
                     v = v.real
                 vpploc.append(v)
-        return vpploc
+        return vpploc#, np.asarray(vpploc_at)
 
     def get_pp(self, mesh=None):
         '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
@@ -869,7 +927,8 @@ class _IntNucBuilder(_Int3cBuilder):
         t1 = logger.timer_debug1(self, 'get_pp_loc_part1', *t0)
         vloc2 = self.get_pp_loc_part2()
         t1 = logger.timer_debug1(self, 'get_pp_loc_part2', *t1)
-        vpp = pp_int.get_pp_nl(self.cell, self.kpts)
+        vpp = pseudo.pp_int.get_pp_nl(self.cell, self.kpts)
+        #vpp = pp_int.get_pp_nl(self.cell, self.kpts)
         nkpts = len(self.kpts)
         for k in range(nkpts):
             vpp[k] += vloc1[k] + vloc2[k]
