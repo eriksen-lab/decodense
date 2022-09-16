@@ -206,6 +206,6 @@ print('all close vloc1_at?', np.allclose(vloc1, vloc1_v2_at, atol=1e-13) )
 print('')
 #print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-58) )
 print('vloc2', np.shape(vloc2), np.shape(vloc2_v2) )
-print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc2), vloc2_v2, atol=1e-14) )
+print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc2), vloc2_v2, atol=1e-11) )
 #check_decomp(cell, mf)
 

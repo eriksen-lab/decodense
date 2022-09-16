@@ -319,7 +319,8 @@ def get_pp_atomic_v2(mydf, kpts=None):
     # rn returns nkpts x nao x nao
     #vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
     vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
-    vloc2_at = dfbuilder.get_pp_loc_part2()
+    vloc2, vloc2_at = dfbuilder.get_pp_loc_part2()
+    print('vloc1, vloc2', np.shape(vloc1_at))
     return vloc1_at[0], vloc2_at[0]
     #return vpp_total, vloc1, vloc2, vpp
 
@@ -917,7 +918,7 @@ class _IntNucBuilder(_Int3cBuilder):
                 vpploc.append(v)
         print('vpploc shape', np.shape(np.asarray(vpploc)), np.shape(np.asarray(vpploc_at)) )
         print('is vpploc and vpploc_at same', np.allclose(np.einsum('kzij->kij', np.asarray(vpploc_at)), vpploc) )
-        return vpploc#, np.asarray(vpploc_at)
+        return vpploc, np.asarray(vpploc_at)
 
     def get_pp(self, mesh=None):
         '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
