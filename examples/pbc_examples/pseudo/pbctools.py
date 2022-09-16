@@ -395,6 +395,7 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
         # list of zeros, length nkpts returned when no pp found on atoms
         vpploc = [0] * nkpts
     else:
+        print('old part2 before shaped buf    ', np.shape(buf) )
         buf = buf.reshape(natm, nkpts,-1)
         print('old part2 reshaped buf    ', np.shape(buf) )
         # indices: k-kpoint, i-atom, x-aopair
@@ -865,58 +866,63 @@ class _IntNucBuilder(_Int3cBuilder):
                 # Put the ints for this Ci coeff. in the right places in the 
                 # buffer (i.e. assign to the right atom)
                 # k is kpt, i is aux, j is aopair
+                #print('check bufR_at     ', np.allclose(np.einsum('', bufR_at), bufR) )
                 vR_at = np.einsum('kij->kji', vR) 
-                vI_at = np.einsum('kij->kji', vI) 
                 print('fakebas_atom_lst', np.shape(fakebas_atom_lst), fakebas_atom_lst)
                 # how to do this for each kpt? TODO
                 for k, kpt in enumerate(kpts):
                     bufR_at[k, fakebas_atom_lst] += vR_at[k]
                 print('check bufR_at     ', np.allclose(np.einsum('kix->kx', bufR_at), bufR, atol=1e-58) )
-                #bufR_at[fakebas_atom_lst] += vR_at
-                #print('check bufR_at     ', np.allclose(np.einsum('', bufR_at), bufR) )
                 if vI is not None:
                     bufI += np.einsum('...i->...', vI)
+                    vI_at = np.einsum('kij->kji', vI) 
                     for k, kpt in enumerate(kpts):
                         bufI_at[k, fakebas_atom_lst] += vI_at[k]
-                # TODO continue here
 
         # if fakecell.nbas are all < 0, buf consists of zeros and we check for elements in the system 
         if isinstance(bufR, int):
             if any(cell.atom_symbol(ia) in cell._pseudo for ia in range(cell.natm)):
                 pass
             else:
-                lib.logger.warn(cell, 'cell.pseudo was specified but its elements %s '
-                                 'were not found in the system.', cell._pseudo.keys())
-               #warnings.warn('cell.pseudo was specified but its elements %s '
-               #              'were not found in the system (pp_part2).', cell._pseudo.keys())
+               warnings.warn('cell.pseudo was specified but its elements %s '
+                             'were not found in the system (pp_part2).', cell._pseudo.keys())
             # list of zeros, length nkpts returned when no pp found on atoms
             vpploc = [0] * nkpts
+                # TODO continue here
         else:
+            print(' bufR     ', np.shape(bufR) )
+            print(' bufR_at     ', np.shape(bufR_at) )
             # TODO my code: reshape natm, nkpts, -1 or similar 
             # rearrange with einsum
+            # FIXME do i even need this??
             buf = (bufR + bufI * 1j).reshape(nkpts,-1)
             print('new part2 reshaped buf    ', np.shape(buf) )
+            buf_at = (bufR_at + bufI_at * 1j)
+            print('new part2 buf_at    ', np.shape(buf_at) )
             vpploc = []
             vpploc_at = []
             # now have the triangular matrix for each k (triangular of nao x nao is n_aopairs)
             # unpack here to nao x nao for each atom
             for k, kpt in enumerate(kpts):
-                #vpploc_1atm_kpts = [] #
                 v = lib.unpack_tril(buf[k])
-                #for i in range(natm):
-                #    v_1atm_ints = lib.unpack_tril(buf_at[k,i,:]) #
-                #    if abs(kpt).sum() < 1e-9:  # gamma_point:
-                #         v_1atm_ints = v_1atm_ints.real #
-                #    vpploc_1atm_kpts.append(v_1atm_ints) #
-                #vpploc.append(vpploc_1atm_kpts) #
+                vpploc_1atm_kpts = [] #
+                for i in range(natm): #
+                    v_1atm_ints = lib.unpack_tril(buf_at[k,i,:]) #
+                    if abs(kpt).sum() < 1e-9:  # gamma_point:
+                         v_1atm_ints = v_1atm_ints.real #
+                    vpploc_1atm_kpts.append(v_1atm_ints) #
+                vpploc_at.append(vpploc_1atm_kpts) #
                 if abs(kpt).sum() < 1e-9:  # gamma_point:
                     v = v.real
                 vpploc.append(v)
+        print('vpploc shape', np.shape(np.asarray(vpploc)), np.shape(np.asarray(vpploc_at)) )
+        print('is vpploc and vpploc_at same', np.allclose(np.einsum('kzij->kij', np.asarray(vpploc_at)), vpploc) )
         return vpploc#, np.asarray(vpploc_at)
 
     def get_pp(self, mesh=None):
         '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
 
+    
         Kwargs:
             mesh: custom mesh grids. By default mesh is determined by the
             function _guess_eta from module pbc.df.gdf_builder.
