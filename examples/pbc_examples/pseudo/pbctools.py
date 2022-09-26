@@ -318,10 +318,23 @@ def get_pp_atomic_v2(mydf, kpts=None):
 
     # rn returns nkpts x nao x nao
     #vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
+    # FIXME is there a better way?
+    cell = dfbuilder.cell
+    kpts = dfbuilder.kpts
     vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
-    vloc2, vloc2_at = dfbuilder.get_pp_loc_part2()
-    print('vloc1, vloc2', np.shape(vloc1_at))
-    return vloc1_at[0], vloc2_at[0]
+    vloc2_at = dfbuilder.get_pp_loc_part2()
+    vnl_at = dfbuilder.get_pp_nl()
+    vpp_total = vloc1_at + vloc2_at + vnl_at
+    #vall, vloc11, vloc22, vnl2 = dfbuilder.get_pp()
+    #print('')
+    #print('check in atomic_v2')
+    #print('vloc1', np.allclose(vloc1_at,vloc11) )
+    #print('vloc2', np.allclose(vloc2_at,vloc22) )
+    #print('vnl', np.allclose(vnl_at,vnl2) )
+    #print('total', np.allclose(vpp_total,vall) )
+    #print('')
+    # TODO continue here, gamma point check
+    return vpp_total[0], vloc1_at[0], vloc2_at[0], vnl_at[0]
     #return vpp_total, vloc1, vloc2, vpp
 
 
@@ -380,10 +393,8 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
                               kptij_lst=kptij_lst)
             # Put the ints for this Ci coeff. in the right places in the 
             # buffer (i.e. assign to the right atom)
-            print('old part2 v    ', np.shape(v) )
             v = np.einsum('ij->ji', v)
             buf[fakebas_atom_lst] += v
-            print('old part2 buf    ', np.shape(buf) )
     
     # if fakecell.nbas are all < 0, buf consists of zeros and we check for elements in the system 
     all_zeros = not np.any(buf)
@@ -396,9 +407,7 @@ def get_pp_loc_part2_atomic(cell, kpts=None):
         # list of zeros, length nkpts returned when no pp found on atoms
         vpploc = [0] * nkpts
     else:
-        print('old part2 before shaped buf    ', np.shape(buf) )
         buf = buf.reshape(natm, nkpts,-1)
-        print('old part2 reshaped buf    ', np.shape(buf) )
         # indices: k-kpoint, i-atom, x-aopair
         buf = np.einsum('ikx->kix', buf)
         vpploc = []
@@ -861,19 +870,15 @@ class _IntNucBuilder(_Int3cBuilder):
                 # integrals, in which the aux. basis is given by the fake cell.
                 # v is TODO check (nkpts, naopairs, naux)
                 vR, vI = int3c()
-                print('new part2 vR    ', np.shape(vR) )
                 bufR += np.einsum('...i->...', vR)
-                print('new part2 bufR    ', np.shape(bufR) )
                 # Put the ints for this Ci coeff. in the right places in the 
                 # buffer (i.e. assign to the right atom)
                 # k is kpt, i is aux, j is aopair
                 #print('check bufR_at     ', np.allclose(np.einsum('', bufR_at), bufR) )
                 vR_at = np.einsum('kij->kji', vR) 
-                print('fakebas_atom_lst', np.shape(fakebas_atom_lst), fakebas_atom_lst)
                 # how to do this for each kpt? TODO
                 for k, kpt in enumerate(kpts):
                     bufR_at[k, fakebas_atom_lst] += vR_at[k]
-                print('check bufR_at     ', np.allclose(np.einsum('kix->kx', bufR_at), bufR, atol=1e-58) )
                 if vI is not None:
                     bufI += np.einsum('...i->...', vI)
                     vI_at = np.einsum('kij->kji', vI) 
@@ -891,15 +896,11 @@ class _IntNucBuilder(_Int3cBuilder):
             vpploc = [0] * nkpts
                 # TODO continue here
         else:
-            print(' bufR     ', np.shape(bufR) )
-            print(' bufR_at     ', np.shape(bufR_at) )
             # TODO my code: reshape natm, nkpts, -1 or similar 
             # rearrange with einsum
             # FIXME do i even need this??
             buf = (bufR + bufI * 1j).reshape(nkpts,-1)
-            print('new part2 reshaped buf    ', np.shape(buf) )
             buf_at = (bufR_at + bufI_at * 1j)
-            print('new part2 buf_at    ', np.shape(buf_at) )
             vpploc = []
             vpploc_at = []
             # now have the triangular matrix for each k (triangular of nao x nao is n_aopairs)
@@ -916,9 +917,84 @@ class _IntNucBuilder(_Int3cBuilder):
                 if abs(kpt).sum() < 1e-9:  # gamma_point:
                     v = v.real
                 vpploc.append(v)
-        print('vpploc shape', np.shape(np.asarray(vpploc)), np.shape(np.asarray(vpploc_at)) )
-        print('is vpploc and vpploc_at same', np.allclose(np.einsum('kzij->kij', np.asarray(vpploc_at)), vpploc) )
-        return vpploc, np.asarray(vpploc_at)
+        return np.asarray(vpploc_at)
+
+    def get_pp_nl(self):
+        '''Nonlocal; contribution. See PRB, 58, 3641 Eq (2).
+           Done by generating a fake cell for putting V_{nl} gaussian 
+           function p_i^l Y_{lm} in (on the atoms the corr. core basis 
+           func. would sit on). Later the cells are concatenated to 
+           compute overlaps between basis funcs in the real cell & proj. 
+           in fake cell (splitting the ints into two ints to multiply).
+           ------------------------------------------------------------
+            <X_P(r)| sum_A^Nat sum_i^3 sum_j^3 sum_m^(2l+1) Y_lm(r_A) p_lmi(r_A) h^l_i,j p_lmj(r'_A) Y*_lm(r'_A) |X_Q(r')>
+            -> (Y_lm implicit in p^lm)
+            int X_P(r - R_P) p^lm_i(r - R_A) dr  
+            * h^A,lm_i,j                    
+            int p^lm_j(r' - R_A) X(r' - R_Q) dr  
+           ------------------------------------------------------------
+           Y_lm: spherical harmonic, l ang.mom. qnr
+           p_i^l: Gaussian projectors (PRB, 58, 3641 Eq 3)
+           hl_blocks: coeff. for nonlocal projectors
+           h^A,lm_i,j: coeff for atom A, lm,ij 
+           (i & j run up to 3: never larger atom cores than l=3 (d-orbs))
+           X_P: actual basis func. that sits on atom P
+           X_Q: actual basis func. that sits on atom Q
+           A sums over all atoms since each might have a pp 
+           that needs projecting out core sph. harm.
+        '''
+        cell = self.cell
+        kpts = self.kpts
+        if kpts is None:
+            kpts_lst = np.zeros((1,3))
+        else:
+            kpts_lst = np.reshape(kpts, (-1,3))
+        nkpts = len(kpts_lst)
+
+        # Generate a fake cell for V_{nl}.gaussian functions p_i^l Y_{lm}. 
+        fakecell, hl_blocks = pseudo.pp_int.fake_cell_vnl(cell)
+        ppnl_half = pseudo.pp_int._int_vnl(cell, fakecell, hl_blocks, kpts_lst)
+        #ppnl_half = _int_vnl(cell, fakecell, hl_blocks, kpts_lst)
+        nao = cell.nao_nr()
+        natm = cell.natm
+        buf = np.empty((3*9*nao), dtype=np.complex128)
+
+        # Set ppnl equal to zeros in case hl_blocks loop is skipped
+        # and ppnl is returned
+        ppnl = np.zeros((nkpts,natm,nao,nao), dtype=np.complex128)
+        for k, kpt in enumerate(kpts_lst):
+            offset = [0] * 3
+            # hlblocks: for each atom&ang.mom. there is a matrix of coeff. 
+            # e.g. 2ang.mom. on two atoms A and B would give A1 1x1 matrix, 
+            # A2 1x1 matrix, B1 1x1 matrix, B2 1x1 matrix (if only one kind 
+            # of a projector for these ang.mom. for these atoms).
+            for ib, hl in enumerate(hl_blocks):
+                # This loop is over hlij for all atoms and ang.momenta
+                # I think this is shell, hl coeff pair.
+                # Either way ib is bas_id and called with bas_atom gives 
+                # the atom id the coeff. belongs to. 
+                # Used to put into the right spot in ppnl[nkpts, NATM, nao, nao]
+                # l is the angular mom. qnr associated with given basis
+                l = fakecell.bas_angular(ib)
+                atm_id_hl = fakecell.bas_atom(ib)
+                # orb magn nr 2L+1
+                nd = 2 * l + 1
+                # dim of the hl coeff. array
+                hl_dim = hl.shape[0]
+                ilp = np.ndarray((hl_dim,nd,nao), dtype=np.complex128, buffer=buf)
+                for i in range(hl_dim):
+                    # p0 takes care that the right m,l sph.harm are taken in projectors?
+                    p0 = offset[i]
+                    ilp[i] = ppnl_half[i][k][p0:p0+nd]
+                    offset[i] = p0 + nd
+                ppnl[k,atm_id_hl] += np.einsum('ilp,ij,jlq->pq', ilp.conj(), hl, ilp)
+        
+        if abs(kpts_lst).sum() < 1e-9:  # gamma_point:
+            ppnl = ppnl.real
+
+        #if kpts is None or np.shape(kpts) == (3,):
+        #    ppnl = ppnl[0]
+        return ppnl
 
     def get_pp(self, mesh=None):
         '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
@@ -929,19 +1005,21 @@ class _IntNucBuilder(_Int3cBuilder):
             function _guess_eta from module pbc.df.gdf_builder.
         '''
         print('GET_PP')
-        t0 = (logger.process_clock(), logger.perf_counter())
         vloc1 = self.get_pp_loc_part1(mesh)
-        t1 = logger.timer_debug1(self, 'get_pp_loc_part1', *t0)
         vloc2 = self.get_pp_loc_part2()
-        t1 = logger.timer_debug1(self, 'get_pp_loc_part2', *t1)
-        vpp = pseudo.pp_int.get_pp_nl(self.cell, self.kpts)
-        #vpp = pp_int.get_pp_nl(self.cell, self.kpts)
+        vpp = get_pp_nl_atomic(self.cell, self.kpts)
+        vpp2 = self.get_pp_nl()
+        #vpp = self.get_pp_nl(self.cell, self.kpts)
+        #vpp = pseudo.pp_int.get_pp_nl(self.cell, self.kpts)
         nkpts = len(self.kpts)
+        print('in dfbuuilder.get_pp, shapes')
+        print('vloc1 ', np.shape(vloc1))
+        print('vloc2', np.shape(vloc1))
+        print('vnl', np.shape(vpp))
+        vpp_tot = np.copy(vpp)
         for k in range(nkpts):
-            vpp[k] += vloc1[k] + vloc2[k]
-        t1 = logger.timer_debug1(self, 'get_pp_nl', *t1)
-        logger.timer(self, 'get_pp', *t0)
-        return vpp
+            vpp_tot[k] += vloc1[k] + vloc2[k]
+        return vpp_tot, vloc1, vloc2, vpp2
 
 # TODO delete when imported
 # Since the real-space lattice-sum for nuclear attraction is not implemented,
