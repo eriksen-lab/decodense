@@ -3,7 +3,6 @@
 import numpy as np
 from pyscf.pbc import df
 from pyscf.pbc import gto, scf
-from pyscf.pbc.tools.pbc import super_cell
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 import decodense
@@ -92,12 +91,10 @@ cell.a[2, 1] = -2.13335
 cell.a[2, 2] = 3.03810
 cell.build()
 
-supcell = super_cell(cell, [2, 2, 2])
-
-mf = scf.RHF(supcell).density_fit()
+mf = scf.RHF(cell).density_fit()
 ehf = mf.kernel()
 dm = mf.make_rdm1()
-print("HF energy (per supcell) = %.17g" % ehf)
+print("HF energy (per unit cell) = %.17g" % ehf)
 
 
 ## init decomp object for cell
@@ -115,7 +112,7 @@ e_k = np.einsum('ij,ij', K_int, dm)
 
 # kin, nuc atrraction 
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
-kinetic, nuc, sub_nuc = _h_core(supcell, mf)
+kinetic, nuc, sub_nuc = _h_core(cell, mf)
 print('nuc dim', np.shape(nuc))
 print('subnuc dim', np.shape(sub_nuc))
 print('kin dim', np.shape(kinetic))
@@ -146,7 +143,7 @@ print('CELL_NUC_ATT ', cell_nuc_att)
 #for k, v in res.items():
 #    print(k, v)
 print()
-print('supcell')
+print('cell')
 print('energy_tot', mf.energy_tot())
 print('energy_elec', mf.energy_elec())
 print()
@@ -157,12 +154,12 @@ print()
 # the kinetic energy term for cell
 print('CELL')
 #print('e_nuc from decodense', np.sum(res['struct']) )
-e_struct = pbctools.ewald_e_nuc(supcell)
-print('e_kin as trace of T and D matrices (supcell): ', e_kin) 
+e_struct = pbctools.ewald_e_nuc(cell)
+print('e_kin as trace of T and D matrices (cell): ', e_kin) 
 #
 # other terms
-print('e_coul as trace of J and D matrices (supcell): ', e_j)
-print('e_exch as trace of K and D matrices (supcell): ', e_k)
+print('e_coul as trace of J and D matrices (cell): ', e_j)
+print('e_exch as trace of K and D matrices (cell): ', e_k)
 #
 #print('nuc_att_glob as trace of (what would correspond to) sub_nuc and D: ', cell_nuc_att_atomic, np.einsum('z->', cell_nuc_att_atomic) )
 #print('nuc_att_loc as trace of nuc and d's: ', 2*np.sum(nuc_att_loc) )
@@ -182,11 +179,11 @@ print('from hcore', np.einsum('ij,ij', mf.get_hcore(), dm))
 print('my kin+nuc_att ', e_kin + cell_nuc_att )
 print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + cell_nuc_att) )
 print('e_struct ', e_struct)
-print('e_nuc ', supcell.energy_nuc() )
-print('e_nuc - e_struct ',  supcell.energy_nuc() - np.sum(e_struct) )
+print('e_nuc ', cell.energy_nuc() )
+print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
 #print(dir(mf))
 #
-print('e_nuc_att term test')
+print('e_nuc_att term test, v2')
 #vpp, vpp_atomic = mf.get_nuc_att()
 vpp = mf.get_nuc_att()
 mydf = mf.with_df
@@ -199,25 +196,5 @@ print('e_nuc_att_pp', e_nuc_att_pp )
 print('e_nuc_att_pp_atomic', np.sum(e_nuc_att_pp_atomic), e_nuc_att_pp_atomic )
 print('e_nuc_att_pp - e_nuc_att_pp_atomic', e_nuc_att_pp - np.einsum('z->', e_nuc_att_pp_atomic) )
 
-print('')
-print('')
-print('Testing v2 of e_nuc_pp atomic code')
-vpp_atomic_v2, vloc1_v2_at, vloc2_v2_at, vnl_v2_at = pbctools.get_pp_atomic_v2(mydf)
-vloc1_v2 = np.einsum('zij->ij', vloc1_v2_at)
-vloc2_v2 = np.einsum('zij->ij', vloc2_v2_at)
-vnl_v2 = np.einsum('zij->ij', vnl_v2_at)
-print('vloc1, vloc1_v2, vloc1_v2_at shapes', np.shape(vloc1), np.shape(vloc1_v2), np.shape(vloc1_v2_at) )
-print('all close vloc1?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-08) )
-print('all close vloc1_at?', np.allclose(vloc1, vloc1_v2_at, atol=1e-08) )
-print('')
-#print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-58) )
-#print('vloc2', np.shape(vloc2), np.shape(vloc2_v2) )
-print('vloc2, vloc2_v2, vloc2_v2_at shapes', np.shape(vloc2), np.shape(vloc2_v2), np.shape(vloc2_v2_at) )
-print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc2), vloc2_v2, atol=1e-14) )
-print('all close vloc2_at?', np.allclose(vloc2, vloc2_v2_at, atol=1e-14) )
-print('')
-print('vpp_atomic, vpp_atomic_v2 shapes', np.shape(vpp_atomic), np.shape(vpp_atomic_v2) )
-print('all close vpp_atomic?', np.allclose(vpp_atomic, vpp_atomic_v2, atol=1e-08) )
-print('sum, all close vpp_atomic?', np.allclose(vpp_atomic, vloc1_v2_at+vloc2_v2_at+vnl_v2_at, atol=1e-08) )
-check_decomp(supcell, mf)
+check_decomp(cell, mf)
 
