@@ -79,18 +79,18 @@ def print_mesh(mesh):
 # cell
 cell = gto.Cell()
 cell.atom = '''
- H   0.81252   1.47613   2.81966
- H   1.18600   1.19690   0.22918
- F   0.11649   1.99653   3.20061
- F   1.88203   0.67651   0.61013
+ H   0.686524  1.000000  0.686524
+ Cl  0.981476  1.000000  0.981476
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 2.78686
-cell.a[1, 1] = 2.67303
-cell.a[1, 0] = -0.78834
-cell.a[2, 2] = 5.18096
+cell.a = np.eye(3) * 4.18274
+cell.a[1, 0] = -0.23273
+cell.a[1, 1] = 4.17626
+cell.a[2, 0] = -1.92719
+cell.a[2, 1] = -2.13335
+cell.a[2, 2] = 3.03810
 cell.build()
 
 mydf = df.FFTDF(cell)

@@ -3,6 +3,7 @@
 import numpy as np
 from pyscf.pbc import df
 from pyscf.pbc import gto, scf
+from pyscf.pbc.tools.pbc import super_cell
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 import decodense
@@ -79,29 +80,30 @@ def print_mesh(mesh):
 # cell
 cell = gto.Cell()
 cell.atom = '''
- H   0.81252   1.47613   2.81966
- H   1.18600   1.19690   0.22918
- F   0.11649   1.99653   3.20061
- F   1.88203   0.67651   0.61013
+ H   0.686524  1.000000  0.686524
+ Cl  0.981476  1.000000  0.981476
 '''
-#cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 2.78686
-cell.a[1, 1] = 2.67303
-cell.a[1, 0] = -0.78834
-cell.a[2, 2] = 5.18096
+cell.a = np.eye(3) * 4.18274
+cell.a[1, 0] = -0.23273
+cell.a[1, 1] = 4.17626
+cell.a[2, 0] = -1.92719
+cell.a[2, 1] = -2.13335
+cell.a[2, 2] = 3.03810
 cell.build()
 
-mydf = df.FFTDF(cell)
+supcell = super_cell(cell, [2, 2, 2])
+
+mydf = df.FFTDF(supcell)
 print_mesh(mydf.mesh)
 
-mf = scf.RHF(cell).density_fit()
+mf = scf.RHF(supcell).density_fit()
 # overwrite the df obj
 mf.with_df = mydf
 ehf = mf.kernel()
 dm = mf.make_rdm1()
-print("HF energy (per unit cell) = %.17g" % ehf)
+print("HF energy (per unit supcell) = %.17g" % ehf)
 
 
 ## init decomp object for cell
@@ -119,7 +121,7 @@ e_k = np.einsum('ij,ij', K_int, dm)
 
 # kin, nuc atrraction 
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
-kinetic, nuc, sub_nuc = _h_core(cell, mf)
+kinetic, nuc, sub_nuc = _h_core(supcell, mf)
 print('nuc dim', np.shape(nuc))
 print('subnuc dim', np.shape(sub_nuc))
 print('kin dim', np.shape(kinetic))
@@ -150,7 +152,7 @@ print('CELL_NUC_ATT ', cell_nuc_att)
 #for k, v in res.items():
 #    print(k, v)
 print()
-print('cell')
+print('supcell')
 print('energy_tot', mf.energy_tot())
 print('energy_elec', mf.energy_elec())
 print()
@@ -161,12 +163,12 @@ print()
 # the kinetic energy term for cell
 print('CELL')
 #print('e_nuc from decodense', np.sum(res['struct']) )
-e_struct = pbctools.ewald_e_nuc(cell)
-print('e_kin as trace of T and D matrices (cell): ', e_kin) 
+e_struct = pbctools.ewald_e_nuc(supcell)
+print('e_kin as trace of T and D matrices (supcell): ', e_kin) 
 #
 # other terms
-print('e_coul as trace of J and D matrices (cell): ', e_j)
-print('e_exch as trace of K and D matrices (cell): ', e_k)
+print('e_coul as trace of J and D matrices (supcell): ', e_j)
+print('e_exch as trace of K and D matrices (supcell): ', e_k)
 #
 #print('nuc_att_glob as trace of (what would correspond to) sub_nuc and D: ', cell_nuc_att_atomic, np.einsum('z->', cell_nuc_att_atomic) )
 #print('nuc_att_loc as trace of nuc and d's: ', 2*np.sum(nuc_att_loc) )
@@ -186,8 +188,8 @@ print('from hcore', np.einsum('ij,ij', mf.get_hcore(), dm))
 print('my kin+nuc_att ', e_kin + cell_nuc_att )
 print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + cell_nuc_att) )
 print('e_struct ', e_struct)
-print('e_nuc ', cell.energy_nuc() )
-print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
+print('e_nuc ', supcell.energy_nuc() )
+print('e_nuc - e_struct ',  supcell.energy_nuc() - np.sum(e_struct) )
 #print(dir(mf))
 #
 #print('e_nuc_att term test')
@@ -209,4 +211,4 @@ vpp_fft, vpp_fft_at = pbctools.get_pp_fftdf(mydf)
 print('all close pyscf vpp and vpp_fft?', np.allclose(vpp, vpp_fft, atol=1e-08) )
 print('all close pyscf vpp and vpp_fft_at?', np.allclose(vpp, np.einsum('zab->ab', vpp_fft_at), atol=1e-08) )
 print('all close vpp_fft and vpp_fft_at?', np.allclose(vpp_fft, np.einsum('zab->ab', vpp_fft_at), atol=1e-08) )
-##check_decomp(cell, mf)
+##check_decomp(supcell, mf)

@@ -571,11 +571,11 @@ def get_pp_fftdf(mydf, kpts=None):
     print('')
     print('shape SI, Gv', np.shape(SI), np.shape(Gv))
     print('shape vpplocG before einsum', np.shape(vpplocG))
-    print('')
     vpplocG_at = -np.einsum('ij,ij->ij', SI, vpplocG)
     vpplocG = -np.einsum('ij,ij->j', SI, vpplocG)
     print('shape vpplocG after einsum', np.shape(vpplocG))
     print('vlocG and vlocG_at allclose?', np.allclose(vpplocG, np.einsum('ij->j', vpplocG_at)) )
+    print('')
     ngrids = len(vpplocG)
     natm = cell.natm
     nkpts = len(kpts_lst)
@@ -591,18 +591,16 @@ def get_pp_fftdf(mydf, kpts=None):
     print('')
     # vpp is (nkpts,)
     vpp = [0] * len(kpts_lst)
-    print('vpp before ao loop', np.shape(vpp) )
     for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
         ao_ks = ao_ks_etc[0]
-        print('')
-        print('shape of ao_ks', np.shape(ao_ks) )
-        print('')
+        #print('shape of ao_ks', np.shape(ao_ks) )
         for k, ao in enumerate(ao_ks):
-            print('shape ao', np.shape(ao))
+            #print('shape ao', np.shape(ao))
             vpp[k] += lib.dot(ao.T.conj()*vpplocR[p0:p1], ao)
         ao = ao_ks = None
     print('vpp after loop over kpts', np.shape(vpp) )
     print('')
+    # my version of packing
     vpp_at = np.zeros((nkpts, natm, nao, nao))
     for a in range(natm):
         for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
@@ -611,7 +609,8 @@ def get_pp_fftdf(mydf, kpts=None):
                 vpp_at[k,a] += lib.dot(ao.T.conj()*vpplocR_at[a, p0:p1], ao)
             ao = ao_ks = None
     print('shape vpp_at', np.shape(vpp_at))
-    print('vpp and vpp_at allclose?', np.allclose(vpp, np.einsum('kzab->kab', vpp_at)) )
+    print('vpp and vpp_at allclose?', np.allclose(vpp, np.einsum('kzab->kab', vpp_at), atol=1e-16) )
+    print('')
 
     # vppnonloc evaluated in reciprocal space
     fakemol = gto.Mole()
@@ -630,7 +629,12 @@ def get_pp_fftdf(mydf, kpts=None):
         Gk = Gv + kpt
         G_rad = lib.norm(Gk, axis=1)
         aokG = ft_ao.ft_ao(cell, Gv, kpt=kpt) * (1/cell.vol)**.5
+        print('')
+        print('vppnl_by_k')
+        print('Gk, G_rad, aokG', np.shape(Gk), np.shape(G_rad), np.shape(aokG))
+        print('')
         vppnl = 0
+        vppnl_at = np.zeros((natm, nao, nao), dtype=np.complex128)
         for ia in range(cell.natm):
             symb = cell.atom_symbol(ia)
             if symb not in cell._pseudo:
@@ -638,26 +642,38 @@ def get_pp_fftdf(mydf, kpts=None):
             pp = cell._pseudo[symb]
             p1 = 0
             for l, proj in enumerate(pp[5:]):
+                # r_loc, nr of l ang.mom., hl proj coeff? TODO check
                 rl, nl, hl = proj
+                print('ia, symb, l, proj', ia, symb, l, np.shape(proj) )
+                print('rl, nl, hl', rl, nl, hl)
                 if nl > 0:
                     fakemol._bas[0,gto.ANG_OF] = l
                     fakemol._env[ptr+3] = .5*rl**2
                     fakemol._env[ptr+4] = rl**(l+1.5)*np.pi**1.25
+                    # pYlm_part: nPWgrid x n TODO nkpts?
                     pYlm_part = fakemol.eval_gto('GTOval', Gk)
+                    print('nl > 0')
 
                     p0, p1 = p1, p1+nl*(l*2+1)
                     # pYlm is real, SI[ia] is complex
+                    # pYlm: nPWgrid x n TODO nkpts? 
                     pYlm = np.ndarray((nl,l*2+1,ngrids), dtype=np.complex128, buffer=buf[p0:p1])
                     for k in range(nl):
                         qkl = pseudo.pp._qli(G_rad*rl, l, k)
                         pYlm[k] = pYlm_part.T * qkl
+                        print('loop over nl: qkl', np.shape(qkl))
+                        print('pYlm', np.shape(pYlm_part), np.shape(pYlm_part[k]) )
                     #:SPG_lmi = np.einsum('g,nmg->nmg', SI[ia].conj(), pYlm)
                     #:SPG_lm_aoG = np.einsum('nmg,gp->nmp', SPG_lmi, aokG)
                     #:tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
                     #:vppnl += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
             if p1 > 0:
+                print('p1 > 0')
+                # SPG_lmi: n x nPWgrid TODO n nkpts?
                 SPG_lmi = buf[:p1]
+                # SI: natm x nPWgrid
                 SPG_lmi *= SI[ia].conj()
+                # SPG_lm_aoGs: n x nao TODO n nkpts?
                 SPG_lm_aoGs = lib.zdot(SPG_lmi, aokG)
                 p1 = 0
                 for l, proj in enumerate(pp[5:]):
@@ -665,50 +681,35 @@ def get_pp_fftdf(mydf, kpts=None):
                     if nl > 0:
                         p0, p1 = p1, p1+nl*(l*2+1)
                         hl = np.asarray(hl)
+                        print('hl', np.shape(hl), hl)
+                        # SPG_lm_aoG: n_hl_dim x n_ml?? x nao TODO
+                        # same tmp
+                        # seems like j is ...ml or l? TODO 
                         SPG_lm_aoG = SPG_lm_aoGs[p0:p1].reshape(nl,l*2+1,-1)
+                        print('SPG_lm_aoG', np.shape(SPG_lm_aoG) )
                         tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
+                        print('tmp', np.shape(tmp))
+                        # vppnl: nao x nao for one kpt
+                        # TODO pack here in correct place for atom
                         vppnl += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
-        return vppnl * (1./cell.vol)
-
+                        vppnl_at[ia] += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
+                        print('vppnl', np.shape(vppnl), type(vppnl[0,0]) )
+                        print('vppnl_at', np.shape(vppnl_at), type(vppnl_at[ia, 0,0]) )
+                        print('vppnl_at and vppnl', np.allclose(vppnl, np.einsum('zab->ab', vppnl_at)) )
+        return vppnl * (1./cell.vol), vppnl_at * (1./cell.vol)
+    
     for k, kpt in enumerate(kpts_lst):
-        vppnl = vppnl_by_k(kpt)
+        vppnl, vppnl_at = vppnl_by_k(kpt)
         if gamma_point(kpt):
             vpp[k] = vpp[k].real + vppnl.real
+            vpp_at[k] = vpp_at[k].real + vppnl_at.real
         else:
             vpp[k] += vppnl
+            vpp_at[k] += vppnl_at
 
     if kpts is None or np.shape(kpts) == (3,):
         vpp = vpp[0]
-    return np.asarray(vpp)
+        vpp_at = vpp_at[0]
+    return np.asarray(vpp), vpp_at
 
 
-def my_ifft(g, mesh):
-    '''Perform the 3D inverse FFT from reciprocal (G) space to real (R) space.
-
-    Inverse FFT normalization factor is 1./N, same as in `np.fft` but
-    **different** from MH (they use 1.).
-
-    Args:
-        g : (nx*ny*nz,) ndarray
-            The function to be inverse FFT'd, flattened to a 1D array
-            corresponding to the index order of `span3`.
-        mesh : (3,) ndarray of ints (= nx,ny,nz)
-            The number G-vectors along each direction.
-
-    Returns:
-        (nx*ny*nz,) ndarray
-            The inverse FFT 1D array in same index order as Gv (natural order
-            of np.fft).
-
-    '''
-    if g.size == 0:
-        return np.zeros_like(g)
-
-    g3d = g.reshape(-1, *mesh)
-    assert (g3d.shape[0] == 1 or g[0].size == g3d[0].size)
-    f3d = _ifftn_wrapper(g3d)
-    ngrids = np.prod(mesh)
-    if g.ndim == 1 or (g.ndim == 3 and g.size == ngrids):
-        return f3d.ravel()
-    else:
-        return f3d.reshape(-1, ngrids)

@@ -77,20 +77,21 @@ def print_mesh(mesh):
 ##########################################
 #
 # cell
+# initialize a cell object
+# the (1/4, 1/4, 1/4) basis atoms are: #2, i think?
 cell = gto.Cell()
 cell.atom = '''
- H   0.81252   1.47613   2.81966
- H   1.18600   1.19690   0.22918
- F   0.11649   1.99653   3.20061
- F   1.88203   0.67651   0.61013
+ C   3.79049   2.18844   1.54746
+ C   2.52699   1.45896   1.03164
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 2.78686
-cell.a[1, 1] = 2.67303
-cell.a[1, 0] = -0.78834
-cell.a[2, 2] = 5.18096
+# .a is a matrix for lattice vectors.  Each row of .a is a primitive vector.
+cell.a = np.eye(3)*2.52699
+cell.a[1:,0] = 1.26350
+cell.a[1,1], cell.a[2,2], cell.a[2,1] = 2.18844, 2.06328, 0.72948
+cell.verbose = 3
 cell.build()
 
 mydf = df.FFTDF(cell)
