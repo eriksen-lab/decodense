@@ -557,7 +557,7 @@ def get_pp_fftdf(mydf, kpts=None):
     '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
     '''
     from pyscf import gto
-    print('FFTDF went pbc/df/fft.py')
+    #print('FFTDF went pbc/df/fft.py')
     cell = mydf.cell
     if kpts is None:
         kpts_lst = np.zeros((1,3))
@@ -568,14 +568,14 @@ def get_pp_fftdf(mydf, kpts=None):
     SI = cell.get_SI()
     Gv = cell.get_Gv(mesh)
     vpplocG = pseudo.get_vlocG(cell, Gv)
-    print('')
-    print('shape SI, Gv', np.shape(SI), np.shape(Gv))
-    print('shape vpplocG before einsum', np.shape(vpplocG))
+    #print('')
+    #print('shape SI, Gv', np.shape(SI), np.shape(Gv))
+    #print('shape vpplocG before einsum', np.shape(vpplocG))
     vpplocG_at = -np.einsum('ij,ij->ij', SI, vpplocG)
     vpplocG = -np.einsum('ij,ij->j', SI, vpplocG)
-    print('shape vpplocG after einsum', np.shape(vpplocG))
-    print('vlocG and vlocG_at allclose?', np.allclose(vpplocG, np.einsum('ij->j', vpplocG_at)) )
-    print('')
+    #print('shape vpplocG after einsum', np.shape(vpplocG))
+    #print('vlocG and vlocG_at allclose?', np.allclose(vpplocG, np.einsum('ij->j', vpplocG_at)) )
+    #print('')
     ngrids = len(vpplocG)
     natm = cell.natm
     nkpts = len(kpts_lst)
@@ -586,9 +586,9 @@ def get_pp_fftdf(mydf, kpts=None):
     vpplocR_at = np.zeros((natm, ngrids))
     for a in range(natm):
         vpplocR_at[a] = tools.ifft(vpplocG_at[a], mesh).real
-    print('shape vpplocR on a real space grid', np.shape(vpplocG))
-    print('vlocR and vlocR_at allclose?', np.allclose(vpplocR, np.einsum('ij->j', vpplocR_at)) )
-    print('')
+    #print('shape vpplocR on a real space grid', np.shape(vpplocG))
+    #print('vlocR and vlocR_at allclose?', np.allclose(vpplocR, np.einsum('ij->j', vpplocR_at)) )
+    #print('')
     # vpp is (nkpts,)
     vpp = [0] * len(kpts_lst)
     for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
@@ -598,8 +598,8 @@ def get_pp_fftdf(mydf, kpts=None):
             #print('shape ao', np.shape(ao))
             vpp[k] += lib.dot(ao.T.conj()*vpplocR[p0:p1], ao)
         ao = ao_ks = None
-    print('vpp after loop over kpts', np.shape(vpp) )
-    print('')
+    #print('vpp after loop over kpts', np.shape(vpp) )
+    #print('')
     # my version of packing
     vpp_at = np.zeros((nkpts, natm, nao, nao))
     for a in range(natm):
@@ -608,9 +608,9 @@ def get_pp_fftdf(mydf, kpts=None):
             for k, ao in enumerate(ao_ks):
                 vpp_at[k,a] += lib.dot(ao.T.conj()*vpplocR_at[a, p0:p1], ao)
             ao = ao_ks = None
-    print('shape vpp_at', np.shape(vpp_at))
-    print('vpp and vpp_at allclose?', np.allclose(vpp, np.einsum('kzab->kab', vpp_at), atol=1e-16) )
-    print('')
+    #print('shape vpp_at', np.shape(vpp_at))
+    #print('vpp and vpp_at allclose?', np.allclose(vpp, np.einsum('kzab->kab', vpp_at), atol=1e-16) )
+    #print('')
 
     # vppnonloc evaluated in reciprocal space
     fakemol = gto.Mole()
@@ -629,68 +629,77 @@ def get_pp_fftdf(mydf, kpts=None):
         Gk = Gv + kpt
         G_rad = lib.norm(Gk, axis=1)
         aokG = ft_ao.ft_ao(cell, Gv, kpt=kpt) * (1/cell.vol)**.5
-        print('')
-        print('vppnl_by_k')
-        print('Gk, G_rad, aokG', np.shape(Gk), np.shape(G_rad), np.shape(aokG))
-        print('')
+        #print('')
+        #print('vppnl_by_k')
+        #print('Gk, G_rad, aokG', np.shape(Gk), np.shape(G_rad), np.shape(aokG))
+        #print('')
         vppnl = 0
         vppnl_at = np.zeros((natm, nao, nao), dtype=np.complex128)
+        # loop over atoms, check if they have pp
         for ia in range(cell.natm):
             symb = cell.atom_symbol(ia)
             if symb not in cell._pseudo:
                 continue
             pp = cell._pseudo[symb]
             p1 = 0
+            # check which shells are in the pp, which hl coeff. it has
+            # l is shell/ang.mom., rl is r_loc, nl is nr of l/these shells,
+            # hl is the h^shell coefficients 
             for l, proj in enumerate(pp[5:]):
-                # r_loc, nr of l ang.mom., hl proj coeff? TODO check
                 rl, nl, hl = proj
                 print('ia, symb, l, proj', ia, symb, l, np.shape(proj) )
                 print('rl, nl, hl', rl, nl, hl)
+                # if this l in pp, need coeff/ints to project out 
                 if nl > 0:
                     fakemol._bas[0,gto.ANG_OF] = l
                     fakemol._env[ptr+3] = .5*rl**2
                     fakemol._env[ptr+4] = rl**(l+1.5)*np.pi**1.25
-                    # pYlm_part: nPWgrid x n TODO nkpts?
+                    # pYlm_part: nPWgrid x nr of ml
                     pYlm_part = fakemol.eval_gto('GTOval', Gk)
-                    print('nl > 0')
+                    #print('nl > 0')
 
                     p0, p1 = p1, p1+nl*(l*2+1)
                     # pYlm is real, SI[ia] is complex
-                    # pYlm: nPWgrid x n TODO nkpts? 
+                    # pYlm: nPWgrid x nr of ml
                     pYlm = np.ndarray((nl,l*2+1,ngrids), dtype=np.complex128, buffer=buf[p0:p1])
+                    # loop over these shells, e.g. 1s, 2s,3s..
                     for k in range(nl):
                         qkl = pseudo.pp._qli(G_rad*rl, l, k)
                         pYlm[k] = pYlm_part.T * qkl
-                        print('loop over nl: qkl', np.shape(qkl))
-                        print('pYlm', np.shape(pYlm_part), np.shape(pYlm_part[k]) )
+                        #print('loop over nl: qkl', np.shape(qkl))
+                        #print('pYlm', np.shape(pYlm_part), np.shape(pYlm_part[k]), pYlm_part[k] )
                     #:SPG_lmi = np.einsum('g,nmg->nmg', SI[ia].conj(), pYlm)
                     #:SPG_lm_aoG = np.einsum('nmg,gp->nmp', SPG_lmi, aokG)
                     #:tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
                     #:vppnl += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
+            # i think this checks if there are ml, diff. orientations of ang. mom.
             if p1 > 0:
                 print('p1 > 0')
-                # SPG_lmi: n x nPWgrid TODO n nkpts?
+                # n is nr of 2e aos in pp
+                # SPG_lmi: n x nPWgrid 
                 SPG_lmi = buf[:p1]
+                print('!! SPG_lmi', np.shape(SPG_lmi))
                 # SI: natm x nPWgrid
                 SPG_lmi *= SI[ia].conj()
-                # SPG_lm_aoGs: n x nao TODO n nkpts?
+                # SPG_lm_aoGs: n x nao 
                 SPG_lm_aoGs = lib.zdot(SPG_lmi, aokG)
+                print('!! SPG_lm_aoGs', np.shape(SPG_lm_aoGs))
                 p1 = 0
+                # loop over shells with l>0, get the coeff hl and ints
                 for l, proj in enumerate(pp[5:]):
                     rl, nl, hl = proj
                     if nl > 0:
                         p0, p1 = p1, p1+nl*(l*2+1)
                         hl = np.asarray(hl)
                         print('hl', np.shape(hl), hl)
-                        # SPG_lm_aoG: n_hl_dim x n_ml?? x nao TODO
-                        # same tmp
-                        # seems like j is ...ml or l? TODO 
+                        # SPG_lm_aoG, tmp: n_hl_dim x n_ml x nao
+                        # n_hl_dim: nr of type of shells (s, p, d) 
+                        # indices: j is n_hl_dim 
                         SPG_lm_aoG = SPG_lm_aoGs[p0:p1].reshape(nl,l*2+1,-1)
                         print('SPG_lm_aoG', np.shape(SPG_lm_aoG) )
                         tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
-                        print('tmp', np.shape(tmp))
-                        # vppnl: nao x nao for one kpt
-                        # TODO pack here in correct place for atom
+                        # vppnl_at: natm x nao x nao for one kpt
+                        # pack here in correct place for atom
                         vppnl += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
                         vppnl_at[ia] += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
                         print('vppnl', np.shape(vppnl), type(vppnl[0,0]) )
