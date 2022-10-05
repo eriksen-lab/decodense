@@ -557,50 +557,28 @@ def get_pp_fftdf(mydf, kpts=None):
     '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
     '''
     from pyscf import gto
-    #print('FFTDF went pbc/df/fft.py')
     cell = mydf.cell
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
         kpts_lst = np.reshape(kpts, (-1,3))
 
-    mesh = mydf.mesh
-    SI = cell.get_SI()
-    Gv = cell.get_Gv(mesh)
-    vpplocG = pseudo.get_vlocG(cell, Gv)
-    #print('')
-    #print('shape SI, Gv', np.shape(SI), np.shape(Gv))
-    #print('shape vpplocG before einsum', np.shape(vpplocG))
-    vpplocG_at = -np.einsum('ij,ij->ij', SI, vpplocG)
-    vpplocG = -np.einsum('ij,ij->j', SI, vpplocG)
-    #print('shape vpplocG after einsum', np.shape(vpplocG))
-    #print('vlocG and vlocG_at allclose?', np.allclose(vpplocG, np.einsum('ij->j', vpplocG_at)) )
-    #print('')
-    ngrids = len(vpplocG)
-    natm = cell.natm
     nkpts = len(kpts_lst)
     nao = cell.nao_nr()
 
+    mesh = mydf.mesh
+    SI = cell.get_SI()
+    Gv = cell.get_Gv(mesh)
+    # vpplocG: natm x ngrid
+    vpplocG = pseudo.get_vlocG(cell, Gv)
+    natm, ngrids = np.shape(vpplocG)
+    vpplocG_at = -np.einsum('ij,ij->ij', SI, vpplocG)
+
     # vpploc evaluated in real-space
-    vpplocR = tools.ifft(vpplocG, mesh).real
     vpplocR_at = np.zeros((natm, ngrids))
     for a in range(natm):
         vpplocR_at[a] = tools.ifft(vpplocG_at[a], mesh).real
-    #print('shape vpplocR on a real space grid', np.shape(vpplocG))
-    #print('vlocR and vlocR_at allclose?', np.allclose(vpplocR, np.einsum('ij->j', vpplocR_at)) )
-    #print('')
-    # vpp is (nkpts,)
-    vpp = [0] * len(kpts_lst)
-    for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
-        ao_ks = ao_ks_etc[0]
-        #print('shape of ao_ks', np.shape(ao_ks) )
-        for k, ao in enumerate(ao_ks):
-            #print('shape ao', np.shape(ao))
-            vpp[k] += lib.dot(ao.T.conj()*vpplocR[p0:p1], ao)
-        ao = ao_ks = None
-    #print('vpp after loop over kpts', np.shape(vpp) )
-    #print('')
-    # my version of packing
+
     vpp_at = np.zeros((nkpts, natm, nao, nao))
     for a in range(natm):
         for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
@@ -608,9 +586,6 @@ def get_pp_fftdf(mydf, kpts=None):
             for k, ao in enumerate(ao_ks):
                 vpp_at[k,a] += lib.dot(ao.T.conj()*vpplocR_at[a, p0:p1], ao)
             ao = ao_ks = None
-    #print('shape vpp_at', np.shape(vpp_at))
-    #print('vpp and vpp_at allclose?', np.allclose(vpp, np.einsum('kzab->kab', vpp_at), atol=1e-16) )
-    #print('')
 
     # vppnonloc evaluated in reciprocal space
     fakemol = gto.Mole()
@@ -629,11 +604,7 @@ def get_pp_fftdf(mydf, kpts=None):
         Gk = Gv + kpt
         G_rad = lib.norm(Gk, axis=1)
         aokG = ft_ao.ft_ao(cell, Gv, kpt=kpt) * (1/cell.vol)**.5
-        #print('')
-        #print('vppnl_by_k')
-        #print('Gk, G_rad, aokG', np.shape(Gk), np.shape(G_rad), np.shape(aokG))
-        #print('')
-        vppnl = 0
+
         vppnl_at = np.zeros((natm, nao, nao), dtype=np.complex128)
         # loop over atoms, check if they have pp
         for ia in range(cell.natm):
@@ -656,7 +627,6 @@ def get_pp_fftdf(mydf, kpts=None):
                     fakemol._env[ptr+4] = rl**(l+1.5)*np.pi**1.25
                     # pYlm_part: nPWgrid x nr of ml
                     pYlm_part = fakemol.eval_gto('GTOval', Gk)
-                    #print('nl > 0')
 
                     p0, p1 = p1, p1+nl*(l*2+1)
                     # pYlm is real, SI[ia] is complex
@@ -666,12 +636,7 @@ def get_pp_fftdf(mydf, kpts=None):
                     for k in range(nl):
                         qkl = pseudo.pp._qli(G_rad*rl, l, k)
                         pYlm[k] = pYlm_part.T * qkl
-                        #print('loop over nl: qkl', np.shape(qkl))
-                        #print('pYlm', np.shape(pYlm_part), np.shape(pYlm_part[k]), pYlm_part[k] )
-                    #:SPG_lmi = np.einsum('g,nmg->nmg', SI[ia].conj(), pYlm)
-                    #:SPG_lm_aoG = np.einsum('nmg,gp->nmp', SPG_lmi, aokG)
-                    #:tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
-                    #:vppnl += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
+
             # i think this checks if there are ml, diff. orientations of ang. mom.
             if p1 > 0:
                 print('p1 > 0')
@@ -700,25 +665,18 @@ def get_pp_fftdf(mydf, kpts=None):
                         tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
                         # vppnl_at: natm x nao x nao for one kpt
                         # pack here in correct place for atom
-                        vppnl += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
                         vppnl_at[ia] += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
-                        print('vppnl', np.shape(vppnl), type(vppnl[0,0]) )
-                        print('vppnl_at', np.shape(vppnl_at), type(vppnl_at[ia, 0,0]) )
-                        print('vppnl_at and vppnl', np.allclose(vppnl, np.einsum('zab->ab', vppnl_at)) )
-        return vppnl * (1./cell.vol), vppnl_at * (1./cell.vol)
+        return vppnl_at * (1./cell.vol)
     
     for k, kpt in enumerate(kpts_lst):
-        vppnl, vppnl_at = vppnl_by_k(kpt)
+        vppnl_at = vppnl_by_k(kpt)
         if gamma_point(kpt):
-            vpp[k] = vpp[k].real + vppnl.real
             vpp_at[k] = vpp_at[k].real + vppnl_at.real
         else:
-            vpp[k] += vppnl
             vpp_at[k] += vppnl_at
 
     if kpts is None or np.shape(kpts) == (3,):
-        vpp = vpp[0]
         vpp_at = vpp_at[0]
-    return np.asarray(vpp), vpp_at
+    return vpp_at
 
 
