@@ -69,6 +69,8 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
         nuc = np.sum(sub_nuc, axis=0)
         return kin, nuc, sub_nuc 
 
+def print_mesh(mesh):
+    print("mesh = [%d, %d, %d]  (%d PWs)" % (*mesh, np.prod(mesh)))
 
 ##########################################
 ######### CELL OBJECT FOR TESTING ########
@@ -84,14 +86,19 @@ cell.atom = '''
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
-cell.pseudo = 'gth-pade'
+#cell.pseudo = 'gth-pade'
 cell.a = np.eye(3) * 2.78686
 cell.a[1, 1] = 2.67303
 cell.a[1, 0] = -0.78834
 cell.a[2, 2] = 5.18096
 cell.build()
 
+mydf = df.FFTDF(cell)
+print_mesh(mydf.mesh)
+
 mf = scf.RHF(cell).density_fit()
+# overwrite the df obj
+mf.with_df = mydf
 ehf = mf.kernel()
 dm = mf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
@@ -183,31 +190,28 @@ print('e_nuc ', cell.energy_nuc() )
 print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
 #print(dir(mf))
 #
-print('e_nuc_att term test')
-#vpp, vpp_atomic = mf.get_nuc_att()
+#print('e_nuc_att term test')
 vpp = mf.get_nuc_att()
-mydf = mf.with_df
-vpp_atomic, vloc1, vloc2, vnl = pbctools.get_pp_atomic(mydf)
-print('vpp shape', np.shape(vpp) )
-print('vpp_atomic shape', np.shape(vpp_atomic) )
-e_nuc_att_pp = np.einsum('ij,ij', vpp, dm)
-e_nuc_att_pp_atomic = np.einsum('zij,ij->z', vpp_atomic, dm)
-print('e_nuc_att_pp', e_nuc_att_pp )
-print('e_nuc_att_pp_atomic', np.sum(e_nuc_att_pp_atomic), e_nuc_att_pp_atomic )
-print('e_nuc_att_pp - e_nuc_att_pp_atomic', e_nuc_att_pp - np.einsum('z->', e_nuc_att_pp_atomic) )
+#vpp = mf.get_nuc_att()
+#mydf = mf.with_df
+#vpp_atomic, vloc1, vloc2, vnl = pbctools.get_pp_atomic(mydf)
+#print('vpp shape', np.shape(vpp) )
+#print('vpp_atomic shape', np.shape(vpp_atomic) )
+#e_nuc_att_pp = np.einsum('ij,ij', vpp, dm)
+#e_nuc_att_pp_atomic = np.einsum('zij,ij->z', vpp_atomic, dm)
+#print('e_nuc_att_pp', e_nuc_att_pp )
+#print('e_nuc_att_pp_atomic', np.sum(e_nuc_att_pp_atomic), e_nuc_att_pp_atomic )
+#print('e_nuc_att_pp - e_nuc_att_pp_atomic', e_nuc_att_pp - np.einsum('z->', e_nuc_att_pp_atomic) )
 
 print('')
-#print('Testing v2 of e_nuc_pp atomic code')
-#vloc1_v2_at, vloc2_v2 = pbctools.get_pp_atomic_v2(mydf)
-#vloc1_v2 = np.einsum('zij->ij', vloc1_v2_at)
-#print('vloc1, vloc1_v2, vloc1_v2_at shapes', np.shape(vloc1), np.shape(vloc1_v2), np.shape(vloc1_v2_at) )
-#print('all close vloc1?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-58) )
-#print('all close vloc1_at?', np.allclose(vloc1, vloc1_v2_at, atol=1e-13) )
-#print('')
-##print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-58) )
-#print('vloc2', np.shape(vloc2), np.shape(vloc2_v2) )
-#print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc2), vloc2_v2, atol=1e-11) )
-#check_decomp(cell, mf)
-#
-print(isinstance(mydf, df.aft.AFTDF))
-print(isinstance(mydf, df.df.DF))
+print('')
+#vpp_fft, vpp_fft_at = pbctools.get_pp_fftdf(mydf)
+vpp_fft_at = pbctools.get_pp_fftdf(mydf)
+vpp_fft = np.einsum('zab->ab', vpp_fft_at)
+print('all close pyscf vpp and vpp_fft?', np.allclose(vpp, vpp_fft, atol=1e-08) )
+print('all close pyscf vpp and vpp_fft_at?', np.allclose(vpp, np.einsum('zab->ab', vpp_fft_at), atol=1e-08) )
+print('all close vpp_fft and vpp_fft_at?', np.allclose(vpp_fft, np.einsum('zab->ab', vpp_fft_at), atol=1e-08) )
+##check_decomp(cell, mf)
+nuc_fft = pbctools.get_nuc_fftdf(mydf)
+print('shape cell_nuc_att, nuc_fft', np.shape(nuc_att_ints), np.shape(nuc_fft))
+print('all close pyscf nuc and nuc_fft?', np.allclose(nuc_att_ints, np.einsum('zab->ab', nuc_fft), atol=1e-08) )

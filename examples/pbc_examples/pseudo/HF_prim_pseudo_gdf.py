@@ -6,7 +6,7 @@ from pyscf.pbc import gto, scf
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 import decodense
-import pbctools
+import pbctools_fft as pbctools
 from typing import List, Tuple, Dict, Union, Any
 
 
@@ -27,10 +27,13 @@ def check_decomp(cell, mf):
     ehf = mf.energy_tot()
     nat = cell.natm
     res_all = []
-    for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    #for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    for i in ['pm', 'ibo-2']:
         for j in ['mulliken', 'iao']:
             decomp = decodense.DecompCls(prop='energy', part='atoms', loc=i, pop=j)
             res = decodense.main(cell, decomp, mf)
+            #print('Decodense res for cell, loc: {}, pop: {}'.format(i,j))
+            print(decodense.results(cell, f'HF energy (localization procedure: {i}, population: {j})', dump_res = True, suffix = f'HF_{i}_{j}', **res))
             print('Decodense res for cell, loc: {}, pop: {}'.format(i,j))
             for k, v in res.items():
                 print(k, v)
@@ -92,6 +95,7 @@ cell.a[2, 2] = 5.18096
 cell.build()
 
 mf = scf.RHF(cell).density_fit()
+#mf.with_df = df.FFTDF(cell)
 ehf = mf.kernel()
 dm = mf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
@@ -187,7 +191,8 @@ print('e_nuc_att term test')
 #vpp, vpp_atomic = mf.get_nuc_att()
 vpp = mf.get_nuc_att()
 mydf = mf.with_df
-vpp_atomic, vloc1, vloc2, vnl = pbctools.get_pp_atomic(mydf)
+#vpp_atomic, vloc, vnl = pbctools.get_pp_fftdf(mydf)
+vpp_atomic, vloc, vnl = pbctools.get_pp_atomic(mydf)
 print('vpp shape', np.shape(vpp) )
 print('vpp_atomic shape', np.shape(vpp_atomic) )
 e_nuc_att_pp = np.einsum('ij,ij', vpp, dm)
@@ -207,7 +212,9 @@ print('')
 ##print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc1), vloc1_v2, atol=1e-58) )
 #print('vloc2', np.shape(vloc2), np.shape(vloc2_v2) )
 #print('all close vloc2?', np.allclose(np.einsum('zab->ab', vloc2), vloc2_v2, atol=1e-11) )
-#check_decomp(cell, mf)
+check_decomp(cell, mf)
 #
+print(type(mydf))
+print(isinstance(mydf, df.fft.FFTDF))
 print(isinstance(mydf, df.aft.AFTDF))
 print(isinstance(mydf, df.df.DF))

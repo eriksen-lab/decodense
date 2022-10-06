@@ -550,7 +550,7 @@ class _IntNucBuilder(_Int3cBuilder):
         vpp_tot = np.copy(vpp)
         for k in range(nkpts):
             vpp_tot[k] += vloc1[k] + vloc2[k]
-        return vpp_tot, vloc1, vloc2, vpp2
+        return vpp_tot, vloc1+vloc2, vpp2
 
 
 #====================FFTDF====================#
@@ -709,15 +709,30 @@ def get_pp_fftdf(mydf, kpts=None):
                         vppnl_at[ia] += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
         return vppnl_at * (1./cell.vol)
     
+    vpp_tot_at = np.zeros((nkpts, natm, nao, nao), dtype=np.complex128)
+    vppnl_at = np.zeros((nkpts, natm, nao, nao), dtype=np.complex128)
     for k, kpt in enumerate(kpts_lst):
-        vppnl_at = vppnl_by_k(kpt)
+        vppnl_at[k] = vppnl_by_k(kpt)
         if gamma_point(kpt):
-            vpp_at[k] = vpp_at[k].real + vppnl_at.real
+            vpp_tot_at[k] = vpp_at[k].real + vppnl_at[k].real
+            vpp_tot_at[k] = vpp_tot_at[k].real 
         else:
-            vpp_at[k] += vppnl_at
+            vpp_tot_at[k] = vpp_at[k] + vppnl_at[k]
 
     if kpts is None or np.shape(kpts) == (3,):
+        vpp_tot_at = vpp_tot_at[0]
         vpp_at = vpp_at[0]
-    return vpp_at
+        vppnl_at = vppnl_at[0]
+    return vpp_tot_at, vpp_at, vppnl_at
+#    for k, kpt in enumerate(kpts_lst):
+#        vppnl_at = vppnl_by_k(kpt)
+#        if gamma_point(kpt):
+#            vpp_at[k] = vpp_at[k].real + vppnl_at.real
+#        else:
+#            vpp_at[k] += vppnl_at
+#
+#    if kpts is None or np.shape(kpts) == (3,):
+#        vpp_at = vpp_at[0]
+#    return vpp_at
 
 
