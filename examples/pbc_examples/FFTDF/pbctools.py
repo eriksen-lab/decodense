@@ -148,6 +148,7 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     return ewovrl_atomic + ewself_atomic + ewg_atomic
 
 
+#====================DF====================#
 def get_nuc_atomic(mydf, kpts=None):
     ''' Nucl.-el. attraction '''
     if kpts is None:
@@ -551,7 +552,47 @@ class _IntNucBuilder(_Int3cBuilder):
             vpp_tot[k] += vloc1[k] + vloc2[k]
         return vpp_tot, vloc1, vloc2, vpp2
 
-#====================FFTDF
+
+#====================FFTDF====================#
+def get_nuc_fftdf(mydf, kpts=None):
+    ''' V_nuc for all el. calc. with FFT density fitting (not recommended)  '''
+    if kpts is None:
+        kpts_lst = np.zeros((1,3))
+    else:
+        kpts_lst = np.reshape(kpts, (-1,3))
+
+    cell = mydf.cell
+    mesh = mydf.mesh
+    charge = -cell.atom_charges()
+    Gv = cell.get_Gv(mesh)
+    # SI: ngrids
+    SI = cell.get_SI(Gv)
+    natm, ngrids = np.shape(SI)
+    nkpts = len(kpts_lst)
+    nao = cell.nao_nr()
+
+    rhoG_at = np.einsum('z,zg->zg', charge, SI)
+
+    coulG = tools.get_coulG(cell, mesh=mesh, Gv=Gv)
+    vneG_at = np.einsum('zg,g->zg', rhoG_at, coulG)
+    # vne evaluated in real-space
+    vneR_at = np.zeros((natm, ngrids))
+    for a in range(natm):
+        vneR_at[a] = tools.ifft(vneG_at[a], mesh).real
+
+    # vneR: natm x ngrids
+    # vne: nkpts x natm x nao x nao
+    vne_at = np.zeros((nkpts, natm, nao, nao))
+    for a in range(natm):
+        for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
+            ao_ks = ao_ks_etc[0]
+            for k, ao in enumerate(ao_ks):
+                vne_at[k,a] += lib.dot(ao.T.conj()*vneR_at[a,p0:p1], ao)
+            ao = ao_ks = None
+
+    if kpts is None or np.shape(kpts) == (3,):
+        vne_at = vne_at[0]
+    return np.asarray(vne_at)
 
 def get_pp_fftdf(mydf, kpts=None):
     '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
