@@ -290,8 +290,10 @@ class _IntNucBuilder(_Int3cBuilder):
                                 supmol=supmol)
 
         Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
+        # Coulomb kernel for all G-vectors
         coulG = pyscf_pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
         # ngrid x natm
+        # (analytical) FT aos \int mu(r) exp(-ikr) dr^3
         aoaux = ft_ao.ft_ao(modchg_cell, Gv)
         charges = cell.atom_charges()
         # ngrid x natm

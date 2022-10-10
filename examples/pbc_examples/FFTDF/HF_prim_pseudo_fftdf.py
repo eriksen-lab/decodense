@@ -27,7 +27,8 @@ def check_decomp(cell, mf):
     ehf = mf.energy_tot()
     nat = cell.natm
     res_all = []
-    for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    #for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    for i in ['pm', 'ibo-2' ]:
         for j in ['mulliken', 'iao']:
             decomp = decodense.DecompCls(prop='energy', part='atoms', loc=i, pop=j)
             res = decodense.main(cell, decomp, mf)
@@ -211,7 +212,7 @@ vpp_fft = np.einsum('zab->ab', vpp_fft_at)
 print('all close pyscf vpp and vpp_fft?', np.allclose(vpp, vpp_fft, atol=1e-08) )
 print('all close pyscf vpp and vpp_fft_at?', np.allclose(vpp, np.einsum('zab->ab', vpp_fft_at), atol=1e-08) )
 print('all close vpp_fft and vpp_fft_at?', np.allclose(vpp_fft, np.einsum('zab->ab', vpp_fft_at), atol=1e-08) )
-#check_decomp(cell, mf)
+check_decomp(cell, mf)
 print(type(mydf))
 print(isinstance(mydf, df.fft.FFTDF))
 print(isinstance(mydf, df.aft.AFTDF))
