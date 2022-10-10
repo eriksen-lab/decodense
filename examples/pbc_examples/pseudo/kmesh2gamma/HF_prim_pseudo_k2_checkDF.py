@@ -10,7 +10,8 @@ from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
 #from k2gamma import k2gamma
 import decodense
-import pbctools
+#import pbctools
+from decodense import pbctools
 from typing import List, Tuple, Dict, Union, Any
 
 
@@ -84,16 +85,35 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
         """
         # kin ints
         if (isinstance(mol, gto.Cell) and isinstance(mf, scf.hf.RHF)):
-            print('_h_core indentified pbc.scf.hf.RHF obj')
-            print(mf.with_df)
             kin = mol.pbc_intor('int1e_kin')
             # individual atomic potentials
             mydf = mf.with_df
-            #mydf = df.FFTDF(mol)
-            sub_nuc = pbctools.get_nuc_atomic(mydf, kpts=np.zeros(3)) 
+            if mol.pseudo:
+                if isinstance(mydf, df.df.DF):
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = pbctools.get_pp_atomic_df(mydf, kpts=np.zeros(3))
+                    sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc_tot, axis=0)
+                elif isinstance(mydf, df.fft.FFTDF):
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = pbctools.get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
+                    sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc_tot, axis=0)
+                else:
+                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
+            else:
+                if isinstance(mydf, df.df.DF):
+                    sub_nuc = pbctools.get_nuc_atomic_df(mydf, kpts=np.zeros(3))
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc, axis=0)
+                elif isinstance(mydf, df.fft.FFTDF):
+                    sub_nuc = pbctools.get_nuc_atomic_fftdf(mydf, kpts=np.zeros(3))
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc, axis=0)
+                else:
+                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
+
         elif isinstance(mol, mgto.Mole): 
-            print('_h_core DID NOT indentified pbc.scf.hf.RHF obj')
-            print(mf.with_df)
             kin = mol.intor_symmetric('int1e_kin')
             # coordinates and charges of nuclei
             coords = mol.atom_coords()
@@ -103,10 +123,10 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
             for k in range(mol.natm):
                 with mol.with_rinv_origin(coords[k]):
                     sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
+            # total nuclear potential
+            nuc = np.sum(sub_nuc, axis=0)
         else:
             print('Wrong object passed to _h_core pbc')
-        # total nuclear potential
-        nuc = np.sum(sub_nuc, axis=0)
         return kin, nuc, sub_nuc 
 
 
@@ -145,7 +165,7 @@ kmesh = [2,2,2]
 #mesh: The numbers of grid points in the FFT-mesh in each direction
 kpts = cell.make_kpts(kmesh)
 
-# FIXME this should gve GDF thiugh...
+# FIXME this should give GDF though...
 kmf = scf.KRHF(cell, kpts).density_fit()
 print('kmf df type')
 print(kmf.with_df)
@@ -176,81 +196,33 @@ e_k = np.einsum('ij,ij', K_int, dm)
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
 print('Computing kinetic, nuc ints')
 kinetic, nuc, sub_nuc = _h_core(scell, mf)
+sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
 e_kin = np.einsum('ij,ij', kinetic, dm)
 #
-nuc_att_glob = np.einsum('ij,ij', nuc, dm)
-nuc_att_glob *= .5
-nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
-nuc_att_loc *= .5
+e_nuc_att_glob = np.einsum('ij,ij', nuc, dm)
+#nuc_att_glob *= .5
+e_nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
+#nuc_att_loc *= .5
 
+e_struct = pbctools.ewald_e_nuc(cell)
+
+E_total_cell = e_kin + e_j + e_k + np.sum(e_nuc_att_loc) + np.sum(e_struct)
 ##########################################
 ##########################################
 ## printing, debugging, etc.
-nuc_att_ints, nuc_att_ints_atomic = mf.get_nuc_att()
-cell_nuc_att = np.einsum('ij,ji', nuc_att_ints, dm)
-cell_nuc_att_atomic = np.einsum('zij,ji->z', nuc_att_ints_atomic, dm)
-print('cell_nuc_att_atomic ints ', np.shape(nuc_att_ints_atomic) )
-print('CELL_NUC_ATT ', cell_nuc_att)
-print('CELL_NUC_ATT_ATOMIC ', cell_nuc_att_atomic)
-print('Their difference ', cell_nuc_att - np.einsum('z->', cell_nuc_att_atomic) )
-###
-###
-#######print results
-#####print(dir(res))
-#print()
-#print('Decodense res for cell')
-#for k, v in res.items():
-#    print(k, v)
+print('')
+print('TEST')
+print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + np.sum(e_nuc_att_loc)) )
+print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
+print('')
 print()
 print('scell')
 print('energy_tot', mf.energy_tot())
-print('energy_elec', mf.energy_elec())
+#print('energy_elec', mf.energy_elec())
 print()
 
 
 
-#
-# the kinetic energy term for cell
-print('SCELL')
-#print('e_nuc from decodense', np.sum(res['struct']) )
-e_struct = pbctools.ewald_e_nuc(scell)
-print('e_kin as trace of T and D matrices (scell): ', e_kin) 
-#
-# other terms
-print('e_coul as trace of J and D matrices (scell): ', e_j)
-print('e_exch as trace of K and D matrices (scell): ', e_k)
-#
-#print('nuc_att_glob as trace of (what would correspond to) sub_nuc and D: ', cell_nuc_att_atomic, np.einsum('z->', cell_nuc_att_atomic) )
-#print('nuc_att_loc as trace of nuc and d's: ', 2*np.sum(nuc_att_loc) )
-print('nuc_att as trace of nuc from pyscf and D: ', cell_nuc_att )
-#print('local for cell computed here:')
-#print(nuc_att_loc)
-#
-#E_total_cell = e_kin + e_j + e_k + 2.*nuc_att_glob + np.sum(res['struct'])
-#print('e_kin + e_nuc + e_jk + e_nuc_att_glob ', E_total_cell)
-#E_total_cell = e_kin + e_j + e_k + cell_nuc_att + np.sum(res['struct'])
-E_total_cell = e_kin + e_j + e_k + cell_nuc_att + np.sum(e_struct)
-print('e_kin + e_nuc + e_jk + e_nuc_att_glob + e_struct', E_total_cell)
-print('PBC E_tot (here) - E_tot (pyscf) = ', E_total_cell - mf.energy_tot() )
-#
-print('TEST')
-print('from hcore', np.einsum('ij,ij', mf.get_hcore(), dm))
-print('my kin+nuc_att ', e_kin + cell_nuc_att )
-print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + cell_nuc_att) )
-print('e_struct ', e_struct)
-print('e_nuc ', scell.energy_nuc() )
-print('e_nuc - e_struct ',  scell.energy_nuc() - np.sum(e_struct) )
-#print(dir(mf))
-#
-print('e_nuc_att term test')
-vpp, vpp_atomic = mf.get_nuc_att()
-print('vpp shape', np.shape(vpp) )
-print('vpp_atomic shape', np.shape(vpp_atomic) )
-e_nuc_att_pp = np.einsum('ij,ij', vpp, dm)
-e_nuc_att_pp_atomic = np.einsum('zij,ij->z', vpp_atomic, dm)
-print('e_nuc_att_pp', e_nuc_att_pp )
-print('e_nuc_att_pp_atomic', np.sum(e_nuc_att_pp_atomic), e_nuc_att_pp_atomic )
-print('e_nuc_att_pp - e_nuc_att_pp_atomic', e_nuc_att_pp - np.einsum('z->', e_nuc_att_pp_atomic) )
 
 check_decomp(scell, mf)
 
