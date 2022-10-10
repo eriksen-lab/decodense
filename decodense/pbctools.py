@@ -593,7 +593,11 @@ def get_nuc_atomic_fftdf(mydf, kpts=None):
             ao = ao_ks = None
 
     if kpts is None or np.shape(kpts) == (3,):
-        vne_at = vne_at[0]
+        # if gamma point
+        if np.allclose(kpts_lst, np.zeros((1,3))):
+            vne_at = vne_at[0].real
+        else:
+            vne_at = vne_at[0]
     return np.asarray(vne_at)
 
 def get_pp_atomic_fftdf(mydf, kpts=None):
