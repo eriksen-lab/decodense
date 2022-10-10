@@ -23,7 +23,7 @@ from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .pbctools import ewald_e_nuc, get_nuc_atomic, get_pp_atomic
+from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import COMP_KEYS
 
@@ -420,12 +420,12 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             # individual atomic potentials
             if mol.pseudo:
                 if isinstance(mydf, pbc_df.df.DF):
-                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic(mydf, kpts=np.zeros(3))
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_df(mydf, kpts=np.zeros(3))
                     sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
                     # total nuclear potential
                     nuc = np.sum(sub_nuc_tot, axis=0)
                 elif isinstance(mydf, pbc_df.fft.FFTDF):
-                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic(mydf, kpts=np.zeros(3))
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
                     sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
                     # total nuclear potential
                     nuc = np.sum(sub_nuc_tot, axis=0)
@@ -433,11 +433,11 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
                     warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
             else:
                 if isinstance(mydf, pbc_df.df.DF):
-                    sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
+                    sub_nuc = get_nuc_atomic_df(mydf, kpts=np.zeros(3)) 
                     # total nuclear potential
                     nuc = np.sum(sub_nuc, axis=0)
                 elif isinstance(mydf, pbc_df.fft.FFTDF):
-                    sub_nuc = get_nuc_fftdf(mydf, kpts=np.zeros(3)) 
+                    sub_nuc = get_nuc_atomic_fftdf(mydf, kpts=np.zeros(3)) 
                     # total nuclear potential
                     nuc = np.sum(sub_nuc, axis=0)
                 else:

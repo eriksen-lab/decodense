@@ -149,7 +149,7 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
 
 
 #====================DF====================#
-def get_nuc_atomic(mydf, kpts=None):
+def get_nuc_atomic_df(mydf, kpts=None):
     ''' Nucl.-el. attraction '''
     if kpts is None:
         kpts_lst = np.zeros((1,3))
@@ -161,7 +161,7 @@ def get_nuc_atomic(mydf, kpts=None):
         vj_at = vj_at[0]
     return vj_at
 
-def get_pp_atomic(mydf, kpts=None):
+def get_pp_atomic_df(mydf, kpts=None):
     # this is from aft/get_pp and df/incore/get_pp levels
     if kpts is None:
         kpts_lst = np.zeros((1,3))
@@ -556,7 +556,7 @@ class _IntNucBuilder(_Int3cBuilder):
 
 
 #====================FFTDF====================#
-def get_nuc_fftdf(mydf, kpts=None):
+def get_nuc_atomic_fftdf(mydf, kpts=None):
     ''' V_nuc for all el. calc. with FFT density fitting (not recommended)  '''
     if kpts is None:
         kpts_lst = np.zeros((1,3))
@@ -596,7 +596,7 @@ def get_nuc_fftdf(mydf, kpts=None):
         vne_at = vne_at[0]
     return np.asarray(vne_at)
 
-def get_pp_fftdf(mydf, kpts=None):
+def get_pp_atomic_fftdf(mydf, kpts=None):
     '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
     '''
     from pyscf import gto
@@ -711,13 +711,21 @@ def get_pp_fftdf(mydf, kpts=None):
         if gamma_point(kpt):
             vpp_tot_at[k] = vpp_at[k].real + vppnl_at[k].real
             vpp_tot_at[k] = vpp_tot_at[k].real 
+            vpp_at[k] = vpp_at[k].real 
+            vppnl_at[k] = vppnl_at[k].real
         else:
             vpp_tot_at[k] = vpp_at[k] + vppnl_at[k]
 
     if kpts is None or np.shape(kpts) == (3,):
-        vpp_tot_at = vpp_tot_at[0]
-        vpp_at = vpp_at[0]
-        vppnl_at = vppnl_at[0]
+        # if gamma point
+        if np.allclose(kpts_lst, np.zeros((1,3))):
+            vpp_tot_at = vpp_tot_at[0].real
+            vpp_at = vpp_at[0].real
+            vppnl_at = vppnl_at[0].real
+        else:
+            vpp_tot_at = vpp_tot_at[0]
+            vpp_at = vpp_at[0]
+            vppnl_at = vppnl_at[0]
     return vpp_tot_at, vpp_at, vppnl_at
 
 
