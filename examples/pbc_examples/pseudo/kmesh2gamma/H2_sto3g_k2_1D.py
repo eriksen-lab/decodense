@@ -8,6 +8,7 @@ from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
+from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
 #from k2gamma import k2gamma
 import decodense
 #import pbctools
@@ -32,7 +33,8 @@ def check_decomp(cell, mf):
     ehf = mf.energy_tot()
     nat = cell.natm
     res_all = []
-    for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    #for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    for i in ['pm', 'ibo-2' ]:
         for j in ['mulliken', 'iao']:
             decomp = decodense.DecompCls(prop='energy', part='atoms', loc=i, pop=j)
             res = decodense.main(cell, decomp, mf)
@@ -161,24 +163,21 @@ kmesh = [2,1,1]
 #mesh: The numbers of grid points in the FFT-mesh in each direction
 kpts = cell.make_kpts(kmesh)
 
-# FIXME this should give GDF though...
+# TODO maybe make it return the original df obj and not default?
 kmf = scf.KRHF(cell, kpts).density_fit()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()
 kdm = kmf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
-print('kdm', np.shape(kdm), kdm.dtype )
 
 # transform the kmf object to mf obj for a supercell
 mf = k2gamma(kmf) 
 print('k2gamma transf. mf df type', mf.with_df)
-# if these are not computed here, gettings them after overwriting df obj throws an error between dm and eri dimensions (4x4 and 3x3)
-J_int, K_int = mf.get_jk()
+scell, phase = get_phase(cell, kpts)
 mydf = df.df.DF(scell)
 mf.with_df = mydf
 print('mf type', mf.with_df)
-scell, phase = get_phase(cell, kpts)
 dm = mf.make_rdm1()
 # check sanity
 check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
@@ -196,7 +195,6 @@ e_k = np.einsum('ij,ij', K_int, dm)
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
 print('Computing kinetic, nuc ints')
 kinetic, nuc, sub_nuc = _h_core(scell, mf)
-print('shapes of kin, nuc, subnuc ints, dm', np.shape(kinetic), np.shape(nuc), np.shape(sub_nuc), np.shape(dm) )
 #sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
 e_kin = np.einsum('ij,ij', kinetic, dm)
 #
@@ -220,10 +218,13 @@ print()
 print('scell')
 print('energy_tot', mf.energy_tot())
 #print('energy_elec', mf.energy_elec())
+print('mo coeff kmf ', type(kmf.mo_coeff), kmf.mo_coeff)
+print('mo coeff mf ', type(mf.mo_coeff), mf.mo_coeff)
+mo_coeff_mf = to_supercell_mo_integrals(kmf, kmf.mo_coeff) 
+print('(mo coeff converted) mf ', type(mo_coeff_mf), mo_coeff_mf)
 print()
 
-
-
-
+kmf = scf.RHF(cell).density_fit()
+ehf = kmf.kernel()
+check_decomp(cell, kmf)
 check_decomp(scell, mf)
-

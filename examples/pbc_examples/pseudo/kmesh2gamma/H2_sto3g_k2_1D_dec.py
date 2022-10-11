@@ -8,6 +8,7 @@ from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
+from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
 #from k2gamma import k2gamma
 import decodense
 #import pbctools
@@ -162,14 +163,13 @@ kmesh = [2,1,1]
 #mesh: The numbers of grid points in the FFT-mesh in each direction
 kpts = cell.make_kpts(kmesh)
 
-# FIXME this should give GDF though...
+# TODO maybe make it return the original df obj and not default?
 kmf = scf.KRHF(cell, kpts).density_fit()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()
 kdm = kmf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
-print('kdm', np.shape(kdm), kdm.dtype )
 
 # transform the kmf object to mf obj for a supercell
 mf = k2gamma(kmf) 
@@ -178,7 +178,7 @@ scell, phase = get_phase(cell, kpts)
 mydf = df.df.DF(scell)
 mf.with_df = mydf
 print('mf type', mf.with_df)
-dm = mf.make_rdm1()
+dm = (mf.make_rdm1()).real
 # check sanity
 check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
 
@@ -211,6 +211,7 @@ E_total_cell = e_kin + e_j + e_k + np.sum(e_nuc_att_loc) + np.sum(e_struct)
 ## printing, debugging, etc.
 print('')
 print('TEST')
+print('mf hcore and dm', dm.dtype, dm) 
 print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + np.sum(e_nuc_att_loc)) )
 print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
 print('')
@@ -220,9 +221,12 @@ print('energy_tot', mf.energy_tot())
 #print('energy_elec', mf.energy_elec())
 print('mo coeff kmf ', type(kmf.mo_coeff), kmf.mo_coeff)
 print('mo coeff mf ', type(mf.mo_coeff), mf.mo_coeff)
+mo_coeff_mf = to_supercell_mo_integrals(kmf, kmf.mo_coeff) 
+print('(mo coeff converted) mf ', type(mo_coeff_mf), mo_coeff_mf)
 print()
 
-kmf = scf.RHF(cell).density_fit()
-ehf = kmf.kernel()
-check_decomp(cell, kmf)
+print(type(kmf), kmf.mo_occ)
+print(type(mf), mf.mo_occ)
+
+
 check_decomp(scell, mf)

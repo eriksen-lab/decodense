@@ -2,11 +2,16 @@
 
 import numpy as np
 from pyscf.pbc import df
-from pyscf.pbc import gto, scf
-from pyscf.pbc.tools.pbc import super_cell
+from pyscf.pbc import gto, scf, dft
 from pyscf import gto as mgto
 from pyscf import scf as mscf
+from pyscf.pbc.tools.k2gamma import k2gamma
+from pyscf.pbc import tools
+from pyscf.pbc.tools.k2gamma import get_phase
+from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
+#from k2gamma import k2gamma
 import decodense
+#import pbctools
 from decodense import pbctools
 from typing import List, Tuple, Dict, Union, Any
 
@@ -43,6 +48,38 @@ def check_decomp(cell, mf):
             #res_all.append(res)
     return print('Done!')
     
+def check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf):
+    # 1. transform ao overlap ints and check if it's sensible
+    print('Checking the k2gamma transformation of AO ints')
+    NR, Nk = phase.shape
+    nao = cell.nao
+    # TODO note that if kpts not give only returns Gamma-p. ints
+    s_k = cell.pbc_intor('int1e_ovlp', kpts=kpts)
+    s = scell.pbc_intor('int1e_ovlp')
+    s1 = np.einsum('Rk,kij,Sk->RiSj', phase, s_k, phase.conj())
+    print('Difference between S for scell and S_k transformed to real space')
+    print(abs(s-s1.reshape(s.shape)).max())
+    s = scell.pbc_intor('int1e_ovlp').reshape(NR,nao,NR,nao)
+    s1 = np.einsum('Rk,RiSj,Sk->kij', phase.conj(), s, phase)
+    print(abs(s1-s_k).max())
+
+    # 2. The following is to check whether the MO is correctly coverted:
+    print("Supercell gamma MO in AO basis from conversion:")
+    scell = tools.super_cell(cell, kmesh)
+    # FIXME df here will prob be different than for RKS calc...
+    mf_sc = scf.RHF(scell).density_fit()
+    print('mf_sc type df')
+    print(mf_sc.with_df)
+    c_g_ao = mf.mo_coeff
+    s = mf_sc.get_ovlp()
+    mf_sc.run()
+    sc_mo = mf_sc.mo_coeff
+    nocc = scell.nelectron // 2
+    print("Supercell gamma MO from direct calculation:")
+    print(np.linalg.det(c_g_ao[:,:nocc].T.conj().dot(s).dot(sc_mo[:,:nocc])))
+    print(np.linalg.svd(c_g_ao[:,:nocc].T.conj().dot(s).dot(sc_mo[:,:nocc]))[1])
+    return
+
 
 def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -94,45 +131,69 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
             print('Wrong object passed to _h_core pbc')
         return kin, nuc, sub_nuc 
 
-def print_mesh(mesh):
-    print("mesh = [%d, %d, %d]  (%d PWs)" % (*mesh, np.prod(mesh)))
 
 ##########################################
 ######### CELL OBJECT FOR TESTING ########
 ##########################################
 #
+# mesh: The numbers of grid points in the FFT-mesh in each direction
+#FFTDF uses plane waves (PWs) as the auxiliary basis, whose size is determined by FFTDF.mesh, which is set to Cell.mesh upon initialization. Cell.mesh is a 1d array-like object of three integer numbers, [nx, ny, nz], that defines the number of PWs (or the real-space grid points in the unit cell) in the x, y and z directions, respectively. 
+#To use a PW basis of a different size, the user can either overwrite FFTDF.mesh directly or change it by specifying Cell.ke_cutoff. 
+# set automatically based on value of precision (of integral accuracy, default 1e-8)
+# ke_cutoff: Kinetic energy cutoff of the plane waves in FFT-DF
+# rcut: Cutoff radius (in Bohr) of the lattice summation in the integral evaluation
 # cell
 cell = gto.Cell()
 cell.atom = '''
- H   0.686524  1.000000  0.686524
- Cl  0.981476  1.000000  0.981476
+ Al  0.000000  0.000000  0.000000
+ As  6.081570  3.511190  2.482790
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 4.18274
-cell.a[1, 0] = -0.23273
-cell.a[1, 1] = 4.17626
-cell.a[2, 0] = -1.92719
-cell.a[2, 1] = -2.13335
-cell.a[2, 2] = 3.03810
+cell.a = np.eye(3) * 4.05438
+cell.a[1, 0], cell.a[2, 0] = 2.02719, 2.02719
+cell.a[1, 1] = 3.51119
+cell.a[2, 1] = 1.17040
+cell.a[2, 2] = 3.31039
+cell.exp_to_discard = 0.1
 cell.build()
 
-supcell = super_cell(cell, [2, 2, 2])
+#mydf = df.FFTDF(cell)
+#print_mesh(mydf.mesh)
 
-mf = scf.RHF(supcell).density_fit()
-ehf = mf.kernel()
-dm = mf.make_rdm1()
+#2 k-points for each axis, 2^3=8 kpts in total
+#kmesh = [2,2,2]  
+kmesh = [2,2,2]  
+#default: shifted Monkhorst-Pack mesh centered at Gamma-p.
+#to get non-shifted: with_gamma_point=False
+#to get centered at specific p.(units of lattice vectors): scaled_center=[0.,0.25,0.25]
+#mesh: The numbers of grid points in the FFT-mesh in each direction
+kpts = cell.make_kpts(kmesh)
+
+# TODO maybe make it return the original df obj and not default?
+kmf = dft.KRKS(cell, kpts)
+kmf.xc = 'b3lyp'
+print('kmf df type')
+print(kmf.with_df)
+ehf = kmf.kernel()
+kdm = kmf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
 
+# transform the kmf object to mf obj for a supercell
+mf = k2gamma(kmf) 
+print('k2gamma transf. mf df type', mf.with_df)
+scell, phase = get_phase(cell, kpts)
+#mydf = df.df.DF(scell)
+#mf.with_df = mydf
+print('mf type', mf.with_df)
+dm = (mf.make_rdm1()).real
+# check sanity
+check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
 
-## init decomp object for cell
-#decomp = decodense.DecompCls(**PARAMS)
-##print('decomp', dir(decomp))
-######
-#res = decodense.main(cell, decomp, mf)
 
 # J, K int
+print('Computing J, K ints')
 J_int, K_int = mf.get_jk()
 J_int *= .5
 K_int *= -0.25
@@ -141,59 +202,36 @@ e_k = np.einsum('ij,ij', K_int, dm)
 
 # kin, nuc atrraction 
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
-kinetic, nuc, subnuc = _h_core(supcell, mf)
+print('Computing kinetic, nuc ints')
+kinetic, nuc, subnuc = _h_core(scell, mf)
 sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
 e_kin = np.einsum('ij,ij', kinetic, dm)
 #
 e_nuc_att_glob = np.einsum('ij,ij', nuc, dm)
-# 0.5 factor if doing e_nuc_att = 1/2glob + 1/2loc in decodense
-#e_nuc_att_glob *= .5
+#nuc_att_glob *= .5
 e_nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
-#e_nuc_att_loc *= .5
+#nuc_att_loc *= .5
 
-e_struct = pbctools.ewald_e_nuc(supcell)
-
-
+e_struct = pbctools.ewald_e_nuc(cell)
 
 E_total_cell = e_kin + e_j + e_k + np.sum(e_nuc_att_loc) + np.sum(e_struct)
 ##########################################
 ##########################################
 ## printing, debugging, etc.
-vpp = mf.get_nuc_att()
-e_nuc_att_pyscf = np.einsum('ij,ji', vpp, dm)
-print()
-print('PYSCF')
-print('nuc_att pyscf', e_nuc_att_pyscf)
-print('from hcore', np.einsum('ij,ij', mf.get_hcore(), dm))
-print('energy_tot', mf.energy_tot())
-print('energy_elec', mf.energy_elec())
-print()
-print('MINE')
-print('e_kin as trace of T and D matrices (cell): ', e_kin) 
-print('e_coul as trace of J and D matrices (cell): ', e_j)
-print('e_exch as trace of K and D matrices (cell): ', e_k)
-print('e_nuc_att_loc: ', np.sum(e_nuc_att_loc))
-print('e_struct ', np.sum(e_struct))
-print('e_nuc_att_glob + kin (hcore)', np.sum(e_nuc_att_loc) + e_kin)
-print('Total: e_kin + e_nuc + e_jk + e_nuc_att_loc + e_struct', E_total_cell)
-print()
-print('PBC E_tot (here) - E_tot (pyscf) = ', E_total_cell - mf.energy_tot() )
-#
-
 print('')
 print('TEST')
+#print('mf hcore and dm', dm.dtype, dm) 
 print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + np.sum(e_nuc_att_loc)) )
-print('e_nuc - e_struct ',  supcell.energy_nuc() - np.sum(e_struct) )
-#print(dir(mf))
+print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
 print('')
-#
-print('Vpp parts test')
-print('')
-#vpp_fft_at = pbctools.get_pp_fftdf(mydf)
-mydf = mf.with_df
-print('df object: ', type(mydf) )
-vpp_gdf_at, vpp_loc_at, vpp_nl_at = pbctools.get_pp_atomic_df(mydf)
-vpp_gdf = np.einsum('zab->ab', vpp_gdf_at)
-print('all close pyscf vpp and vpp_gdf?', np.allclose(vpp, vpp_gdf, atol=1e-08) )
-#check_decomp(cell, mf)
-print('mo_coeff', np.shape(mf.mo_coeff), mf.mo_coeff)
+print()
+print('scell')
+print('energy_tot', mf.energy_tot())
+#print('energy_elec', mf.energy_elec())
+print()
+
+print(type(kmf) )
+print(type(mf) )
+
+
+check_decomp(scell, mf)
