@@ -22,6 +22,9 @@ except ImportError:
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft, symm, lib
 from pyscf.pbc import gto as pbc_gto
+from pyscf.pbc import scf as pbc_scf
+from pyscf.pbc import dft as pbc_dft
+from pyscf.pbc.tools import k2gamma
 from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
@@ -103,9 +106,9 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarra
         alpha, beta = dim(mo_occ)
         # mo coefficients
         if np.asarray(mf.mo_coeff).ndim == 2:
-            mo_coeff = (mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta])
+            mo_coeff = (mf.mo_coeff[:, alpha].real, mf.mo_coeff[:, beta].real)
         else:
-            mo_coeff = (mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta])
+            mo_coeff = (mf.mo_coeff[0][:, alpha].real, mf.mo_coeff[1][:, beta].real)
 
         return mo_coeff, mo_occ
 
