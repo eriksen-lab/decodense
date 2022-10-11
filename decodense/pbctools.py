@@ -156,10 +156,15 @@ def get_nuc_atomic_df(mydf, kpts=None):
     else:
         kpts_lst = np.reshape(kpts, (-1,3))
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
-    vj_at = dfbuilder.get_nuc(mydf.mesh)
+    vne_at = dfbuilder.get_nuc(mydf.mesh)
     if kpts is None or np.shape(kpts) == (3,):
-        vj_at = vj_at[0]
-    return vj_at
+        # if gamma point
+        if np.allclose(kpts_lst, np.zeros((1,3))):
+            vne_at = vne_at[0].real
+        else:
+            vne_at = vne_at[0]
+        #vj_at = vj_at[0]
+    return vne_at
 
 def get_pp_atomic_df(mydf, kpts=None):
     # this is from aft/get_pp and df/incore/get_pp levels
