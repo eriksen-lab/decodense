@@ -172,7 +172,7 @@ kmesh = [2,2,2]
 kpts = cell.make_kpts(kmesh)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = dft.KRKS(cell, kpts)
+kmf = dft.KRKS(cell, kpts).newton()
 kmf.xc = 'b3lyp'
 print('kmf df type')
 print(kmf.with_df)

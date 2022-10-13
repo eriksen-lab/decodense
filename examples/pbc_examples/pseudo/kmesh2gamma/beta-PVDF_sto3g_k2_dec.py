@@ -2,7 +2,7 @@
 
 import numpy as np
 from pyscf.pbc import df
-from pyscf.pbc import gto, scf, dft
+from pyscf.pbc import gto, scf
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
@@ -143,28 +143,27 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
 # ke_cutoff: Kinetic energy cutoff of the plane waves in FFT-DF
 # rcut: Cutoff radius (in Bohr) of the lattice summation in the integral evaluation
 # cell
+L = 2.53619
+# only works with higher L2 TODO confirm this is fine
+L2 = 6
 cell = gto.Cell()
 cell.atom = '''
- H   0.686524  1.000000  0.686524
- Cl  0.981476  1.000000  0.981476
+F 1.2680950000  4.9820185705  3.7343103562  
+F 1.2680950000  2.7518014295  3.7343103562  
+C 1.2680950000  3.8669100000  2.8564186956  
+C 0.0000000000  3.8669100000  2.0435967139  
+H 0.0000000000  4.7440721306  1.4088379422  
+H 0.0000000000  2.9897478694  1.4088379422  
 '''
-#cell.basis = 'sto3g'
-cell.basis = 'gth-szv'
-cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 4.18274
-cell.a[1, 0] = -0.23273
-cell.a[1, 1] = 4.17626
-cell.a[2, 0] = -1.92719
-cell.a[2, 1] = -2.13335
-cell.a[2, 2] = 3.03810
+cell.a = [[L,0,0],[0,L2,0],[0,0,L2]] 
+cell.basis = 'sto3g'
+#cell.verbose = 4
+cell.dimension = 1
 cell.build()
-
-#mydf = df.FFTDF(cell)
-#print_mesh(mydf.mesh)
 
 #2 k-points for each axis, 2^3=8 kpts in total
 #kmesh = [2,2,2]  
-kmesh = [2,2,2]  
+kmesh = [2,1,1]  
 #default: shifted Monkhorst-Pack mesh centered at Gamma-p.
 #to get non-shifted: with_gamma_point=False
 #to get centered at specific p.(units of lattice vectors): scaled_center=[0.,0.25,0.25]
@@ -172,8 +171,7 @@ kmesh = [2,2,2]
 kpts = cell.make_kpts(kmesh)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = dft.KRKS(cell, kpts).newton()
-kmf.xc = 'b3lyp'
+kmf = scf.KRHF(cell, kpts).density_fit()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()
@@ -184,8 +182,8 @@ print("HF energy (per unit cell) = %.17g" % ehf)
 mf = k2gamma(kmf) 
 print('k2gamma transf. mf df type', mf.with_df)
 scell, phase = get_phase(cell, kpts)
-#mydf = df.df.DF(scell)
-#mf.with_df = mydf
+mydf = df.df.DF(scell)
+mf.with_df = mydf
 print('mf type', mf.with_df)
 dm = (mf.make_rdm1()).real
 # check sanity
@@ -203,8 +201,8 @@ e_k = np.einsum('ij,ij', K_int, dm)
 # kin, nuc atrraction 
 # in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
 print('Computing kinetic, nuc ints')
-kinetic, nuc, subnuc = _h_core(scell, mf)
-sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
+kinetic, nuc, sub_nuc = _h_core(scell, mf)
+#sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
 e_kin = np.einsum('ij,ij', kinetic, dm)
 #
 e_nuc_att_glob = np.einsum('ij,ij', nuc, dm)

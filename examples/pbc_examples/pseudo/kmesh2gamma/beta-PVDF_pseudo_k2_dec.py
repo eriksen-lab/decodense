@@ -144,7 +144,8 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
 # rcut: Cutoff radius (in Bohr) of the lattice summation in the integral evaluation
 # cell
 L = 2.53619
-L2 = 1
+# only works with higher L2 TODO confirm this is fine
+L2 = 6
 cell = gto.Cell()
 cell.atom = '''
 F 1.2680950000  4.9820185705  3.7343103562  
@@ -155,7 +156,8 @@ H 0.0000000000  4.7440721306  1.4088379422
 H 0.0000000000  2.9897478694  1.4088379422  
 '''
 cell.a = [[L,0,0],[0,L2,0],[0,0,L2]] 
-cell.basis = 'sto3g'
+cell.basis = 'gth-szv'
+cell.pseudo = 'gth-pade'
 #cell.verbose = 4
 cell.dimension = 1
 cell.build()
@@ -170,7 +172,7 @@ kmesh = [2,1,1]
 kpts = cell.make_kpts(kmesh)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = scf.KRHF(cell, kpts).density_fit()
+kmf = scf.KRHF(cell, kpts).density_fit().newton()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()

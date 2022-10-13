@@ -8,7 +8,6 @@ from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
-from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
 #from k2gamma import k2gamma
 import decodense
 #import pbctools

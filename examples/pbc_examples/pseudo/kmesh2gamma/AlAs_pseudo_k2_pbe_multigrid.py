@@ -7,6 +7,7 @@ from pyscf import gto as mgto
 from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
+from pyscf.pbc.dft import multigrid
 from pyscf.pbc.tools.k2gamma import get_phase
 from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
 #from k2gamma import k2gamma
@@ -145,22 +146,20 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
 # cell
 cell = gto.Cell()
 cell.atom = '''
- H   0.686524  1.000000  0.686524
- Cl  0.981476  1.000000  0.981476
+ Al  0.000000  0.000000  0.000000
+ As  6.081570  3.511190  2.482790
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 4.18274
-cell.a[1, 0] = -0.23273
-cell.a[1, 1] = 4.17626
-cell.a[2, 0] = -1.92719
-cell.a[2, 1] = -2.13335
-cell.a[2, 2] = 3.03810
+cell.a = np.eye(3) * 4.05438
+cell.a[1, 0], cell.a[2, 0] = 2.02719, 2.02719
+cell.a[1, 1] = 3.51119
+cell.a[2, 1] = 1.17040
+cell.a[2, 2] = 3.31039
+cell.exp_to_discard = 0.1
 cell.build()
-
-#mydf = df.FFTDF(cell)
-#print_mesh(mydf.mesh)
+# cell
 
 #2 k-points for each axis, 2^3=8 kpts in total
 #kmesh = [2,2,2]  
@@ -171,11 +170,13 @@ kmesh = [2,2,2]
 #mesh: The numbers of grid points in the FFT-mesh in each direction
 kpts = cell.make_kpts(kmesh)
 
-# TODO maybe make it return the original df obj and not default?
 kmf = dft.KRKS(cell, kpts).newton()
-kmf.xc = 'b3lyp'
+# TODO crashes when func has exact exchange 
+#kmf.xc = 'b3lyp'
+kmf.xc = 'pbe'
 print('kmf df type')
 print(kmf.with_df)
+kmf.with_df = multigrid.MultiGridFFTDF(cell, kpts)
 ehf = kmf.kernel()
 kdm = kmf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
@@ -184,8 +185,8 @@ print("HF energy (per unit cell) = %.17g" % ehf)
 mf = k2gamma(kmf) 
 print('k2gamma transf. mf df type', mf.with_df)
 scell, phase = get_phase(cell, kpts)
-#mydf = df.df.DF(scell)
-#mf.with_df = mydf
+mydf = df.df.DF(scell)
+mf.with_df = mydf
 print('mf type', mf.with_df)
 dm = (mf.make_rdm1()).real
 # check sanity

@@ -2,7 +2,7 @@
 
 import numpy as np
 from pyscf.pbc import df
-from pyscf.pbc import gto, scf, dft
+from pyscf.pbc import gto, scf
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
@@ -145,18 +145,18 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
 # cell
 cell = gto.Cell()
 cell.atom = '''
- H   0.686524  1.000000  0.686524
- Cl  0.981476  1.000000  0.981476
+ Al  0.000000  0.000000  0.000000
+ As  6.081570  3.511190  2.482790
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 4.18274
-cell.a[1, 0] = -0.23273
-cell.a[1, 1] = 4.17626
-cell.a[2, 0] = -1.92719
-cell.a[2, 1] = -2.13335
-cell.a[2, 2] = 3.03810
+cell.a = np.eye(3) * 4.05438
+cell.a[1, 0], cell.a[2, 0] = 2.02719, 2.02719
+cell.a[1, 1] = 3.51119
+cell.a[2, 1] = 1.17040
+cell.a[2, 2] = 3.31039
+cell.exp_to_discard = 0.1
 cell.build()
 
 #mydf = df.FFTDF(cell)
@@ -169,27 +169,32 @@ kmesh = [2,2,2]
 #to get non-shifted: with_gamma_point=False
 #to get centered at specific p.(units of lattice vectors): scaled_center=[0.,0.25,0.25]
 #mesh: The numbers of grid points in the FFT-mesh in each direction
-kpts = cell.make_kpts(kmesh)
+#kpts = cell.make_kpts(kmesh)
+kpts = cell.make_kpts(kmesh,
+                      space_group_symmetry=True, 
+                      time_reversal_symmetry=True)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = dft.KRKS(cell, kpts).newton()
-kmf.xc = 'b3lyp'
+kmf = scf.KRHF(cell, kpts).newton()#.density_fit()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()
 kdm = kmf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
 
+# transform back to nonsymnm. kmf obj.
+kmf = kmf.to_khf()
+kmf.kernel(kmf.make_rdm1())
+
 # transform the kmf object to mf obj for a supercell
 mf = k2gamma(kmf) 
 print('k2gamma transf. mf df type', mf.with_df)
-scell, phase = get_phase(cell, kpts)
-#mydf = df.df.DF(scell)
-#mf.with_df = mydf
+scell, phase = get_phase(cell, cell.make_kpts(kmesh))
+#scell, phase = get_phase(cell, kpts)
 print('mf type', mf.with_df)
 dm = (mf.make_rdm1()).real
 # check sanity
-check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
+#check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
 
 
 # J, K int

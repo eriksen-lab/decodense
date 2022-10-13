@@ -169,7 +169,7 @@ kmesh = [2,2,2]
 kpts = cell.make_kpts(kmesh)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = scf.KRHF(cell, kpts).density_fit()
+kmf = scf.KRHF(cell, kpts).density_fit().newton()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()

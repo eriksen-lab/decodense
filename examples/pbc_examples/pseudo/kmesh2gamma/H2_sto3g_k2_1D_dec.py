@@ -150,6 +150,7 @@ cell.build(unit = 'B',
            mesh = [10,20,20],
            atom = 'H 0 0 0; H 0 0 1.8',
            dimension=1,
+#           verbose=4,
 #           basis='gth-dzvp',
 #           pseudo='gth-hf-rev')
            basis='sto3g')
@@ -164,7 +165,7 @@ kmesh = [2,1,1]
 kpts = cell.make_kpts(kmesh)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = scf.KRHF(cell, kpts).density_fit()
+kmf = scf.KRHF(cell, kpts).density_fit().newton()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()
