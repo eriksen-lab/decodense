@@ -110,6 +110,7 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarra
         else:
             mo_coeff = (mf.mo_coeff[0][:, alpha].real, mf.mo_coeff[1][:, beta].real)
 
+        assert (abs((mf.mo_coeff).imag).max() < 1e-7)
         return mo_coeff, mo_occ
 
 
