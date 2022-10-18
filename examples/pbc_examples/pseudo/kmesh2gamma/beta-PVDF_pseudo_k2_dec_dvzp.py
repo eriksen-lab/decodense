@@ -2,18 +2,18 @@
 
 import numpy as np
 from pyscf.pbc import df
-from pyscf.pbc import gto, scf, dft
+from pyscf.pbc import gto, scf
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
-from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
-#from k2gamma import k2gamma
 import decodense
 #import pbctools
 from decodense import pbctools
 from typing import List, Tuple, Dict, Union, Any
+from pyscf import scf as mol_scf
+from pyscf.pbc import dft
 
 
 # decodense variables
@@ -67,8 +67,7 @@ def check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf):
     print("Supercell gamma MO in AO basis from conversion:")
     scell = tools.super_cell(cell, kmesh)
     # FIXME df here will prob be different than for RKS calc...
-    mf_sc = dft.RKS(scell).density_fit()
-    mf_sc.xc = 'b3lyp'
+    mf_sc = scf.RHF(scell).density_fit()
     print('mf_sc type df')
     print(mf_sc.with_df)
     c_g_ao = mf.mo_coeff
@@ -144,26 +143,30 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
 # ke_cutoff: Kinetic energy cutoff of the plane waves in FFT-DF
 # rcut: Cutoff radius (in Bohr) of the lattice summation in the integral evaluation
 # cell
+L = 2.53619
+# only works with higher L2 TODO confirm this is fine
+L2 = 6
 cell = gto.Cell()
 cell.atom = '''
- Al  0.000000  0.000000  0.000000
- As  6.081570  3.511190  2.482790
+F 1.2680950000  4.9820185705  3.7343103562  
+F 1.2680950000  2.7518014295  3.7343103562  
+C 1.2680950000  3.8669100000  2.8564186956  
+C 0.0000000000  3.8669100000  2.0435967139  
+H 0.0000000000  4.7440721306  1.4088379422  
+H 0.0000000000  2.9897478694  1.4088379422  
 '''
-#cell.basis = 'sto3g'
-cell.basis = 'gth-szv'
-cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 4.05438
-cell.a[1, 0], cell.a[2, 0] = 2.02719, 2.02719
-cell.a[1, 1] = 3.51119
-cell.a[2, 1] = 1.17040
-cell.a[2, 2] = 3.31039
-cell.exp_to_discard = 0.1
+cell.a = [[L,0,0],[0,L2,0],[0,0,L2]] 
+#cell.basis = 'gth-szv'
+#cell.pseudo = 'gth-pade'
+cell.basis = 'gth-dzv'
+cell.pseudo = 'gth-hf-rev'
+#cell.verbose = 4
+cell.dimension = 1
 cell.build()
-# cell
 
 #2 k-points for each axis, 2^3=8 kpts in total
-#kmesh = [2,2,2]  
-kmesh = [2,2,2]  
+kmesh = [1,1,1]
+#kmesh = [2,1,1]  
 #default: shifted Monkhorst-Pack mesh centered at Gamma-p.
 #to get non-shifted: with_gamma_point=False
 #to get centered at specific p.(units of lattice vectors): scaled_center=[0.,0.25,0.25]
@@ -171,31 +174,58 @@ kmesh = [2,2,2]
 kpts = cell.make_kpts(kmesh)
 
 # TODO maybe make it return the original df obj and not default?
-kmf = dft.KRKS(cell, kpts).newton()#.density_fit()
+kmf = dft.KRKS(cell, kpts).density_fit()#.apply(mol_scf.addons.remove_linear_dep_)#.newton()
 kmf.xc = 'b3lyp'
+#kmf = scf.KRHF(cell, kpts).density_fit().apply(mol_scf.addons.remove_linear_dep_)#.newton()
 print('kmf df type')
 print(kmf.with_df)
 ehf = kmf.kernel()
-kdm = kmf.make_rdm1()
+#kdm = kmf.make_rdm1()
 print("HF energy (per unit cell) = %.17g" % ehf)
 
 # transform the kmf object to mf obj for a supercell
-mf = k2gamma(kmf) 
+# get the supercell and its mo coeff., occupations, en 
+mf_scf = k2gamma(kmf)
+scell = mf_scf.mol
+mo_coeff, mo_occ, e_mo = mf_scf.mo_coeff, mf_scf.mo_occ, mf_scf.mo_energy
+print('MF_SCF')
+print('MF_SCF coeff, occ, e_mo', np.shape(np.asarray(mo_coeff)) )
+print('MF_SCF occ ', np.shape(np.asarray(mo_occ)) )
+print('MF_SCF e_mo', np.shape(np.asarray(e_mo)) )
+print('MF_SCF dm', np.shape(np.asarray(mf_scf.make_rdm1())) )
+print('MF_SCF')
+# make the mf obj match kmf obj
+mf = dft.RKS(scell)
+mf.xc = 'b3lyp'
+# write mo coeff, occupations, en
+mf.mo_coeff = mo_coeff.real
+mf.mo_energy = e_mo
+mf.mo_occ = mo_occ
+print('MF')
+print('MF coeff, occ, e_mo', np.shape(np.asarray(mf.mo_coeff)) )
+print('MF occ ', np.shape(np.asarray(mf.mo_occ)) )
+print('MF e_mo', np.shape(np.asarray(mf.mo_energy)) )
+print('MF dm', np.shape(np.asarray(mf.make_rdm1())) )
+print('MF')
 print('k2gamma transf. mf df type', mf.with_df)
-scell, phase = get_phase(cell, kpts)
 mydf = df.df.DF(scell)
 mf.with_df = mydf
 print('mf type', mf.with_df)
 dm = (mf.make_rdm1()).real
+print('shape dm', np.shape(dm))
+print('shape dm', np.shape(dm))
 # check sanity
+scell2, phase = get_phase(cell, kpts)
 check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
 
 
-# J, K int
+## J, K int
 print('Computing J, K ints')
 J_int, K_int = mf.get_jk()
 J_int *= .5
 K_int *= -0.25
+print('shape J, K', np.shape(J_int), np.shape(K_int))
+print('shape J, K', np.shape(J_int), np.shape(K_int))
 e_j = np.einsum('ij,ij', J_int, dm)
 e_k = np.einsum('ij,ij', K_int, dm)
 
@@ -211,7 +241,7 @@ e_nuc_att_glob = np.einsum('ij,ij', nuc, dm)
 e_nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
 #nuc_att_loc *= .5
 
-e_struct = pbctools.ewald_e_nuc(cell)
+e_struct = pbctools.ewald_e_nuc(scell)
 
 E_total_cell = e_kin + e_j + e_k + np.sum(e_nuc_att_loc) + np.sum(e_struct)
 ##########################################
@@ -226,6 +256,7 @@ print('')
 print()
 print('scell')
 print('energy_tot', mf.energy_tot())
+print('My energy_tot', E_total_cell)
 #print('energy_elec', mf.energy_elec())
 print()
 

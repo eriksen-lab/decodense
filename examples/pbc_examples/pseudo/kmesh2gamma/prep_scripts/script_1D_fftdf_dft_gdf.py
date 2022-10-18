@@ -3,8 +3,6 @@ import numpy as np
 from pyscf.pbc import df
 from pyscf.pbc import gto, scf, dft
 from pyscf.pbc.dft import multigrid
-from pyscf import gto as mgto
-from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
@@ -28,7 +26,6 @@ def check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf, xc_func):
     # 2. The following is to check whether the MO is correctly coverted:
     print("Supercell gamma MO in AO basis from conversion:")
     scell = tools.super_cell(cell, kmesh)
-    # FIXME df here will prob be different than for RKS calc...
     mf_sc = dft.RKS(scell).density_fit()
     mf_sc.xc = xc_func
     print('mf_sc type df')
@@ -66,6 +63,9 @@ print("HF energy (per unit cell) = %.17g" % ehf)
 # overwrite df object to GDF
 mf = k2gamma(kmf) 
 scell, phase = get_phase(cell, kpts)
+print('df obj. of type: ', mf.with_df)
+mydf = df.df.DF(scell)
+mf.with_df = mydf
 print('df obj. of type: ', mf.with_df)
 #dm = (mf.make_rdm1()).real
 # check sanity
