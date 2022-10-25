@@ -106,7 +106,10 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
         # fock potential
-        vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
+        if dft_calc:
+            vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=False)
+        else:
+            vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
 
         # calculate xc energy density
         if dft_calc:
@@ -116,7 +119,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk)
+            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk, vj)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
@@ -614,14 +617,19 @@ def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
 
 
 def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
-            xc_func: str, rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
+            xc_func: str, rdm1: np.ndarray, vk: np.ndarray, vj: np.ndarray) -> np.ndarray:
         """
         this function returns the appropriate dft exchange operator
         """
         # range-separated and exact exchange parameters
         ks_omega, ks_alpha, ks_hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
-        # scale amount of exact exchange
-        vk *= ks_hyb
+        # if hybrid func: compute vk    
+        if abs(ks_hyb) > 1e-10: 
+            _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
+            # scale amount of exact exchange
+            vk *= ks_hyb
+        else:
+            vk = np.zeros(np.shape(vj), dtype=vj.dtype)
         # range separated coulomb operator
         if abs(ks_omega) > 1e-10:
             vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)
