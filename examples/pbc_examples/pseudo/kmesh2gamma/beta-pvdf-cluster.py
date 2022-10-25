@@ -11,7 +11,7 @@ from pyscf.pbc.tools.k2gamma import k2gamma
 import decodense
 
 # nr of images in 1D ring
-nkpt = 1
+nkpt = 2
 
 # a function that loops over all decodense params
 # the results are written to separate csv files for each
@@ -126,7 +126,6 @@ cell.build()
 # make repetitions along x-axis
 kmesh = [nkpt,1,1]
 kpts = cell.make_kpts(kmesh)
-print('kmf en ', cell.energy_nuc())
 
 # run KRKS calculation
 #kmf = dft.KRKS(cell, kpts).density_fit().newton().apply(mol_scf.addons.remove_linear_dep_)
@@ -160,5 +159,5 @@ print('df obj. of type: ', mf.with_df)
 
 # decompose the results
 run_iao_decomp(supcell, mf, nkpt)
-run_all_decomp(supcell, mf, nkpt)
-run_eda_decomp(supcell, mf, nkpt)
+#run_all_decomp(supcell, mf, nkpt)
+#run_eda_decomp(supcell, mf, nkpt)

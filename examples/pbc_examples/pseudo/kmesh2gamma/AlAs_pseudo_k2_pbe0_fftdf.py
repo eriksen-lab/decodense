@@ -174,10 +174,10 @@ kpts = cell.make_kpts(kmesh)
 kmf = dft.KRKS(cell, kpts).newton()
 # TODO crashes when func has exact exchange 
 #kmf.xc = 'b3lyp'
-kmf.xc = 'pbe'
+kmf.xc = 'pbe0'
 print('kmf df type')
 print(kmf.with_df)
-kmf.with_df = multigrid.MultiGridFFTDF(cell, kpts)
+kmf.with_df = df.FFTDF(cell, kpts)
 edft = kmf.kernel()
 #kdm = kmf.make_rdm1()
 print("DFT energy (per unit cell) = %.17g" % edft)
@@ -189,7 +189,7 @@ supcell = mf_scf.mol
 mo_coeff, mo_occ, e_mo = mf_scf.mo_coeff, mf_scf.mo_occ, mf_scf.mo_energy
 # make the mf obj match kmf obj
 mf = dft.RKS(supcell)
-mf.xc = 'pbe'
+mf.xc = 'pbe0'
 mf.with_df = df.FFTDF(supcell)
 mf.mo_coeff = mo_coeff
 mf.mo_energy = e_mo
