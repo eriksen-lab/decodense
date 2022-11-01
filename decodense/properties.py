@@ -11,6 +11,7 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import sys
+import warnings
 import numpy as np
 import pyscf.lib
 from itertools import starmap
@@ -107,7 +108,12 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
         # fock potential
         if dft_calc:
-            vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=False)
+            if hasattr(mf, 'vj'):
+                vj = mf.vj
+                vk = None
+            else:
+                warnings.warn('Computing Coulomb integrals for a supercell. Check if ao integrals from kmf can be reused instead. ')
+                vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=False)
         else:
             vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
 
@@ -179,11 +185,15 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                         rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx] / np.sum(weights[i][m])
                     # coulumb & exchange energy associated with given atom
                     if prop_type == 'energy':
-                        res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
-                        res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
+                        if not hasattr(mf, 'vj'):
+                            res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
+                            res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
+                    if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
+                        res['coul'] += _trace(vj, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res['exch'] -= _trace(vk, np.sum(rdm1_atom, axis=0), scaling = .25)
                     if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
                         sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
                         res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
@@ -625,7 +635,11 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         ks_omega, ks_alpha, ks_hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
         # if hybrid func: compute vk    
         if abs(ks_hyb) > 1e-10: 
-            _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
+            if hasattr(mf, 'vk'):
+                vk = mf.vk
+            else:
+                warnings.warn('Computing exact exchange integrals for a supercell. Check if ao integrals from kmf can be reused instead. ')
+                _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
             # scale amount of exact exchange
             vk *= ks_hyb
         else:
