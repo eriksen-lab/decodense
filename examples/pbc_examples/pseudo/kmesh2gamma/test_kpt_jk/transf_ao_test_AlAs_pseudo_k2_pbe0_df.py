@@ -290,41 +290,14 @@ print('transformed vj shape', np.shape(knew), knew.dtype )
 print('kmf vj and mf vk all true?', np.allclose(knew.real, k_supcell, atol=1e-6) )
 #
 
-
-# testing my vpp for kpoints
-print()
-start_vpp = time.process_time()
-vpp, vloc, vnl = pbctools.get_pp_atomic_df(kmf.with_df, kpts)
-print(f'CPU time when computing atomic kmf vpp: ', time.process_time() - start_vpp)
-start_vpp = time.process_time()
-vpp0 = kmf.get_nuc_att(kpt=kpts)
-print(f'CPU time when computing kmf vpp: ', time.process_time() - start_vpp)
-start_vpp = time.process_time()
-vpp0 = kmf.get_nuc_att(kpt=kpts)
-print(f'CPU time when computing kmf vpp again: ', time.process_time() - start_vpp)
-#
-start_vpp = time.process_time()
-vpp_supcell = mf.get_nuc_att()
-print(f'CPU time when computing supcell mf vpp: ', time.process_time() - start_vpp)
-#
-print()
-print('shapes atomic kmf vpp', np.shape(vpp), np.shape(vloc), np.shape(vnl))
-print('shape kmf vpp', np.shape(vpp0) )
-print()
-print('kmf vpp and atomic kmf vpp all true?', np.allclose(np.einsum('kxij->kij', vpp), vpp0) )
-print()
-vpp_ao = to_supercell_ao_integrals(cell, kpts, vpp0)
-print('vpp_ao and vpp_supcell shapes', np.shape(vpp_ao), np.shape(vpp_supcell) )
-print('kmf vpp and mf vpp all true?', np.allclose(vpp_supcell, vpp_ao, atol=1e-6) )
-print()
-print('jnew 0')
-#print(jnew[0,:])
-print('j_supcell 0')
-#print(j_supcell[0,:])
-print(np.max(abs(jnew - j_supcell)))
-print()
-print('vpp_ao 0')
-#print(jnew[0,:])
-print('vpp_supcell 0')
-#print(j_supcell[0,:])
-print(np.max(abs(vpp_ao - vpp_supcell)))
+# now add jnew, knew ints as attribute to mf obj
+start_attr = time.process_time()
+mf.vj, mf.vk = jnew, knew
+if getattr(mf, 'vj') is not None:
+    print('vj attribute found')
+if getattr(mf, 'vk') is not None:
+    print('vk attribute found')
+jnew1, knew1 = mf.vj, mf.vk
+print(f'CPU time when attaching and calling vj, vk ints: ', time.process_time() - start_attr)
+print('jnew and jnew1 all true?', np.allclose(jnew, jnew1, atol=1e-6) )
+print('knew and knew1 all true?', np.allclose(knew, knew1, atol=1e-6) )

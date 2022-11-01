@@ -184,10 +184,11 @@ kpts = cell.make_kpts(kmesh)
 kmf = dft.KRKS(cell, kpts).newton()
 # TODO crashes when func has exact exchange 
 #kmf.xc = 'b3lyp'
-kmf.xc = 'pbe0'
+kmf.xc = 'pbe'
 print('kmf df type')
 print(kmf.with_df)
-kmf.with_df = df.df.DF(cell, kpts)
+kmf.with_df = multigrid.MultiGridFFTDF(cell, kpts)
+#kmf.with_df = df.FFTDF(cell, kpts)
 edft = kmf.kernel()
 #kdm = kmf.make_rdm1()
 print("DFT energy (per unit cell) = %.17g" % edft)
@@ -218,8 +219,9 @@ print(type(en))
 print()
 # make the mf obj match kmf obj
 mf = dft.RKS(supcell)
-mf.xc = 'pbe0'
-mf.with_df = df.df.DF(supcell)
+mf.xc = 'pbe'
+mf.with_df = multigrid.MultiGridFFTDF(supcell)
+#mf.with_df = df.FFTDF(supcell)
 mf.mo_coeff = coeff
 mf.mo_energy = en
 mf.mo_occ = occ
@@ -256,7 +258,7 @@ with open(f'{name}.json', 'r') as openfile:
 #check_decomp(supcell2, mf)
 print()
 print('mf dir')
-#print(dir(mf))
+print(dir(mf))
 print()
 
 # testing vj ao int transformation from kmesh to supcell
@@ -273,58 +275,3 @@ jnew = to_supercell_ao_integrals(cell, kpts, j_int)
 print(f'CPU time when transforming ao ints: ', time.process_time() - start_vjao)
 print('transformed vj shape', np.shape(jnew), jnew.dtype )
 print('kmf vj and mf vj all true?', np.allclose(jnew.real, j_supcell, atol=1e-6) )
-#
-# testing vk ao int transformation from kmesh to supcell
-start_vk = time.process_time()
-j_supcell, k_supcell = mf.get_jk(with_j=False)
-print(f'CPU time when computing mf vk: ', time.process_time() - start_vk)
-##
-start_vk = time.process_time()
-j_int, k_int = kmf.get_jk(with_j=False)
-print(f'CPU time when computing kmf vk: ', time.process_time() - start_vk)
-##
-start_vkao = time.process_time()
-knew = to_supercell_ao_integrals(cell, kpts, k_int) 
-print(f'CPU time when transforming ao ints: ', time.process_time() - start_vkao)
-print('transformed vj shape', np.shape(knew), knew.dtype )
-print('kmf vj and mf vk all true?', np.allclose(knew.real, k_supcell, atol=1e-6) )
-#
-
-
-# testing my vpp for kpoints
-print()
-start_vpp = time.process_time()
-vpp, vloc, vnl = pbctools.get_pp_atomic_df(kmf.with_df, kpts)
-print(f'CPU time when computing atomic kmf vpp: ', time.process_time() - start_vpp)
-start_vpp = time.process_time()
-vpp0 = kmf.get_nuc_att(kpt=kpts)
-print(f'CPU time when computing kmf vpp: ', time.process_time() - start_vpp)
-start_vpp = time.process_time()
-vpp0 = kmf.get_nuc_att(kpt=kpts)
-print(f'CPU time when computing kmf vpp again: ', time.process_time() - start_vpp)
-#
-start_vpp = time.process_time()
-vpp_supcell = mf.get_nuc_att()
-print(f'CPU time when computing supcell mf vpp: ', time.process_time() - start_vpp)
-#
-print()
-print('shapes atomic kmf vpp', np.shape(vpp), np.shape(vloc), np.shape(vnl))
-print('shape kmf vpp', np.shape(vpp0) )
-print()
-print('kmf vpp and atomic kmf vpp all true?', np.allclose(np.einsum('kxij->kij', vpp), vpp0) )
-print()
-vpp_ao = to_supercell_ao_integrals(cell, kpts, vpp0)
-print('vpp_ao and vpp_supcell shapes', np.shape(vpp_ao), np.shape(vpp_supcell) )
-print('kmf vpp and mf vpp all true?', np.allclose(vpp_supcell, vpp_ao, atol=1e-6) )
-print()
-print('jnew 0')
-#print(jnew[0,:])
-print('j_supcell 0')
-#print(j_supcell[0,:])
-print(np.max(abs(jnew - j_supcell)))
-print()
-print('vpp_ao 0')
-#print(jnew[0,:])
-print('vpp_supcell 0')
-#print(j_supcell[0,:])
-print(np.max(abs(vpp_ao - vpp_supcell)))
