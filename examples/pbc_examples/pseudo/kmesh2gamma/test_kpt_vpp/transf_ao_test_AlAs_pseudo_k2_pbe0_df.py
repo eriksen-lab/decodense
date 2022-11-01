@@ -9,12 +9,18 @@ from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.dft import multigrid
 from pyscf.pbc.tools.k2gamma import get_phase
+from pyscf.pbc.tools.k2gamma import to_supercell_ao_integrals 
 from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
 #from k2gamma import k2gamma
 import decodense
 #import pbctools
 from decodense import pbctools
 from typing import List, Tuple, Dict, Union, Any
+
+import time
+import sys
+import json
+#from pyscf.pbc import gto
 
 
 # decodense variables
@@ -32,6 +38,7 @@ def check_decomp(cell, mf):
     ''' test which params work for cell '''
 
     ehf = mf.energy_tot()
+    print('ehf cell', ehf)
     nat = cell.natm
     res_all = []
     #for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
@@ -46,6 +53,7 @@ def check_decomp(cell, mf):
                 print(k, v)
             print()
             ehf_dec_tot = np.sum(res['el']+res['struct'])
+            print('ehf_dec_tot', ehf_dec_tot)
             print('E_hf_pyscf - E_hf_dec_tot = ', ehf - ehf_dec_tot )
             print('---------------------------------')
             print()
@@ -189,60 +197,113 @@ print("DFT energy (per unit cell) = %.17g" % edft)
 mf_scf = k2gamma(kmf)
 supcell = mf_scf.mol
 mo_coeff, mo_occ, e_mo = mf_scf.mo_coeff, mf_scf.mo_occ, mf_scf.mo_energy
+# 
+print('types of the mo_coeff, mo_occ, e_mo')
+print(type(mo_coeff))
+print(type(mo_occ))
+print(type(e_mo))
+print()
+# save npz data
+name = sys.argv[0]
+name = name[:-3]
+np.savez(f'{name}.npz', mo_coeff=mo_coeff, mo_occ=mo_occ, e_mo=e_mo)
+data = np.load(f'{name}.npz')
+coeff, occ, en = data['mo_coeff'], data['mo_occ'], data['e_mo']
+print(type(en), 'en', en)
+print('loaded types of the mo_coeff, mo_occ, e_mo')
+#print(type(data))
+print(type(coeff))
+print(type(occ))
+print(type(en))
+print()
 # make the mf obj match kmf obj
 mf = dft.RKS(supcell)
 mf.xc = 'pbe0'
 mf.with_df = df.df.DF(supcell)
-mf.mo_coeff = mo_coeff
-mf.mo_energy = e_mo
-mf.mo_occ = mo_occ
+mf.mo_coeff = coeff
+mf.mo_energy = en
+mf.mo_occ = occ
 print('RKS df obj. overwritten, of type: ', mf.with_df)
-
-dm = (mf.make_rdm1()).real
-# check sanity
-#check_k2gamma_ovlps(cell, supcell, phase, kmesh, kmf, mf)
-
-
-# J, K int
-print('Computing J, K ints')
-J_int, K_int = mf.get_jk()
-J_int *= .5
-K_int *= -0.25
-e_j = np.einsum('ij,ij', J_int, dm)
-e_k = np.einsum('ij,ij', K_int, dm)
-
-# kin, nuc atrraction 
-# in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
-print('Computing kinetic, nuc ints')
-kinetic, nuc, subnuc = _h_core(supcell, mf)
-sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
-e_kin = np.einsum('ij,ij', kinetic, dm)
+# test if mf inherited all the attributes
+print('mf.xc', mf.xc)
 #
-e_nuc_att_glob = np.einsum('ij,ij', nuc, dm)
-#nuc_att_glob *= .5
-e_nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
-#nuc_att_loc *= .5
-
-e_struct = pbctools.ewald_e_nuc(cell)
-
-E_total_cell = e_kin + e_j + e_k + np.sum(e_nuc_att_loc) + np.sum(e_struct)
-##########################################
-##########################################
-## printing, debugging, etc.
-print('')
-print('TEST')
-#print('mf hcore and dm', dm.dtype, dm) 
-print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + np.sum(e_nuc_att_loc)) )
-print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
-print('')
-print()
-print('supcell')
-print('energy_tot', mf.energy_tot())
-#print('energy_elec', mf.energy_elec())
-print()
-
 print(type(kmf) )
 print(type(mf) )
 
+# now get the supcell
+# test if supcell inherited all the attributes
+print('supcell.basis', supcell.basis)
+print('supcell.pseudo', supcell.pseudo)
+print('supcell.a', supcell.a)
+print('supcell.atom', supcell.atom)
+#
+# dump cell obj to json str obj
+supcell_json_str = gto.cell.dumps(supcell)
+#print('supcell json', supcell_json_str)
+#
+# write json cell file and read it again
+print('types: json supcell, saved and loaded')
+print(type(supcell_json_str))
+# write cell obj to json file
+with open(f'{name}.json', "w") as outfile:
+    json.dump(supcell_json_str, outfile)
+# read json file
+with open(f'{name}.json', 'r') as openfile:
+    json_object = json.load(openfile)
+    supcell2 = gto.cell.loads(json_object)
 
-check_decomp(supcell, mf)
+#check_decomp(supcell, mf)
+#check_decomp(supcell2, mf)
+print()
+print('mf dir')
+print(dir(mf))
+print()
+
+# testing vj ao int transformation from kmesh to supcell
+start_vj = time.process_time()
+j_supcell, k_supcell = mf.get_jk(with_k=False)
+print(f'CPU time when computing mf vj: ', time.process_time() - start_vj)
+##
+start_vj = time.process_time()
+j_int, k_int = kmf.get_jk(with_k=False)
+print(f'CPU time when computing kmf vj: ', time.process_time() - start_vj)
+##
+start_vjao = time.process_time()
+jnew = to_supercell_ao_integrals(cell, kpts, j_int) 
+print(f'CPU time when transforming ao ints: ', time.process_time() - start_vjao)
+print('transformed vj shape', np.shape(jnew), jnew.dtype )
+print('kmf vj and mf vj all true?', np.allclose(jnew.real, j_supcell, atol=1e-6) )
+#
+# testing my vpp for kpoints
+start_vpp = time.process_time()
+vpp, vloc, vnl = pbctools.get_pp_atomic_df(kmf.with_df, kpts)
+print(f'CPU time when computing atomic vpp: ', time.process_time() - start_vpp)
+start_vpp = time.process_time()
+vpp0 = kmf.get_nuc_att(kpt=kpts)
+print(f'CPU time when computing vpp: ', time.process_time() - start_vpp)
+#
+start_vpp = time.process_time()
+vpp_supcell = mf.get_nuc_att()
+print(f'CPU time when computing supcell vpp: ', time.process_time() - start_vpp)
+#
+print()
+print('shapes atomic kmf vpp', np.shape(vpp), np.shape(vloc), np.shape(vnl))
+print('shape kmf vpp', np.shape(vpp0) )
+print()
+print('kmf vpp and atomic kmf vpp all true?', np.allclose(np.einsum('kxij->kij', vpp), vpp0) )
+print()
+vpp_ao = to_supercell_ao_integrals(cell, kpts, vpp0)
+print('vpp_ao and vpp_supcell shapes', np.shape(vpp_ao), np.shape(vpp_supcell) )
+print('kmf vpp and mf vpp all true?', np.allclose(vpp_supcell, vpp_ao, atol=1e-6) )
+print()
+print('jnew 0')
+#print(jnew[0,:])
+print('j_supcell 0')
+#print(j_supcell[0,:])
+print(np.max(abs(jnew - j_supcell)))
+print()
+print('vpp_ao 0')
+#print(jnew[0,:])
+print('vpp_supcell 0')
+#print(j_supcell[0,:])
+print(np.max(abs(vpp_ao - vpp_supcell)))
