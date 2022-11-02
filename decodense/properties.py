@@ -10,6 +10,7 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import copy
 import sys
 import warnings
 import numpy as np
@@ -248,8 +249,13 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 if prop_type == 'energy':
                     # loop over spins
                     for i, _ in enumerate((alpha, beta)):
-                        res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
-                        res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+                        if not hasattr(mf, 'vj'):
+                            res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
+                            res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+                    # TODO warning if coul, exch not computed 
+                    if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
+                        res['coul'] += _trace(vj[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                        res['exch'] -= _trace(vk[select], np.sum(rdm1_tot, axis=0)[select], scaling = .25)
                     res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
                     #
                     if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
@@ -636,7 +642,7 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         # if hybrid func: compute vk    
         if abs(ks_hyb) > 1e-10: 
             if hasattr(mf, 'vk'):
-                vk = mf.vk
+                vk = copy.copy(mf.vk)
             else:
                 warnings.warn('Computing exact exchange integrals for a supercell. Check if ao integrals from kmf can be reused instead. ')
                 _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
