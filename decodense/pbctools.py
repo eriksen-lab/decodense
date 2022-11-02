@@ -631,7 +631,7 @@ def get_pp_atomic_fftdf(mydf, kpts=None):
     for a in range(natm):
         vpplocR_at[a] = tools.ifft(vpplocG_at[a], mesh).real
 
-    vpp_at = np.zeros((nkpts, natm, nao, nao))
+    vpp_at = np.zeros((nkpts, natm, nao, nao), dtype=np.complex128)
     for a in range(natm):
         for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
             ao_ks = ao_ks_etc[0]

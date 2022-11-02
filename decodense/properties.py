@@ -438,18 +438,22 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             mydf = mf.with_df
             # individual atomic potentials
             if mol.pseudo:
-                if isinstance(mydf, pbc_df.df.DF):
-                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_df(mydf, kpts=np.zeros(3))
+                if hasattr(mf, 'vpp'):
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = mf.vpp, mf.vloc, mf.vnl
                     sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc_tot, axis=0)
-                elif isinstance(mydf, pbc_df.fft.FFTDF):
-                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
-                    sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc_tot, axis=0)
                 else:
-                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
+                    if isinstance(mydf, pbc_df.df.DF):
+                        sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_df(mydf, kpts=np.zeros(3))
+                        sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                        # total nuclear potential
+                        nuc = np.sum(sub_nuc_tot, axis=0)
+                    elif isinstance(mydf, pbc_df.fft.FFTDF):
+                        sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
+                        sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                        # total nuclear potential
+                        nuc = np.sum(sub_nuc_tot, axis=0)
+                    else:
+                        warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
             else:
                 if isinstance(mydf, pbc_df.df.DF):
                     sub_nuc = get_nuc_atomic_df(mydf, kpts=np.zeros(3)) 
