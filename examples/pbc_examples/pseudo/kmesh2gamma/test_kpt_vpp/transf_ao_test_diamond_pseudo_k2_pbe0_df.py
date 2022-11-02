@@ -155,22 +155,22 @@ def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.nd
 # ke_cutoff: Kinetic energy cutoff of the plane waves in FFT-DF
 # rcut: Cutoff radius (in Bohr) of the lattice summation in the integral evaluation
 # cell
+# initialize a cell object
+# the (1/4, 1/4, 1/4) basis atoms are: #2, i think?
 cell = gto.Cell()
 cell.atom = '''
- Al  0.000000  0.000000  0.000000
- As  6.081570  3.511190  2.482790
+ C   3.79049   2.18844   1.54746
+ C   2.52699   1.45896   1.03164
 '''
 #cell.basis = 'sto3g'
 cell.basis = 'gth-szv'
 cell.pseudo = 'gth-pade'
-cell.a = np.eye(3) * 4.05438
-cell.a[1, 0], cell.a[2, 0] = 2.02719, 2.02719
-cell.a[1, 1] = 3.51119
-cell.a[2, 1] = 1.17040
-cell.a[2, 2] = 3.31039
-cell.exp_to_discard = 0.1
+# .a is a matrix for lattice vectors.  Each row of .a is a primitive vector.
+cell.a = np.eye(3)*2.52699
+cell.a[1:,0] = 1.26350
+cell.a[1,1], cell.a[2,2], cell.a[2,1] = 2.18844, 2.06328, 0.72948
+cell.verbose = 3
 cell.build()
-# cell
 
 #2 k-points for each axis, 2^3=8 kpts in total
 #kmesh = [2,2,2]  

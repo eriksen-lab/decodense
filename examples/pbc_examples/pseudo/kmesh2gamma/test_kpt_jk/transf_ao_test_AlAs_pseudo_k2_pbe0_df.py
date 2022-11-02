@@ -42,6 +42,7 @@ def check_decomp(cell, mf):
     nat = cell.natm
     res_all = []
     #for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
+    #for i in ['ibo-2', 'pm' ]:
     #for i in ['pm', 'ibo-2' ]:
     for i in [ 'ibo-2' ]:
         #for j in ['mulliken', 'iao']:
@@ -181,6 +182,7 @@ kmesh = [2,2,2]
 #mesh: The numbers of grid points in the FFT-mesh in each direction
 kpts = cell.make_kpts(kmesh)
 
+#kmf = dft.KRKS(cell, kpts)
 kmf = dft.KRKS(cell, kpts).newton()
 # TODO crashes when func has exact exchange 
 #kmf.xc = 'b3lyp'
@@ -259,6 +261,22 @@ print('mf dir')
 #print(dir(mf))
 print()
 
+# make a krdm1_eff
+print('shape coeff', np.shape(coeff))
+print('shape occ', np.shape(occ))
+print('shape en', np.shape(en))
+kmo_coeff = kmf.mo_coeff
+kmo_en = mf.mo_energy
+kmo_occ = mf.mo_occ
+print('shape kmf coeff', np.shape(kmo_coeff))
+print('shape kmf occ', np.shape(kmo_occ))
+print('shape kmf en', np.shape(kmo_en))
+#if rdm1_eff is None:
+#    rdm1_eff = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
+#if rdm1_eff.ndim == 2:
+#    rdm1_eff = np.array([rdm1_eff, rdm1_eff]) * .5
+#rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
+
 # testing vj ao int transformation from kmesh to supcell
 start_vj = time.process_time()
 j_supcell, k_supcell = mf.get_jk(with_k=False)
@@ -273,15 +291,18 @@ jnew = to_supercell_ao_integrals(cell, kpts, j_int)
 print(f'CPU time when transforming ao ints: ', time.process_time() - start_vjao)
 print('transformed vj shape', np.shape(jnew), jnew.dtype )
 print('kmf vj and mf vj all true?', np.allclose(jnew.real, j_supcell, atol=1e-6) )
+print('max difference between kmf transformed vj and mf vj: ', np.max(abs(jnew.real - j_supcell)) )
 #
 # testing vk ao int transformation from kmesh to supcell
 start_vk = time.process_time()
 j_supcell, k_supcell = mf.get_jk(with_j=False)
 print(f'CPU time when computing mf vk: ', time.process_time() - start_vk)
+print('shape of mf jk ints', np.shape(j_supcell), np.shape(k_supcell) )
 ##
 start_vk = time.process_time()
 j_int, k_int = kmf.get_jk(with_j=False)
 print(f'CPU time when computing kmf vk: ', time.process_time() - start_vk)
+print('shape of kmf jk ints', np.shape(j_int), np.shape(k_int) )
 ##
 start_vkao = time.process_time()
 knew = to_supercell_ao_integrals(cell, kpts, k_int) 
@@ -301,3 +322,5 @@ jnew1, knew1 = mf.vj, mf.vk
 print(f'CPU time when attaching and calling vj, vk ints: ', time.process_time() - start_attr)
 print('jnew and jnew1 all true?', np.allclose(jnew, jnew1, atol=1e-6) )
 print('knew and knew1 all true?', np.allclose(knew, knew1, atol=1e-6) )
+print()
+check_decomp(supcell2, mf)
