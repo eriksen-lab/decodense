@@ -73,7 +73,7 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         return string.format(*form)
 
 
-def results(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
+def results(mol: gto.Mole, header: str = '', **kwargs: np.ndarray) -> str:
         """
         this function prints the results based on either an atom- or bond-based partitioning
         """
