@@ -24,11 +24,12 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        __slots__ = ('mo_basis', 'pop', 'mo_init', 'part', 'ndo', \
+        __slots__ = ('mo_basis', 'pop_method', 'mo_init', 'loc_exp', 'part', 'ndo', \
                      'gauge_origin', 'prop', 'write', 'verbose', \
                      'res', 'charge_atom', 'dist', 'weights', 'centres')
 
-        def __init__(self, mo_basis: str = 'can', pop: str = 'mulliken', mo_init: str = 'can', \
+        def __init__(self, mo_basis: str = 'can', pop_method: str = 'mulliken', \
+                     mo_init: str = 'can', loc_exp: int = 2, \
                      part = 'atoms', ndo: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
@@ -37,8 +38,9 @@ class DecompCls(object):
                 """
                 # set system defaults
                 self.mo_basis = mo_basis
-                self.pop = pop
+                self.pop_method = pop_method
                 self.mo_init = mo_init
+                self.loc_exp = loc_exp
                 self.part = part
                 self.ndo = ndo
                 self.gauge_origin = gauge_origin
@@ -61,11 +63,14 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.mo_basis in ['can', 'fb', 'pm'], \
             'invalid MO basis. valid choices: `can` (default), `fb`, or `pm`'
         # population scheme
-        assert decomp.pop in ['mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao'], \
+        assert decomp.pop_method in ['mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` (default), `lowdin`, `meta_lowdin`, `becke`, or `iao`'
         # MO start guess (for localization)
         assert decomp.mo_init in ['can', 'cholesky', 'ibo'], \
             'invalid MO start guess. valid choices: `can` (default), `cholesky`, or `ibo`'
+        # localization exponent
+        assert decomp.loc_exp in [2, 4], \
+            'invalid MO start guess. valid choices: 2 or 4'
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'orbitals'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`'

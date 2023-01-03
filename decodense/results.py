@@ -54,7 +54,7 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         string += ' MO basis           =  {:}\n'
         string += ' population scheme  =  {:}\n'
         string += ' MO start guess     =  {:}\n'
-        form += (decomp.prop, decomp.part, decomp.mo_basis, decomp.pop, decomp.mo_init,)
+        form += (decomp.prop, decomp.part, decomp.mo_basis, decomp.pop_method, decomp.mo_init,)
         if mol is not None:
             string += '\n point group        =  {:}\n'
             string += ' electrons          =  {:d}\n'

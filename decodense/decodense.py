@@ -39,23 +39,23 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         # compute localized MOs
         if decomp.mo_basis != 'can':
             mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, \
-                                decomp.mo_basis, decomp.pop, decomp.mo_init, \
+                                decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
                                 decomp.ndo, decomp.verbose)
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
-            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop, decomp.part, \
+            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop_method, decomp.part, \
                                    decomp.ndo, decomp.verbose)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop, decomp.prop, decomp.part, \
+                                  decomp.pop_method, decomp.prop, decomp.part, \
                                   decomp.ndo, decomp.gauge_origin, \
                                   weights = weights)
         else: # orbs
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop, decomp.prop, decomp.part, \
+                                  decomp.pop_method, decomp.prop, decomp.part, \
                                   decomp.ndo, decomp.gauge_origin)
 
         # write rdm1s

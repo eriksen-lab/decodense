@@ -21,7 +21,7 @@ LOC_CONV = 1.e-10
 
 def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff_in: np.ndarray, mo_occ: np.ndarray, \
-             mo_basis: str, pop_method: str, mo_init: str, \
+             mo_basis: str, pop_method: str, mo_init: str, loc_exp: int, \
              ndo: bool, verbose: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         this function returns a set of localized MOs of a specific variant
@@ -57,7 +57,7 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
             else:
                 # IBOs as start guess
-                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=2, verbose=0)
+                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, verbose=0)
 
             # localize orbitals
             if mo_basis == 'fb':
@@ -71,6 +71,7 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 loc = lo.PM(mol, mf=mf)
                 loc.conv_tol = LOC_CONV
                 loc.pop_method = pop_method
+                loc.exponent = loc_exp
                 if 0 < verbose: loc.verbose = 4
                 mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
 
@@ -83,7 +84,7 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
 
 def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-                 mo_coeff: np.ndarray, mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
+                 mo_coeff: np.ndarray, mo_occ: np.ndarray, pop_method: str, part: str, ndo: bool, \
                  verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
@@ -110,7 +111,7 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         n_spin = max(alpha.size, beta.size)
 
         # mol object projected into minao basis
-        if pop == 'iao':
+        if pop_method == 'iao':
             # ndo assertion
             if ndo:
                 raise NotImplementedError('IAO-based populations for NDOs is not implemented')
@@ -125,7 +126,7 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         ao_labels = pmol.ao_labels(fmt=None)
 
         # overlap matrix
-        if pop == 'mulliken':
+        if pop_method == 'mulliken':
             ovlp = s
         else:
             ovlp = np.eye(pmol.nao_nr())
@@ -136,7 +137,7 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             """
             # get orbital
             orb = mo[:, orb_idx].reshape(mo.shape[0], 1)
-            if pop == 'becke':
+            if pop_method == 'becke':
                 # population weights of orb
                 return _population_becke(natm, charge_matrix, orb)
             else:
@@ -152,17 +153,17 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         for i, spin_mo in enumerate((alpha, beta)):
 
             # get mo coefficients and occupation
-            if pop == 'mulliken':
+            if pop_method == 'mulliken':
                 mo = mo_coeff[i][:, spin_mo]
-            elif pop == 'lowdin':
+            elif pop_method == 'lowdin':
                 mo = contract('ki,kl,lj->ij', lo.orth.orth_ao(pmol, method='lowdin', s=s), s, mo_coeff[i][:, spin_mo])
-            elif pop == 'meta_lowdin':
+            elif pop_method == 'meta_lowdin':
                 mo = contract('ki,kl,lj->ij', lo.orth.orth_ao(pmol, method='meta_lowdin', s=s), s, mo_coeff[i][:, spin_mo])
-            elif pop == 'iao':
+            elif pop_method == 'iao':
                 iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo])
                 iao = lo.vec_lowdin(iao, s)
                 mo = contract('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
-            elif pop == 'becke':
+            elif pop_method == 'becke':
                 if getattr(pmol, 'pbc_intor', None):
                     raise NotImplementedError('PM becke scheme for PBC systems')
                 if dft_calc:
