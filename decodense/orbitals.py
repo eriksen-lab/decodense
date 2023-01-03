@@ -20,9 +20,9 @@ from .tools import dim, make_rdm1, contract
 LOC_CONV = 1.e-10
 
 
-def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
-             mo_occ: np.ndarray, variant: str, ndo: bool, \
-             loc_lst: Union[None, List[Any]]) -> Tuple[np.ndarray, np.ndarray]:
+def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
+             mo_coeff_in: np.ndarray, mo_occ: np.ndarray, \
+             mo_basis: str, pop_method: str, mo_init: str, ndo: bool) -> Tuple[np.ndarray, np.ndarray]:
         """
         this function returns a set of localized MOs of a specific variant
         """
@@ -42,47 +42,30 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         # molecular dimensions
         alpha, beta = dim(mo_occ)
 
-        # localization list(s)
-        if loc_lst is not None:
-            if not rhf:
-                assert len(loc_lst) == 2, 'loc_lst must be supplied for both alpha and beta spaces'
-            for i, idx_arr in enumerate(loc_lst):
-                assert np.sum([len(idx) for idx in idx_arr]) == (alpha, beta)[i].size, 'loc_lst does not cover all occupied orbitals'
-
         # init mo_coeff_out
         mo_coeff_out = (np.zeros_like(mo_coeff_in[0]), np.zeros_like(mo_coeff_in[1]))
 
         # loop over spins
         for i, spin_mo in enumerate((alpha, beta)):
 
-            # selective localization
-            if loc_lst is None:
-                idx_arr = spin_mo.reshape(1, -1)
-            else:
-                idx_arr = loc_lst[i]
-
             # localize orbitals
-            for idx in idx_arr:
-                if variant == 'fb':
-                    # foster-boys procedure
-                    loc = lo.Boys(mol, mo_coeff_in[i][:, idx])
-                    loc.conv_tol = LOC_CONV
-                    # FB MOs
-                    mo_coeff_out[i][:, idx] = loc.kernel()
-                elif variant == 'pm':
-                    # pipek-mezey procedure
-                    loc = lo.PM(mol, mo_coeff_in[i][:, idx])
-                    loc.conv_tol = LOC_CONV
-                    # PM MOs
-                    mo_coeff_out[i][:, idx] = loc.kernel()
-                elif 'ibo' in variant:
-                    # orthogonalized IAOs
-                    iao = lo.iao.iao(mol, mo_coeff_in[i][:, idx])
-                    iao = lo.vec_lowdin(iao, s)
-                    # IBOs
-                    mo_coeff_out[i][:, idx] = lo.ibo.ibo(mol, mo_coeff_in[i][:, idx], iaos=iao, \
-                                                         grad_tol = LOC_CONV, exponent=int(variant[-1]), verbose=0)
-
+            if mo_init == 'can':
+                # canonical MOs as start guess
+                mo_coeff_init = mo_coeff_in[i][:, spin_mo]
+            else:
+                # IBOs as start guess
+                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=2, verbose=0)
+            if mo_basis == 'fb':
+                # foster-boys MOs
+                loc = lo.Boys(mol)
+                loc.conv_tol = LOC_CONV
+                mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
+            else:
+                # pipek-mezey procedure with given pop_method
+                loc = lo.PM(mol, mf=mf)
+                loc.conv_tol = LOC_CONV
+                loc.pop_method = pop_method
+                mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
             # closed-shell reference
             if rhf:
                 mo_coeff_out[i+1][:, spin_mo] = mo_coeff_out[i][:, spin_mo]
@@ -91,14 +74,17 @@ def loc_orbs(mol: gto.Mole, mo_coeff_in: np.ndarray, \
         return mo_coeff_out
 
 
-def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
-                 mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
+def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
+                 mo_coeff: np.ndarray, mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
                  multiproc: bool, verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
         # declare nested kernel function in global scope
         global get_weights
+
+        # dft logical
+        dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
 
         # rhf reference
         if mo_occ[0].size == mo_occ[1].size:
@@ -142,10 +128,14 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
             """
             # get orbital
             orb = mo[:, orb_idx].reshape(mo.shape[0], 1)
-            # orbital-specific rdm1
-            rdm1_orb = make_rdm1(orb, mocc[orb_idx])
-            # population weights of rdm1_orb
-            return _population(natm, ao_labels, ovlp, rdm1_orb)
+            if pop == 'becke':
+                # population weights of orb
+                return _population_becke(natm, charge_matrix, orb)
+            else:
+                # orbital-specific rdm1
+                rdm1_orb = make_rdm1(orb, mocc[orb_idx])
+                # population weights of rdm1_orb
+                return _population_mul(natm, ao_labels, ovlp, rdm1_orb)
 
         # init population weights array
         weights = [np.zeros([n_spin, pmol.natm], dtype=np.float64), np.zeros([n_spin, pmol.natm], dtype=np.float64)]
@@ -156,10 +146,30 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
             # get mo coefficients and occupation
             if pop == 'mulliken':
                 mo = mo_coeff[i][:, spin_mo]
+            elif pop == 'lowdin':
+                mo = contract('ki,kl,lj->ij', lo.orth.orth_ao(pmol, method='lowdin', s=s), s, mo_coeff[i][:, spin_mo])
+            elif pop == 'meta_lowdin':
+                mo = contract('ki,kl,lj->ij', lo.orth.orth_ao(pmol, method='meta_lowdin', s=s), s, mo_coeff[i][:, spin_mo])
             elif pop == 'iao':
                 iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo])
                 iao = lo.vec_lowdin(iao, s)
                 mo = contract('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
+            elif pop == 'becke':
+                if getattr(pmol, 'pbc_intor', None):
+                    raise NotImplementedError('PM becke scheme for PBC systems')
+                if dft_calc:
+                    grid_coords, grid_weights = mf.grids.get_partition(mol, concat=False)
+                    ni = mf._numint
+                else:
+                    mf_becke = mol.RKS()
+                    grid_coords, grid_weights = mf_becke.grids.get_partition(mol, concat=False)
+                    ni = mf_becke._numint
+                charge_matrix = np.zeros([natm, pmol.nao_nr(), pmol.nao_nr()], dtype=np.float64)
+                for j in range(natm):
+                    ao = ni.eval_ao(mol, grid_coords[j], deriv=0)
+                    aow = np.einsum('pi,p->pi', ao, grid_weights[j])
+                    charge_matrix[j] = contract('ki,kj->ij', aow, ao)
+                mo = mo_coeff[i][:, spin_mo]
             mocc = mo_occ[i][spin_mo]
 
             # domain
@@ -190,7 +200,7 @@ def assign_rdm1s(mol: gto.Mole, mo_coeff: np.ndarray, \
         return weights
 
 
-def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
+def _population_mul(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
         this function returns the mulliken populations on the individual atoms
         """
@@ -206,3 +216,15 @@ def _population(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.nda
         return populations
 
 
+def _population_becke(natm: int, charge_matrix: np.ndarray, orb: np.ndarray) -> np.ndarray:
+        """
+        this function returns the becke populations on the individual atoms
+        """
+        # init populations
+        populations = np.zeros(natm)
+
+        # loop over atoms
+        for i in range(natm):
+            populations[i] = contract('ki,kl,lj->ij', orb, charge_matrix[i], orb)
+
+        return populations

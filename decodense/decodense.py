@@ -23,8 +23,7 @@ from .tools import make_natorb, mf_info, write_rdm1
 def main(mol: gto.Mole, decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
          rdm1_orb: np.ndarray = None, \
-         rdm1_eff: np.ndarray = None, \
-         loc_lst: Optional[Any] = None) -> Dict[str, Any]:
+         rdm1_eff: np.ndarray = None) -> Dict[str, Any]:
         """
         main decodense program
         """
@@ -37,14 +36,14 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         else:
             mo_coeff, mo_occ = make_natorb(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
 
-        # compute localized molecular orbitals
-        if decomp.loc != '':
-            mo_coeff = loc_orbs(mol, mo_coeff, mo_occ, decomp.loc, decomp.ndo, loc_lst)
+        # compute localized MOs
+        if decomp.mo_basis != 'can':
+            mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, decomp.mo_basis, decomp.pop, decomp.mo_init, decomp.ndo)
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
-            weights = assign_rdm1s(mol, mo_coeff, mo_occ, decomp.pop, decomp.part, \
+            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop, decomp.part, \
                                    decomp.ndo, decomp.multiproc, decomp.verbose)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \

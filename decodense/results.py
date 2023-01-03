@@ -51,9 +51,10 @@ def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) 
         string += ' ------------\n'
         string += ' property           =  {:}\n'
         string += ' partitioning       =  {:}\n'
-        string += ' assignment         =  {:}\n'
-        string += ' localization       =  {:}\n'
-        form += (decomp.prop, decomp.part, decomp.pop, _format(decomp.loc),)
+        string += ' MO basis           =  {:}\n'
+        string += ' population scheme  =  {:}\n'
+        string += ' MO start guess     =  {:}\n'
+        form += (decomp.prop, decomp.part, decomp.mo_basis, decomp.pop, decomp.mo_init,)
         if mol is not None:
             string += '\n point group        =  {:}\n'
             string += ' electrons          =  {:d}\n'
@@ -427,13 +428,4 @@ def orbs(mol: gto.Mole, header: str, **kwargs: np.ndarray) -> str:
 
         return string
 
-
-def _format(opt: Any) -> str:
-        """
-        this functions returns the correct formatting
-        """
-        if opt == '':
-            return 'none'
-        else:
-            return opt
 

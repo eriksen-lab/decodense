@@ -24,7 +24,11 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        def __init__(self, loc: str = '', pop: str = 'mulliken', \
+        __slots__ = ('mo_basis', 'pop', 'mo_init', 'part', 'ndo', \
+                     'multiproc', 'gauge_origin', 'prop', 'write', 'verbose', \
+                     'res', 'charge_atom', 'dist', 'weights', 'centres')
+
+        def __init__(self, mo_basis: str = 'can', pop: str = 'mulliken', mo_init: str = 'can', \
                      part = 'atoms', ndo: bool = False, multiproc: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
@@ -32,8 +36,9 @@ class DecompCls(object):
                 init molecule attributes
                 """
                 # set system defaults
-                self.loc = loc
+                self.mo_basis = mo_basis
                 self.pop = pop
+                self.mo_init = mo_init
                 self.part = part
                 self.ndo = ndo
                 self.multiproc = multiproc
@@ -53,18 +58,21 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         """
         this function performs sanity checks of decomp attributes
         """
-        # localization procedure
-        assert decomp.loc in ['', 'fb', 'pm', 'ibo-2', 'ibo-4'], \
-            'invalid localization procedure. valid choices: none (default), `fb`, `pm`, `ibo-2`, and `ibo-4`'
+        # MO basis
+        assert decomp.mo_basis in ['can', 'fb', 'pm'], \
+            'invalid MO basis. valid choices: `can` (default), `fb`, or `pm`'
         # population scheme
-        assert decomp.pop in ['mulliken', 'iao'], \
-            'invalid population scheme. valid choices: `mulliken` (default) or `iao`'
+        assert decomp.pop in ['mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao'], \
+            'invalid population scheme. valid choices: `mulliken` (default), `lowdin`, `meta_lowdin`, `becke`, or `iao`'
+        # MO start guess (for localization)
+        assert decomp.mo_init in ['can', 'ibo'], \
+            'invalid MO start guess. valid choices: `can` (default) or `ibo`'
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'orbitals'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`'
-        # ndo decomposition
+        # NDO decomposition
         assert isinstance(decomp.ndo, bool), \
-            'invalid ndo argument. must be a bool'
+            'invalid NDO argument. must be a bool'
         # multiprocessing
         assert isinstance(decomp.multiproc, bool), \
             'invalid multiprocessing argument. must be a bool'
