@@ -38,7 +38,9 @@ def main(mol: gto.Mole, decomp: DecompCls, \
 
         # compute localized MOs
         if decomp.mo_basis != 'can':
-            mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, decomp.mo_basis, decomp.pop, decomp.mo_init, decomp.ndo)
+            mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, \
+                                decomp.mo_basis, decomp.pop, decomp.mo_init, \
+                                decomp.ndo, decomp.verbose)
 
         # decompose property
         if decomp.part in ['atoms', 'eda']:

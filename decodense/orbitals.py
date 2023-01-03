@@ -21,7 +21,8 @@ LOC_CONV = 1.e-10
 
 def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff_in: np.ndarray, mo_occ: np.ndarray, \
-             mo_basis: str, pop_method: str, mo_init: str, ndo: bool) -> Tuple[np.ndarray, np.ndarray]:
+             mo_basis: str, pop_method: str, mo_init: str, \
+             ndo: bool, verbose: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         this function returns a set of localized MOs of a specific variant
         """
@@ -63,12 +64,14 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 # foster-boys MOs
                 loc = lo.Boys(mol)
                 loc.conv_tol = LOC_CONV
+                if 0 < verbose: loc.verbose = 4
                 mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
             else:
                 # pipek-mezey procedure with given pop_method
                 loc = lo.PM(mol, mf=mf)
                 loc.conv_tol = LOC_CONV
                 loc.pop_method = pop_method
+                if 0 < verbose: loc.verbose = 4
                 mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
 
             # closed-shell reference
