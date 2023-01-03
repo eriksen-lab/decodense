@@ -11,7 +11,6 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import numpy as np
-import multiprocessing as mp
 from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
 from pyscf.dft import numint
@@ -27,7 +26,7 @@ BLKSIZE = 200
 
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
+             rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -278,12 +277,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
-            if multiproc:
-                n_threads = min(domain.size, lib.num_threads())
-                with mp.Pool(processes=n_threads) as pool:
-                    res = pool.map(prop_atom if part == 'atoms' else prop_eda, domain) # type:ignore
-            else:
-                res = list(map(prop_atom if part == 'atoms' else prop_eda, domain)) # type:ignore
+            res = list(map(prop_atom if part == 'atoms' else prop_eda, domain)) # type: ignore
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
@@ -300,12 +294,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # domain
             domain = np.array([(i, j) for i, orbs in enumerate((alpha, beta)) for j in orbs])
             # execute kernel
-            if multiproc:
-                n_threads = min(domain.size, lib.num_threads())
-                with mp.Pool(processes=n_threads) as pool:
-                    res = pool.starmap(prop_orb, domain) # type:ignore
-            else:
-                res = list(starmap(prop_orb, domain)) # type:ignore
+            res = list(starmap(prop_orb, domain)) # type: ignore
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():

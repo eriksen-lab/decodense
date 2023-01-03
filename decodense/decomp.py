@@ -25,11 +25,11 @@ class DecompCls(object):
         this class contains all decomp attributes
         """
         __slots__ = ('mo_basis', 'pop', 'mo_init', 'part', 'ndo', \
-                     'multiproc', 'gauge_origin', 'prop', 'write', 'verbose', \
+                     'gauge_origin', 'prop', 'write', 'verbose', \
                      'res', 'charge_atom', 'dist', 'weights', 'centres')
 
         def __init__(self, mo_basis: str = 'can', pop: str = 'mulliken', mo_init: str = 'can', \
-                     part = 'atoms', ndo: bool = False, multiproc: bool = False, \
+                     part = 'atoms', ndo: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
                      prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
                 """
@@ -41,7 +41,6 @@ class DecompCls(object):
                 self.mo_init = mo_init
                 self.part = part
                 self.ndo = ndo
-                self.multiproc = multiproc
                 self.gauge_origin = gauge_origin
                 self.prop = prop
                 self.write = write
@@ -73,9 +72,6 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         # NDO decomposition
         assert isinstance(decomp.ndo, bool), \
             'invalid NDO argument. must be a bool'
-        # multiprocessing
-        assert isinstance(decomp.multiproc, bool), \
-            'invalid multiprocessing argument. must be a bool'
         # gauge origin
         assert isinstance(decomp.gauge_origin, (list, np.ndarray)), \
             'invalid gauge origin. must be a list or numpy array of ints/floats'

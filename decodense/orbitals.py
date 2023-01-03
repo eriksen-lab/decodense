@@ -10,7 +10,6 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
-import multiprocessing as mp
 import numpy as np
 from pyscf import gto, scf, dft, lo, lib
 from typing import List, Tuple, Dict, Union, Any
@@ -76,7 +75,7 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
 
 def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                  mo_coeff: np.ndarray, mo_occ: np.ndarray, pop: str, part: str, ndo: bool, \
-                 multiproc: bool, verbose: int, **kwargs: Any) -> List[np.ndarray]:
+                 verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
@@ -175,12 +174,7 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # domain
             domain = np.arange(spin_mo.size)
             # execute kernel
-            if multiproc:
-                n_threads = min(domain.size, lib.num_threads())
-                with mp.Pool(processes=n_threads) as pool:
-                    weights[i] = pool.map(get_weights, domain) # type:ignore
-            else:
-                weights[i] = list(map(get_weights, domain)) # type:ignore
+            weights[i] = list(map(get_weights, domain)) # type: ignore
 
             # closed-shell reference
             if rhf:
