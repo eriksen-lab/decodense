@@ -5,11 +5,9 @@
 decomp module
 """
 
-__author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
-__license__ = 'MIT'
-__version__ = '0.8'
-__maintainer__ = 'Dr. Janus Juul Eriksen'
-__email__ = 'janus.eriksen@bristol.ac.uk'
+__author__ = 'Janus Juul Eriksen, Technical University of Denmark, DK'
+__maintainer__ = 'Janus Juul Eriksen'
+__email__ = 'janus@kemi.dtu.dk'
 __status__ = 'Development'
 
 import numpy as np
