@@ -64,8 +64,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
         assert decomp.pop in ['mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao'], \
             'invalid population scheme. valid choices: `mulliken` (default), `lowdin`, `meta_lowdin`, `becke`, or `iao`'
         # MO start guess (for localization)
-        assert decomp.mo_init in ['can', 'ibo'], \
-            'invalid MO start guess. valid choices: `can` (default) or `ibo`'
+        assert decomp.mo_init in ['can', 'cholesky', 'ibo'], \
+            'invalid MO start guess. valid choices: `can` (default), `cholesky`, or `ibo`'
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'orbitals'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`'

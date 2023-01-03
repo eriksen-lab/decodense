@@ -47,13 +47,18 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         # loop over spins
         for i, spin_mo in enumerate((alpha, beta)):
 
-            # localize orbitals
+            # construct start guess
             if mo_init == 'can':
                 # canonical MOs as start guess
                 mo_coeff_init = mo_coeff_in[i][:, spin_mo]
+            elif mo_init == 'cholesky':
+                # start guess via non-iterative cholesky factorization
+                mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
             else:
                 # IBOs as start guess
                 mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=2, verbose=0)
+
+            # localize orbitals
             if mo_basis == 'fb':
                 # foster-boys MOs
                 loc = lo.Boys(mol)
@@ -65,6 +70,7 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 loc.conv_tol = LOC_CONV
                 loc.pop_method = pop_method
                 mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
+
             # closed-shell reference
             if rhf:
                 mo_coeff_out[i+1][:, spin_mo] = mo_coeff_out[i][:, spin_mo]
