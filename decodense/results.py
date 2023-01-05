@@ -18,9 +18,15 @@ from typing import Dict, Tuple, List, Union, Any
 
 from .decomp import CompKeys, DecompCls
 from .tools import git_version, dim
-from .data import AU_TO_KCAL_MOL, AU_TO_EV, AU_TO_KJ_MOL, AU_TO_DEBYE
 
 TOLERANCE = 1.e-10
+
+# https://en.wikipedia.org/wiki/Hartree
+AU_TO_KCAL_MOL = 627.5094740631
+AU_TO_EV = 27.211386245988
+AU_TO_KJ_MOL = 2625.4996394799
+# https://calculla.com/dipole_moment_units_converter
+AU_TO_DEBYE = 2.54174623
 
 
 def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) -> str:
