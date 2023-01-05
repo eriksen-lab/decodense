@@ -16,21 +16,38 @@ from typing import List, Dict, Union, Any
 
 
 # component keys
-COMP_KEYS = ['coul', 'exch', 'kin', 'solvent', 'nuc_att_glob', 'nuc_att_loc', 'nuc_att', 'xc', 'el', 'struct']
+class CompKeys:
+        coul = 'Coul.'
+        exch = 'Exch.'
+        kin = 'Kin.'
+        solvent = 'Solv.'
+        nuc_att_glob = 'E_ne (1)'
+        nuc_att_loc = 'E_ne (2)'
+        nuc_att = 'E_ne'
+        xc = 'XC'
+        struct = 'Struct.'
+        el = 'Elect.'
+        tot = 'Total'
+        charge_atom = 'Charge'
+        atoms = 'Atom'
+        orbitals = 'Orbital'
+        mo_occ = 'Occup.'
+        orbsym = 'Symm.'
+
 
 class DecompCls(object):
         """
         this class contains all decomp attributes
         """
         __slots__ = ('mo_basis', 'pop_method', 'mo_init', 'loc_exp', 'part', 'ndo', \
-                     'gauge_origin', 'prop', 'write', 'verbose', \
+                     'gauge_origin', 'prop', 'write', 'verbose', 'unit', \
                      'res', 'charge_atom', 'dist', 'weights', 'centres')
 
         def __init__(self, mo_basis: str = 'can', pop_method: str = 'mulliken', \
                      mo_init: str = 'can', loc_exp: int = 2, \
                      part = 'atoms', ndo: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
-                     prop: str = 'energy', write: str = '', verbose: int = 0) -> None:
+                     prop: str = 'energy', write: str = '', verbose: int = 0, unit: str = 'au') -> None:
                 """
                 init molecule attributes
                 """
@@ -45,8 +62,9 @@ class DecompCls(object):
                 self.prop = prop
                 self.write = write
                 self.verbose = verbose
+                self.unit = unit
                 # set internal defaults
-                self.res: Dict[str, np.ndarray] = {comp_key: None for comp_key in COMP_KEYS}
+                self.res: Dict[str, np.ndarray] = {}
                 self.charge_atom: np.ndarray = None
                 self.dist: np.ndarray = None
                 self.weights: np.ndarray = None
@@ -91,5 +109,8 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'
         assert 0 <= decomp.verbose, \
             'invalid verbosity. valid choices: 0 <= `verbose` (default: 0)'
+        # unit
+        assert isinstance(decomp.unit, str), \
+            'invalid unit. valid choices: `au` (default), `kcal_mol`, `ev`, `kj_mol`, or `debye`'
 
 

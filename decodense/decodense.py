@@ -18,6 +18,7 @@ from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
 from .tools import make_natorb, mf_info, write_rdm1
+from .results import fmt
 
 
 def main(mol: gto.Mole, decomp: DecompCls, \
@@ -62,5 +63,5 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         if decomp.write != '':
             write_rdm1(mol, decomp.part, mo_coeff, mo_occ, decomp.write, weights)
 
-        return decomp.res
+        return fmt(mol, decomp.res, decomp.unit, decomp.ndo)
 
