@@ -11,6 +11,7 @@ __email__ = 'janus@kemi.dtu.dk'
 __status__ = 'Development'
 
 import numpy as np
+import pandas as pd
 from pyscf import gto, scf, dft
 from typing import Dict, Tuple, List, Union, Optional, Any
 
@@ -24,7 +25,7 @@ from .results import fmt
 def main(mol: gto.Mole, decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
          rdm1_orb: np.ndarray = None, \
-         rdm1_eff: np.ndarray = None) -> Dict[str, Any]:
+         rdm1_eff: np.ndarray = None) -> pd.DataFrame:
         """
         main decodense program
         """

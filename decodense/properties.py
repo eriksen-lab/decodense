@@ -297,7 +297,6 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
             else:
                 prop[CompKeys.struct] = prop_nuc_rep
-            print(prop)
             return {**prop, CompKeys.mo_occ: mo_occ, CompKeys.orbsym: orbsym(mol, mo_coeff)}
 
 

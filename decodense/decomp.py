@@ -86,7 +86,7 @@ def sanity_check(mol: gto.Mole, decomp: DecompCls) -> None:
             'invalid MO start guess. valid choices: `can` (default), `cholesky`, or `ibo`'
         # localization exponent
         assert decomp.loc_exp in [2, 4], \
-            'invalid MO start guess. valid choices: 2 or 4'
+            'invalid MO start guess. valid choices: 2 (default) or 4'
         # partitioning
         assert decomp.part in ['atoms', 'eda', 'orbitals'], \
             'invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`'
