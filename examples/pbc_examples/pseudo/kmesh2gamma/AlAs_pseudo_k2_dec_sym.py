@@ -1,19 +1,20 @@
 #!/usr/bin/env python
 
 import numpy as np
-from pyscf.pbc import df
+from pyscf.pbc import df, dft
 from pyscf.pbc import gto, scf
 from pyscf import gto as mgto
 from pyscf import scf as mscf
 from pyscf.pbc.tools.k2gamma import k2gamma
 from pyscf.pbc import tools
 from pyscf.pbc.tools.k2gamma import get_phase
-from pyscf.pbc.tools.k2gamma import to_supercell_mo_integrals 
+from pyscf.pbc.tools.k2gamma import to_supercell_ao_integrals 
 #from k2gamma import k2gamma
 import decodense
 #import pbctools
 from decodense import pbctools
 from typing import List, Tuple, Dict, Union, Any
+import sys
 
 
 # decodense variables
@@ -34,8 +35,10 @@ def check_decomp(cell, mf):
     nat = cell.natm
     res_all = []
     #for i in ['', 'fb', 'pm', 'ibo-2', 'ibo-4']:
-    for i in ['pm', 'ibo-2' ]:
-        for j in ['mulliken', 'iao']:
+    #for i in ['pm', 'ibo-2' ]:
+    #    for j in ['mulliken', 'iao']:
+    for i in [ 'ibo-2' ]:
+        for j in [ 'iao']:
             decomp = decodense.DecompCls(prop='energy', part='atoms', loc=i, pop=j)
             res = decodense.main(cell, decomp, mf)
             print('Decodense res for cell, loc: {}, pop: {}'.format(i,j))
@@ -48,88 +51,48 @@ def check_decomp(cell, mf):
             #res_all.append(res)
     return print('Done!')
     
-def check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf):
-    # 1. transform ao overlap ints and check if it's sensible
-    print('Checking the k2gamma transformation of AO ints')
-    NR, Nk = phase.shape
-    nao = cell.nao
-    # TODO note that if kpts not give only returns Gamma-p. ints
-    s_k = cell.pbc_intor('int1e_ovlp', kpts=kpts)
-    s = scell.pbc_intor('int1e_ovlp')
-    s1 = np.einsum('Rk,kij,Sk->RiSj', phase, s_k, phase.conj())
-    print('Difference between S for scell and S_k transformed to real space')
-    print(abs(s-s1.reshape(s.shape)).max())
-    s = scell.pbc_intor('int1e_ovlp').reshape(NR,nao,NR,nao)
-    s1 = np.einsum('Rk,RiSj,Sk->kij', phase.conj(), s, phase)
-    print(abs(s1-s_k).max())
+def k2gamma_supcell(kmf, xc=None, df_type=None):
+    ''' Transform KRKS object to RKS object (gamma p.),
+        return cor. supercell, too. Inherit df, xc.  '''
 
-    # 2. The following is to check whether the MO is correctly coverted:
-    print("Supercell gamma MO in AO basis from conversion:")
-    scell = tools.super_cell(cell, kmesh)
-    # FIXME df here will prob be different than for RKS calc...
-    mf_sc = scf.RHF(scell).density_fit()
-    print('mf_sc type df')
-    print(mf_sc.with_df)
-    c_g_ao = mf.mo_coeff
-    s = mf_sc.get_ovlp()
-    mf_sc.run()
-    sc_mo = mf_sc.mo_coeff
-    nocc = scell.nelectron // 2
-    print("Supercell gamma MO from direct calculation:")
-    print(np.linalg.det(c_g_ao[:,:nocc].T.conj().dot(s).dot(sc_mo[:,:nocc])))
-    print(np.linalg.svd(c_g_ao[:,:nocc].T.conj().dot(s).dot(sc_mo[:,:nocc]))[1])
-    return
+    # transform the kmf object to mf obj for a supercell
+    # get the supercell and its mo coeff., occupations, en 
+    mf_scf = k2gamma(kmf)
+    supcell = mf_scf.mol
+    mo_coeff, mo_occ, e_mo = mf_scf.mo_coeff, mf_scf.mo_occ, mf_scf.mo_energy
 
+    return mo_coeff, mo_occ, e_mo, supcell
 
-def _h_core(mol: Union[gto.Cell, mgto.Mole], mf=None) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        this function returns the kin and nuc attraction ints
-        """
-        # kin ints
-        if (isinstance(mol, gto.Cell) and isinstance(mf, scf.hf.RHF)):
-            kin = mol.pbc_intor('int1e_kin')
-            # individual atomic potentials
-            mydf = mf.with_df
-            if mol.pseudo:
-                if isinstance(mydf, df.df.DF):
-                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = pbctools.get_pp_atomic_df(mydf, kpts=np.zeros(3))
-                    sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc_tot, axis=0)
-                elif isinstance(mydf, df.fft.FFTDF):
-                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = pbctools.get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
-                    sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc_tot, axis=0)
-                else:
-                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
-            else:
-                if isinstance(mydf, df.df.DF):
-                    sub_nuc = pbctools.get_nuc_atomic_df(mydf, kpts=np.zeros(3))
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc, axis=0)
-                elif isinstance(mydf, df.fft.FFTDF):
-                    sub_nuc = pbctools.get_nuc_atomic_fftdf(mydf, kpts=np.zeros(3))
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc, axis=0)
-                else:
-                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
+def make_rks_obj_supcell(mo_coeff, mo_occ, e_mo, supcell, xc=None, df_type=None):
+    ''' Make a RKS object (gamma p.) from transformed KRKS data '''
 
-        elif isinstance(mol, mgto.Mole): 
-            kin = mol.intor_symmetric('int1e_kin')
-            # coordinates and charges of nuclei
-            coords = mol.atom_coords()
-            charges = mol.atom_charges()
-            # individual atomic potentials
-            sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
-            for k in range(mol.natm):
-                with mol.with_rinv_origin(coords[k]):
-                    sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
-            # total nuclear potential
-            nuc = np.sum(sub_nuc, axis=0)
-        else:
-            print('Wrong object passed to _h_core pbc')
-        return kin, nuc, sub_nuc 
+    if df_type == 'GDF':
+        mf = dft.RKS(supcell).density_fit().apply(mscf.addons.remove_linear_dep_)
+        mf.xc = xc
+        print('RKS df obj. of type: ', mf.with_df)
+        # overwrite df object to GDF
+        mf.with_df = df.df.DF(supcell)
+        mf.with_df.auxbasis = "weigend"
+        print('RKS df obj. overwritten, of type: ', mf.with_df)
+    elif df_type == 'FFTDF':
+        mf = dft.RKS(supcell).apply(mscf.addons.remove_linear_dep_)
+        mf.xc = xc
+        print('RKS df obj. of type: ', mf.with_df)
+        # overwrite df object to GDF
+        mf.with_df = df.FFTDF(supcell)
+        print('RKS df obj. overwritten, of type: ', mf.with_df)
+    else:
+        print('%s DF object not supported', mf.with_df)
+        sys.exit()
+    # write mo coeff, occupations, en
+    mf.mo_coeff = mo_coeff
+    mf.mo_energy = e_mo
+    mf.mo_occ = mo_occ
+    mf.nlc = ''
+    mf.initialize_grids()
+
+    return mf
+
 
 
 ##########################################
@@ -162,7 +125,7 @@ cell.build()
 
 #2 k-points for each axis, 2^3=8 kpts in total
 #kmesh = [2,2,2]  
-kmesh = [2,2,2]  
+kmesh = [4,4,4]  
 #default: shifted Monkhorst-Pack mesh centered at Gamma-p.
 #to get non-shifted: with_gamma_point=False
 #to get centered at specific p.(units of lattice vectors): scaled_center=[0.,0.25,0.25]
@@ -172,71 +135,38 @@ kpts = cell.make_kpts(kmesh,
                       space_group_symmetry=True, 
                       time_reversal_symmetry=True)
 
-# TODO maybe make it return the original df obj and not default?
-kmf = scf.KRHF(cell, kpts).density_fit().newton()
+kmf = dft.KRKS(cell, kpts).density_fit()
 print('kmf df type')
 print(kmf.with_df)
+kmf.xc = 'pbe'
+kmf = kmf.newton()
+kmf.with_df.auxbasis = "weigend"
 ehf = kmf.kernel()
+print('mo coeff kmf', np.shape(kmf.mo_coeff) )
 #kdm = kmf.make_rdm1()
-print("HF energy (per unit cell) = %.17g" % ehf)
+print("DFF energy (per unit cell) = %.17g" % ehf)
+sys.exit
 
 # transform back to nonsymnm. kmf obj.
-kmf = kmf.to_khf()
-kmf.kernel(kmf.make_rdm1())
+#kmf = kmf.to_khf()
+#kmf.kernel(kmf.make_rdm1())
 
 # transform the kmf object to mf obj for a supercell
-mf = k2gamma(kmf) 
-print('k2gamma transf. mf df type', mf.with_df)
-scell, phase = get_phase(cell, cell.make_kpts(kmesh))
-#scell, phase = get_phase(cell, kpts)
-mydf = df.df.DF(scell)
-mf.with_df = mydf
-print('mf type', mf.with_df)
-dm = (mf.make_rdm1()).real
-# check sanity
-#check_k2gamma_ovlps(cell, scell, phase, kmesh, kmf, mf)
+mo_coeff, mo_occ, e_mo, supcell = k2gamma_supcell(kmf, xc='pbe', df_type='GDF')
+print('mo_coeff shape transformed', np.shape(mo_coeff))
+j_int, _ = kmf.get_jk(with_k=False)
+print('vj shape', np.shape(j_int))
+j_int = to_supercell_ao_integrals(cell, kpts.kpts, j_int)
+print('vj shape transformed', np.shape(j_int))
 
+vpp = kmf.with_df.get_pp(kpts.kpts)
+print('vpp shape', np.shape(vpp))
+vpp  = to_supercell_ao_integrals(cell, kpts.kpts, vpp)
+print('vpp transformed shape', np.shape(vpp))
 
-# J, K int
-print('Computing J, K ints')
-J_int, K_int = mf.get_jk()
-J_int *= .5
-K_int *= -0.25
-e_j = np.einsum('ij,ij', J_int, dm)
-e_k = np.einsum('ij,ij', K_int, dm)
+# make the dft obj
+mf = make_rks_obj_supcell(mo_coeff, mo_occ, e_mo, supcell, xc='pbe', df_type='GDF')
+mf.vj = j_int
+mf.vpp = vpp
 
-# kin, nuc atrraction 
-# in decodense: glob>trace(sub_nuc_i, rdm1_tot), loc>trace(nuc,rdm1_atom_i)
-print('Computing kinetic, nuc ints')
-kinetic, nuc, subnuc = _h_core(scell, mf)
-sub_nuc, sub_nuc_loc, sub_nuc_nl = subnuc
-e_kin = np.einsum('ij,ij', kinetic, dm)
-#
-e_nuc_att_glob = np.einsum('ij,ij', nuc, dm)
-#nuc_att_glob *= .5
-e_nuc_att_loc = np.einsum('xij,ij->x', sub_nuc, dm)
-#nuc_att_loc *= .5
-
-e_struct = pbctools.ewald_e_nuc(cell)
-
-E_total_cell = e_kin + e_j + e_k + np.sum(e_nuc_att_loc) + np.sum(e_struct)
-##########################################
-##########################################
-## printing, debugging, etc.
-print('')
-print('TEST')
-#print('mf hcore and dm', dm.dtype, dm) 
-print('difference hcore: ', np.einsum('ij,ij', mf.get_hcore(), dm) - (e_kin + np.sum(e_nuc_att_loc)) )
-print('e_nuc - e_struct ',  cell.energy_nuc() - np.sum(e_struct) )
-print('')
-print()
-print('scell')
-print('energy_tot', mf.energy_tot())
-#print('energy_elec', mf.energy_elec())
-print()
-
-print(type(kmf) )
-print(type(mf) )
-
-
-check_decomp(scell, mf)
+check_decomp(supcell, mf)

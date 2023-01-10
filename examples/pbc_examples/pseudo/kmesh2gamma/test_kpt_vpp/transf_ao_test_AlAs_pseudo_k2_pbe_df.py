@@ -182,15 +182,31 @@ kmesh = [2,2,2]
 kpts = cell.make_kpts(kmesh)
 
 kmf = dft.KRKS(cell, kpts).newton()
-# TODO crashes when func has exact exchange 
-#kmf.xc = 'b3lyp'
-kmf.xc = 'pbe0'
-print('kmf df type')
-print(kmf.with_df)
+kmf.xc = 'pbe'
 kmf.with_df = df.df.DF(cell, kpts)
 edft = kmf.kernel()
-#kdm = kmf.make_rdm1()
+kdm = kmf.make_rdm1()
 print("DFT energy (per unit cell) = %.17g" % edft)
+print('kmf._numint', kmf._numint, type(kmf._numint))
+# TODO is rdm1 always hermitian?
+#hermi = 1
+#_, _, vxc = kmf._numint.nr_rks(cell, kmf.grids, kmf.xc, kdm, hermi, kpts, kpts_band)
+# TODO give max mem? max_memory=2000 
+_, exc, vxc = kmf._numint.nr_rks(cell, kmf.grids, kmf.xc, kdm, kpts=kpts, get_exc=True)
+print('vxc, exc', np.shape(vxc), type(vxc), np.shape(exc), type(exc) )
+data0 = np.load(f'AlAs_df_k2.npz')
+vxc0 = data0['vxc']
+print('vxc from numint and calc: same? ', np.allclose(vxc, vxc0) )
+print('vxc - vxc0, max ', np.max(abs(vxc - vxc0)) )
+
+# vxc+vj test
+veff = kmf.get_veff()
+vj, _ = kmf.get_jk(with_k=False)
+print('veff from numint and calc: same? ', np.allclose(veff, vxc+vj) )
+print('veff - veff_mine, max ', np.max(abs(veff - vxc - vj)) )
+print('energy elec', kmf.energy_elec() )
+print('vhf kdm', np.einsum('kij,kij->k', vxc+vj, kdm) )
+
 
 # transform the kmf object to mf obj for a supercell
 # get the supercell and its mo coeff., occupations, en 
@@ -198,49 +214,31 @@ mf_scf = k2gamma(kmf)
 supcell = mf_scf.mol
 mo_coeff, mo_occ, e_mo = mf_scf.mo_coeff, mf_scf.mo_occ, mf_scf.mo_energy
 # 
-print('types of the mo_coeff, mo_occ, e_mo')
-print(type(mo_coeff))
-print(type(mo_occ))
-print(type(e_mo))
-print()
 # save npz data
 name = sys.argv[0]
 name = name[:-3]
 np.savez(f'{name}.npz', mo_coeff=mo_coeff, mo_occ=mo_occ, e_mo=e_mo)
 data = np.load(f'{name}.npz')
 coeff, occ, en = data['mo_coeff'], data['mo_occ'], data['e_mo']
-print(type(en), 'en', en)
-print('loaded types of the mo_coeff, mo_occ, e_mo')
-#print(type(data))
-print(type(coeff))
-print(type(occ))
-print(type(en))
-print()
+#print()
 # make the mf obj match kmf obj
 mf = dft.RKS(supcell)
-mf.xc = 'pbe0'
+mf.xc = 'pbe'
 mf.with_df = df.df.DF(supcell)
 mf.mo_coeff = coeff
 mf.mo_energy = en
 mf.mo_occ = occ
-print('grids', mf.grids, np.shape(mf.grids))
-print('grids', mf.grids, np.shape(mf.grids))
-print('grids', mf.grids, np.shape(mf.grids))
-print('grids', mf.grids, np.shape(mf.grids))
-print('grids', mf.grids, np.shape(mf.grids))
-print('RKS df obj. overwritten, of type: ', mf.with_df)
-# test if mf inherited all the attributes
-print('mf.xc', mf.xc)
+#print('grids', mf.grids, np.shape(mf.grids))
 #
 print(type(kmf) )
 print(type(mf) )
 
 # now get the supcell
 # test if supcell inherited all the attributes
-print('supcell.basis', supcell.basis)
-print('supcell.pseudo', supcell.pseudo)
-print('supcell.a', supcell.a)
-print('supcell.atom', supcell.atom)
+#print('supcell.basis', supcell.basis)
+#print('supcell.pseudo', supcell.pseudo)
+#print('supcell.a', supcell.a)
+#print('supcell.atom', supcell.atom)
 #
 # dump cell obj to json str obj
 supcell_json_str = gto.cell.dumps(supcell)
@@ -257,44 +255,8 @@ with open(f'{name}.json', 'r') as openfile:
     json_object = json.load(openfile)
     supcell2 = gto.cell.loads(json_object)
 
-#check_decomp(supcell, mf)
-#check_decomp(supcell2, mf)
-print()
-print('mf dir')
-#print(dir(mf))
-print()
-
-
-
-# testing my vpp for kpoints
-print()
-start_vpp = time.process_time()
-vpp, vloc, vnl = pbctools.get_pp_atomic_df(kmf.with_df, kpts)
-print(f'CPU time when computing atomic kmf vpp: ', time.process_time() - start_vpp)
-start_vpp = time.process_time()
-vpp0 = kmf.get_nuc_att(kpt=kpts)
-print(f'CPU time when computing kmf vpp: ', time.process_time() - start_vpp)
-start_vpp = time.process_time()
-vpp0 = kmf.get_nuc_att(kpt=kpts)
-print(f'CPU time when computing kmf vpp again: ', time.process_time() - start_vpp)
-print('shape vpp from kmf: ', np.shape(vpp0) )
-start_vpp = time.process_time()
-vpp_supcell = mf.get_nuc_att()
-print(f'CPU time when computing supcell mf vpp: ', time.process_time() - start_vpp)
-#
-print()
-print('shapes atomic kmf vpp', np.shape(vpp), np.shape(vloc), np.shape(vnl))
-print('shape kmf vpp', np.shape(vpp0) )
-print()
-print('kmf vpp and atomic kmf vpp all true?', np.allclose(np.einsum('kxij->kij', vpp), vpp0) )
-print(np.max(abs(np.einsum('kxij->kij', vpp) - vpp0)))
-print()
-vpp_ao = to_supercell_ao_integrals(cell, kpts, vpp0)
-print('vpp_ao and vpp_supcell shapes', np.shape(vpp_ao), np.shape(vpp_supcell) )
-print('kmf vpp and mf vpp all true?', np.allclose(vpp_supcell, vpp_ao, atol=1e-6) )
-print()
-print('vpp_ao 0')
-#print(jnew[0,:])
-print('vpp_supcell 0')
-#print(j_supcell[0,:])
-print(np.max(abs(vpp_ao - vpp_supcell)))
+#start_vpp = time.process_time()
+#vpp0 = kmf.get_nuc_att(kpt=kpts)
+#print(f'CPU time when computing kmf vpp: ', time.process_time() - start_vpp)
+#print('shape vpp from kmf: ', np.shape(vpp0) )
+#print()
