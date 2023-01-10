@@ -148,26 +148,20 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     return ewovrl_atomic + ewself_atomic + ewg_atomic
 
 
-#====================DF====================#
-def get_nuc_atomic_df(mydf, kpts=None):
-    ''' Nucl.-el. attraction '''
+def get_nuc_atomic(mydf, kpts=None):
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
         kpts_lst = np.reshape(kpts, (-1,3))
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
-    vne_at = dfbuilder.get_nuc(mydf.mesh)
+    vj_at = dfbuilder.get_nuc(mydf.mesh)
     if kpts is None or np.shape(kpts) == (3,):
-        # if gamma point
-        if np.allclose(kpts_lst, np.zeros((1,3))):
-            vne_at = vne_at[0].real
-        else:
-            vne_at = vne_at[0]
-        #vj_at = vj_at[0]
-    return vne_at
+        vj_at = vj_at[0]
+    return vj_at
 
-def get_pp_atomic_df(mydf, kpts=None):
+def get_pp_atomic(mydf, kpts=None):
     # this is from aft/get_pp and df/incore/get_pp levels
+    # TODO evt should just be analogue to get_nuc_atomic_v2
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -175,6 +169,7 @@ def get_pp_atomic_df(mydf, kpts=None):
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
 
     # rn returns nkpts x nao x nao
+    #vloc1, vloc1_at = dfbuilder._get_nuc(mydf.mesh, with_pseudo=True)
     # FIXME is there a better way?
     cell = dfbuilder.cell
     kpts = dfbuilder.kpts
@@ -182,15 +177,21 @@ def get_pp_atomic_df(mydf, kpts=None):
     vloc2_at = dfbuilder.get_pp_loc_part2()
     vnl_at = dfbuilder.get_pp_nl()
     vpp_total = vloc1_at + vloc2_at + vnl_at
+    #vall, vloc11, vloc22, vnl2 = dfbuilder.get_pp()
+    #print('')
+    #print('check in atomic_v2')
+    #print('vloc1', np.allclose(vloc1_at,vloc11) )
+    #print('vloc2', np.allclose(vloc2_at,vloc22) )
+    #print('vnl', np.allclose(vnl_at,vnl2) )
+    #print('total', np.allclose(vpp_total,vall) )
+    #print('')
+    # TODO continue here, gamma point check
+    return vpp_total[0], vloc1_at[0], vloc2_at[0], vnl_at[0]
+    #return vpp_total, vloc1, vloc2, vpp
 
-    if abs(kpts_lst).sum() < 1e-9:
-        vpp_total = vpp_total[0]
-        vloc1_at = vloc1_at[0]
-        vloc2_at = vloc2_at[0]
-        vnl_at   = vnl_at[0]
-    return vpp_total, vloc1_at+vloc2_at, vnl_at
 
 
+#
 class _IntNucBuilder(_Int3cBuilder):
     '''In this builder, ovlp_mask can be reused for different types of intor
     '''
@@ -295,10 +296,8 @@ class _IntNucBuilder(_Int3cBuilder):
                                 supmol=supmol)
 
         Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
-        # Coulomb kernel for all G-vectors
         coulG = pyscf_pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
         # ngrid x natm
-        # (analytical) FT aos \int mu(r) exp(-ikr) dr^3
         aoaux = ft_ao.ft_ao(modchg_cell, Gv)
         charges = cell.atom_charges()
         # ngrid x natm
@@ -323,7 +322,7 @@ class _IntNucBuilder(_Int3cBuilder):
         buf = np.empty((2, nkpts, Gblksize, nao_pair))
         for p0, p1 in lib.prange(0, ngrids, Gblksize):
             # shape of Gpq (2, nkpts, nGv, nao_pair), 2 as in R, I
-            # Gpq for each ao? check this
+            # Gpq for each ao? TODO check this
             # for each k, column is ao*ao value on a grid grid=nGv
             Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, kpts, out=buf)
             # for each k, separates R and I into 2 matrices (ao values on the grid) 
@@ -393,6 +392,7 @@ class _IntNucBuilder(_Int3cBuilder):
             int X_P(r - R_P)     :X_P actual basis func. that sits on atom P  ??
             * Ci                 :coeff for atom A, coeff nr i
         '''
+        print('part2')
         if self.rs_cell is None:
             self.build()
         cell = self.cell
@@ -409,6 +409,9 @@ class _IntNucBuilder(_Int3cBuilder):
         intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
                   'int3c1e_r4_origk', 'int3c1e_r6_origk')
 
+        # TODO i do this with np.zeros instead natm x nao_pair, check
+        bufR = 0
+        bufI = 0
         bufR_at = np.zeros((nkpts, natm, nao_pair))
         bufI_at = np.zeros((nkpts, natm, nao_pair))
         # Loop over coefficients to generate: erf, C1, C2, C3, C4
@@ -419,6 +422,7 @@ class _IntNucBuilder(_Int3cBuilder):
             fake_cell = pseudo.pp_int.fake_cell_vloc(cell, cn)
             #fake_cell = pp_int.fake_cell_vloc(cell, cn)
             if fake_cell.nbas > 0:
+                # TODO my atom-wise code
                 # Make a list on which atoms the gaussians sit (for the current Ci coeff.)
                 fakebas_atom_lst = []
                 for i in range(fake_cell.nbas):
@@ -429,36 +433,44 @@ class _IntNucBuilder(_Int3cBuilder):
                                               auxcell=fake_cell, supmol=supmol)
                 # The int over V_{loc} can be transfered to the 3-center
                 # integrals, in which the aux. basis is given by the fake cell.
-                ##### v is (check) (nkpts, naopairs, naux)
+                # v is TODO check (nkpts, naopairs, naux)
                 vR, vI = int3c()
+                bufR += np.einsum('...i->...', vR)
                 # Put the ints for this Ci coeff. in the right places in the 
                 # buffer (i.e. assign to the right atom)
                 # k is kpt, i is aux, j is aopair
+                #print('check bufR_at     ', np.allclose(np.einsum('', bufR_at), bufR) )
                 vR_at = np.einsum('kij->kji', vR) 
+                # how to do this for each kpt? TODO
                 for k, kpt in enumerate(kpts):
                     bufR_at[k, fakebas_atom_lst] += vR_at[k]
                 if vI is not None:
+                    bufI += np.einsum('...i->...', vI)
                     vI_at = np.einsum('kij->kji', vI) 
                     for k, kpt in enumerate(kpts):
                         bufI_at[k, fakebas_atom_lst] += vI_at[k]
 
         # if fakecell.nbas are all < 0, buf consists of zeros and we check for elements in the system 
-        if not np.any(bufR_at) :
+        if isinstance(bufR, int):
             if any(cell.atom_symbol(ia) in cell._pseudo for ia in range(cell.natm)):
                 pass
             else:
                warnings.warn('cell.pseudo was specified but its elements %s '
                              'were not found in the system (pp_part2).', cell._pseudo.keys())
             # list of zeros, length nkpts returned when no pp found on atoms
-            vpploc_at = [0] * nkpts
+            vpploc = [0] * nkpts
         else:
-            # my old code: reshape natm, nkpts, -1 or similar, here seems to not be needed
+            # TODO my code: reshape natm, nkpts, -1 or similar 
             # rearrange with einsum
+            # FIXME do i even need this??
+            buf = (bufR + bufI * 1j).reshape(nkpts,-1)
             buf_at = (bufR_at + bufI_at * 1j)
+            vpploc = []
             vpploc_at = []
             # now have the triangular matrix for each k (triangular of nao x nao is n_aopairs)
             # unpack here to nao x nao for each atom
             for k, kpt in enumerate(kpts):
+                v = lib.unpack_tril(buf[k])
                 vpploc_1atm_kpts = [] #
                 for i in range(natm): #
                     v_1atm_ints = lib.unpack_tril(buf_at[k,i,:]) #
@@ -466,6 +478,9 @@ class _IntNucBuilder(_Int3cBuilder):
                          v_1atm_ints = v_1atm_ints.real #
                     vpploc_1atm_kpts.append(v_1atm_ints) #
                 vpploc_at.append(vpploc_1atm_kpts) #
+                if abs(kpt).sum() < 1e-9:  # gamma_point:
+                    v = v.real
+                vpploc.append(v)
         return np.asarray(vpploc_at)
 
     def get_pp_nl(self):
@@ -503,6 +518,7 @@ class _IntNucBuilder(_Int3cBuilder):
         # Generate a fake cell for V_{nl}.gaussian functions p_i^l Y_{lm}. 
         fakecell, hl_blocks = pseudo.pp_int.fake_cell_vnl(cell)
         ppnl_half = pseudo.pp_int._int_vnl(cell, fakecell, hl_blocks, kpts_lst)
+        #ppnl_half = _int_vnl(cell, fakecell, hl_blocks, kpts_lst)
         nao = cell.nao_nr()
         natm = cell.natm
         buf = np.empty((3*9*nao), dtype=np.complex128)
@@ -539,6 +555,9 @@ class _IntNucBuilder(_Int3cBuilder):
         
         if abs(kpts_lst).sum() < 1e-9:  # gamma_point:
             ppnl = ppnl.real
+
+        #if kpts is None or np.shape(kpts) == (3,):
+        #    ppnl = ppnl[0]
         return ppnl
 
     def get_pp(self, mesh=None):
@@ -549,192 +568,20 @@ class _IntNucBuilder(_Int3cBuilder):
             mesh: custom mesh grids. By default mesh is determined by the
             function _guess_eta from module pbc.df.gdf_builder.
         '''
+        print('GET_PP')
         vloc1 = self.get_pp_loc_part1(mesh)
         vloc2 = self.get_pp_loc_part2()
         vpp = get_pp_nl_atomic(self.cell, self.kpts)
         vpp2 = self.get_pp_nl()
+        #vpp = self.get_pp_nl(self.cell, self.kpts)
+        #vpp = pseudo.pp_int.get_pp_nl(self.cell, self.kpts)
         nkpts = len(self.kpts)
+        print('in dfbuuilder.get_pp, shapes')
+        print('vloc1 ', np.shape(vloc1))
+        print('vloc2', np.shape(vloc1))
+        print('vnl', np.shape(vpp))
         vpp_tot = np.copy(vpp)
         for k in range(nkpts):
             vpp_tot[k] += vloc1[k] + vloc2[k]
         return vpp_tot, vloc1, vloc2, vpp2
-
-
-#====================FFTDF====================#
-def get_nuc_atomic_fftdf(mydf, kpts=None):
-    ''' V_nuc for all el. calc. with FFT density fitting (not recommended)  '''
-    if kpts is None:
-        kpts_lst = np.zeros((1,3))
-    else:
-        kpts_lst = np.reshape(kpts, (-1,3))
-
-    cell = mydf.cell
-    mesh = mydf.mesh
-    charge = -cell.atom_charges()
-    Gv = cell.get_Gv(mesh)
-    # SI: ngrids
-    SI = cell.get_SI(Gv)
-    natm, ngrids = np.shape(SI)
-    nkpts = len(kpts_lst)
-    nao = cell.nao_nr()
-
-    rhoG_at = np.einsum('z,zg->zg', charge, SI)
-
-    coulG = tools.get_coulG(cell, mesh=mesh, Gv=Gv)
-    vneG_at = np.einsum('zg,g->zg', rhoG_at, coulG)
-    # vne evaluated in real-space
-    vneR_at = np.zeros((natm, ngrids))
-    for a in range(natm):
-        vneR_at[a] = tools.ifft(vneG_at[a], mesh).real
-
-    # vneR: natm x ngrids
-    # vne: nkpts x natm x nao x nao
-    vne_at = np.zeros((nkpts, natm, nao, nao))
-    for a in range(natm):
-        for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
-            ao_ks = ao_ks_etc[0]
-            for k, ao in enumerate(ao_ks):
-                vne_at[k,a] += lib.dot(ao.T.conj()*vneR_at[a,p0:p1], ao)
-            ao = ao_ks = None
-
-    if kpts is None or np.shape(kpts) == (3,):
-        # if gamma point
-        if np.allclose(kpts_lst, np.zeros((1,3))):
-            vne_at = vne_at[0].real
-        else:
-            vne_at = vne_at[0]
-    return np.asarray(vne_at)
-
-def get_pp_atomic_fftdf(mydf, kpts=None):
-    '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
-    '''
-    from pyscf import gto
-    cell = mydf.cell
-    if kpts is None:
-        kpts_lst = np.zeros((1,3))
-    else:
-        kpts_lst = np.reshape(kpts, (-1,3))
-
-    nkpts = len(kpts_lst)
-    nao = cell.nao_nr()
-
-    mesh = mydf.mesh
-    SI = cell.get_SI()
-    Gv = cell.get_Gv(mesh)
-    # vpplocG: natm x ngrid
-    vpplocG = pseudo.get_vlocG(cell, Gv)
-    natm, ngrids = np.shape(vpplocG)
-    vpplocG_at = -np.einsum('ij,ij->ij', SI, vpplocG)
-
-    # vpploc evaluated in real-space
-    vpplocR_at = np.zeros((natm, ngrids))
-    for a in range(natm):
-        vpplocR_at[a] = tools.ifft(vpplocG_at[a], mesh).real
-
-    vpp_at = np.zeros((nkpts, natm, nao, nao), dtype=np.complex128)
-    for a in range(natm):
-        for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
-            ao_ks = ao_ks_etc[0]
-            for k, ao in enumerate(ao_ks):
-                vpp_at[k,a] += lib.dot(ao.T.conj()*vpplocR_at[a, p0:p1], ao)
-            ao = ao_ks = None
-
-    # vppnonloc evaluated in reciprocal space
-    fakemol = gto.Mole()
-    fakemol._atm = np.zeros((1,gto.ATM_SLOTS), dtype=np.int32)
-    fakemol._bas = np.zeros((1,gto.BAS_SLOTS), dtype=np.int32)
-    ptr = gto.PTR_ENV_START
-    fakemol._env = np.zeros(ptr+10)
-    fakemol._bas[0,gto.NPRIM_OF ] = 1
-    fakemol._bas[0,gto.NCTR_OF  ] = 1
-    fakemol._bas[0,gto.PTR_EXP  ] = ptr+3
-    fakemol._bas[0,gto.PTR_COEFF] = ptr+4
-
-    # buf for SPG_lmi upto l=0..3 and nl=3
-    buf = np.empty((48,ngrids), dtype=np.complex128)
-    def vppnl_by_k(kpt):
-        Gk = Gv + kpt
-        G_rad = lib.norm(Gk, axis=1)
-        aokG = ft_ao.ft_ao(cell, Gv, kpt=kpt) * (1/cell.vol)**.5
-
-        vppnl_at = np.zeros((natm, nao, nao), dtype=np.complex128)
-        # loop over atoms, check if they have pp
-        for ia in range(cell.natm):
-            symb = cell.atom_symbol(ia)
-            if symb not in cell._pseudo:
-                continue
-            pp = cell._pseudo[symb]
-            p1 = 0
-            # check which shells are in the pp, which hl coeff. it has
-            # l is shell/ang.mom., rl is r_loc, nl is nr of l/these shells,
-            # hl is the h^shell coefficients 
-            for l, proj in enumerate(pp[5:]):
-                rl, nl, hl = proj
-                # if this l in pp, need coeff/ints to project out 
-                if nl > 0:
-                    fakemol._bas[0,gto.ANG_OF] = l
-                    fakemol._env[ptr+3] = .5*rl**2
-                    fakemol._env[ptr+4] = rl**(l+1.5)*np.pi**1.25
-                    # pYlm_part: nPWgrid x nr of ml
-                    pYlm_part = fakemol.eval_gto('GTOval', Gk)
-
-                    p0, p1 = p1, p1+nl*(l*2+1)
-                    # pYlm is real, SI[ia] is complex
-                    # pYlm: nPWgrid x nr of ml
-                    pYlm = np.ndarray((nl,l*2+1,ngrids), dtype=np.complex128, buffer=buf[p0:p1])
-                    # loop over these shells, e.g. 1s, 2s,3s..
-                    for k in range(nl):
-                        qkl = pseudo.pp._qli(G_rad*rl, l, k)
-                        pYlm[k] = pYlm_part.T * qkl
-
-            # i think this checks if there are ml, diff. orientations of ang. mom.
-            if p1 > 0:
-                # n is nr of 2e aos in pp
-                # SPG_lmi: n x nPWgrid 
-                SPG_lmi = buf[:p1]
-                # SI: natm x nPWgrid
-                SPG_lmi *= SI[ia].conj()
-                # SPG_lm_aoGs: n x nao 
-                SPG_lm_aoGs = lib.zdot(SPG_lmi, aokG)
-                p1 = 0
-                # loop over shells with l>0, get the coeff hl and ints
-                for l, proj in enumerate(pp[5:]):
-                    rl, nl, hl = proj
-                    if nl > 0:
-                        p0, p1 = p1, p1+nl*(l*2+1)
-                        hl = np.asarray(hl)
-                        # SPG_lm_aoG, tmp: n_hl_dim x n_ml x nao
-                        # n_hl_dim: nr of type of shells (s, p, d) 
-                        # indices: j is n_hl_dim 
-                        SPG_lm_aoG = SPG_lm_aoGs[p0:p1].reshape(nl,l*2+1,-1)
-                        tmp = np.einsum('ij,jmp->imp', hl, SPG_lm_aoG)
-                        # vppnl_at: natm x nao x nao for one kpt
-                        # pack here in correct place for atom
-                        vppnl_at[ia] += np.einsum('imp,imq->pq', SPG_lm_aoG.conj(), tmp)
-        return vppnl_at * (1./cell.vol)
-    
-    vpp_tot_at = np.zeros((nkpts, natm, nao, nao), dtype=np.complex128)
-    vppnl_at = np.zeros((nkpts, natm, nao, nao), dtype=np.complex128)
-    for k, kpt in enumerate(kpts_lst):
-        vppnl_at[k] = vppnl_by_k(kpt)
-        if gamma_point(kpt):
-            vpp_tot_at[k] = vpp_at[k].real + vppnl_at[k].real
-            vpp_tot_at[k] = vpp_tot_at[k].real 
-            vpp_at[k] = vpp_at[k].real 
-            vppnl_at[k] = vppnl_at[k].real
-        else:
-            vpp_tot_at[k] = vpp_at[k] + vppnl_at[k]
-
-    if kpts is None or np.shape(kpts) == (3,):
-        # if gamma point
-        if np.allclose(kpts_lst, np.zeros((1,3))):
-            vpp_tot_at = vpp_tot_at[0].real
-            vpp_at = vpp_at[0].real
-            vppnl_at = vppnl_at[0].real
-        else:
-            vpp_tot_at = vpp_tot_at[0]
-            vpp_at = vpp_at[0]
-            vppnl_at = vppnl_at[0]
-    return vpp_tot_at, vpp_at, vppnl_at
-
 

@@ -1,0 +1,17 @@
+<molecule>
+ <crystal>
+  <scalar title="a" units="units:angstrom">2.828550</scalar>
+  <scalar title="b" units="units:angstrom">2.828550</scalar>
+  <scalar title="c" units="units:angstrom">2.828550</scalar>
+  <scalar title="alpha" units="units:degree">60.000000</scalar>
+  <scalar title="beta" units="units:degree">60.000000</scalar>
+  <scalar title="gamma" units="units:degree">60.000000</scalar>
+  <symmetry spaceGroup="P 1">
+   <transform3>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</transform3>
+  </symmetry>
+ </crystal>
+ <atomArray>
+  <atom id="a1" elementType="Li" xFract="0.000000" yFract="0.000000" zFract="0.000000"/>
+  <atom id="a2" elementType="H" xFract="0.500000" yFract="0.500000" zFract="0.500000"/>
+ </atomArray>
+</molecule>

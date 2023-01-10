@@ -10,19 +10,22 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
+import copy
 import sys
+import warnings
 import numpy as np
 import pyscf.lib
 from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
+from pyscf.pbc import df as pbc_df
 from pyscf.pbc.dft import numint as pbc_numint
 from pyscf.dft import numint
 from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
-from .pbctools import ewald_e_nuc, get_nuc_atomic, get_pp_atomic
+from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import COMP_KEYS
 
@@ -105,7 +108,15 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
         # fock potential
-        vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
+        if dft_calc:
+            if hasattr(mf, 'vj'):
+                vj = mf.vj
+                vk = None
+            else:
+                warnings.warn('Computing Coulomb integrals for a supercell. Check if ao integrals from kmf object can be reused instead. ')
+                vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=False)
+        else:
+            vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
 
         # calculate xc energy density
         if dft_calc:
@@ -115,7 +126,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk)
+            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk, vj)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
@@ -175,29 +186,41 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                         rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx] / np.sum(weights[i][m])
                     # coulumb & exchange energy associated with given atom
                     if prop_type == 'energy':
-                        res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
-                        res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
+                        if not hasattr(mf, 'vj'):
+                            res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
+                            res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
                     res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
+                    if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
+                        res['coul'] += _trace(vj, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res['exch'] -= _trace(vk, np.sum(rdm1_atom, axis=0), scaling = .25)
                     if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
-                        sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = sub_nuc
-                        res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
-                        # nuc. attraction split up in separate terms in calc. using a pseudopotential
-                        # TODO description
-                        # term from ...
-                        res['nuc_att_vloc1_glob'] += _trace(sub_nuc_vloc1[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_vloc1_loc'] += _trace(np.sum(sub_nuc_vloc1, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
-                        # term from the local part of the pp?
-                        res['nuc_att_vloc2_glob'] += _trace(sub_nuc_vloc2[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_vloc2_loc'] += _trace(np.sum(sub_nuc_vloc2, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
-                        # term from the nonlocal part of the pp
-                        res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vpp[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vpp, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                        if hasattr(mf, 'vpp'):
+                            #sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = 1.)
+                            ## nuc. attraction split up in separate terms in calc. using a pseudopotential
+                            ## term from the local part of the pp
+                            #res['nuc_att_vloc_loc'] += _trace(sub_nuc_vloc, np.sum(rdm1_atom, axis=0), scaling = 1.)
+                            ## term from the nonlocal part of the pp
+                            #res['nuc_att_vnlc_loc'] += _trace(sub_nuc_vnl, np.sum(rdm1_atom, axis=0), scaling = 1.)
+                        else:
+                            sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                            res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                            # nuc. attraction split up in separate terms in calc. using a pseudopotential
+                            # term from the local part of the pp
+                            res['nuc_att_vloc_glob'] += _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_vloc_loc'] += _trace(np.sum(sub_nuc_vloc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                            # term from the nonlocal part of the pp
+                            res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vnl[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vnl, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
                     else:
-                        res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        if hasattr(mf, 'vpp'):
+                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = 1.)
+                        else:
+                            res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))
                     if e_solvent is not None:
@@ -238,28 +261,41 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 if prop_type == 'energy':
                     # loop over spins
                     for i, _ in enumerate((alpha, beta)):
-                        res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
-                        res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+                        if not hasattr(mf, 'vj'):
+                            res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
+                            res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+                    # TODO warning if coul, exch not computed 
+                    if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
+                        res['coul'] += _trace(vj[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                        res['exch'] -= _trace(vk[select], np.sum(rdm1_tot, axis=0)[select], scaling = .25)
                     res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
                     #
                     if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
-                        sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = sub_nuc
-                        res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                        # nuc. attraction split up in separate terms in calc. using a pseudopotential
-                        # TODO description
-                        # term from ...
-                        res['nuc_att_vloc1_glob'] += _trace(sub_nuc_vloc1[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_vloc1_loc'] += _trace(np.sum(sub_nuc_vloc1, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
-                        # term from the local part of the pp?
-                        res['nuc_att_vloc2_glob'] += _trace(sub_nuc_vloc2[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_vloc2_loc'] += _trace(np.sum(sub_nuc_vloc2, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
-                        # term from the nonlocal part of the pp
-                        res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vpp[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vpp, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                        if hasattr(mf, 'vpp'):
+                            #sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.)
+                            ## nuc. attraction split up in separate terms in calc. using a pseudopotential
+                            ## term from the local part of the pp
+                            #res['nuc_att_vloc_loc'] += _trace(sub_nuc_vloc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.) 
+                            ## term from the nonlocal part of the pp
+                            #res['nuc_att_vnlc_loc'] += _trace(sub_nuc_vnl[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.) 
+                        else:
+                            sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                            res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                            # nuc. attraction split up in separate terms in calc. using a pseudopotential
+                            # term from the local part of the pp
+                            res['nuc_att_vloc_glob'] += _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_vloc_loc'] += _trace(np.sum(sub_nuc_vloc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                            # term from the nonlocal part of the pp
+                            res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vnl[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vnl, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
                     else:
-                        res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                        if hasattr(mf, 'vpp'):
+                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.)
+                        else:
+                            res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
                     #
                     if mm_pot is not None:
                         res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
@@ -426,14 +462,38 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             mydf = mf.with_df
             # individual atomic potentials
             if mol.pseudo:
-                sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp = get_pp_atomic(mydf, kpts=np.zeros(3))
-                sub_nuc = (sub_nuc_tot, sub_nuc_vloc1, sub_nuc_vloc2, sub_nuc_vpp)
-                # total nuclear potential
-                nuc = np.sum(sub_nuc_tot, axis=0)
+                # i only get the ints summed over all atoms if they're computed with kmesh
+                if hasattr(mf, 'vpp'):
+                    #sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = mf.vpp, mf.vloc, mf.vnl
+                    #sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                    ## total nuclear potential
+                    #nuc = sub_nuc_tot
+                    nuc = mf.vpp
+                    sub_nuc = np.zeros(np.shape(nuc), dtype=nuc.dtype)
+                else:
+                    if isinstance(mydf, pbc_df.df.DF):
+                        sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_df(mydf, kpts=np.zeros(3))
+                        sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                        # total nuclear potential
+                        nuc = np.sum(sub_nuc_tot, axis=0)
+                    elif isinstance(mydf, pbc_df.fft.FFTDF):
+                        sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
+                        sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
+                        # total nuclear potential
+                        nuc = np.sum(sub_nuc_tot, axis=0)
+                    else:
+                        warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
             else:
-                sub_nuc = get_nuc_atomic(mydf, kpts=np.zeros(3)) 
-                # total nuclear potential
-                nuc = np.sum(sub_nuc, axis=0)
+                if isinstance(mydf, pbc_df.df.DF):
+                    sub_nuc = get_nuc_atomic_df(mydf, kpts=np.zeros(3)) 
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc, axis=0)
+                elif isinstance(mydf, pbc_df.fft.FFTDF):
+                    sub_nuc = get_nuc_atomic_fftdf(mydf, kpts=np.zeros(3)) 
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc, axis=0)
+                else:
+                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')
@@ -606,14 +666,23 @@ def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
 
 
 def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
-            xc_func: str, rdm1: np.ndarray, vk: np.ndarray) -> np.ndarray:
+            xc_func: str, rdm1: np.ndarray, vk: np.ndarray, vj: np.ndarray) -> np.ndarray:
         """
         this function returns the appropriate dft exchange operator
         """
         # range-separated and exact exchange parameters
         ks_omega, ks_alpha, ks_hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
-        # scale amount of exact exchange
-        vk *= ks_hyb
+        # if hybrid func: compute vk    
+        if abs(ks_hyb) > 1e-10: 
+            if hasattr(mf, 'vk'):
+                vk = copy.copy(mf.vk)
+            else:
+                warnings.warn('Computing exact exchange integrals for a supercell. Check if ao integrals from kmf can be reused instead. ')
+                _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
+            # scale amount of exact exchange
+            vk *= ks_hyb
+        else:
+            vk = np.zeros(np.shape(vj), dtype=vj.dtype)
         # range separated coulomb operator
         if abs(ks_omega) > 1e-10:
             vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)

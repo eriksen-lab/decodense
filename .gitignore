@@ -1,6 +1,10 @@
 *pyc
 *swp
 *.DS_Store
+*.npz
+*.json
+examples/pbc_examples/.DS_Store
+examples/pbc_examples/pseudo/.DS_Store
 .mypy_cache
 decodense.egg-info/
 ms.aux
