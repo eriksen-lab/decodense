@@ -197,13 +197,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                         res['exch'] -= _trace(vk, np.sum(rdm1_atom, axis=0), scaling = .25)
                     if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
                         if hasattr(mf, 'vpp'):
-                            #sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                            # total E_ne from kmesh calculation
                             res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = 1.)
-                            ## nuc. attraction split up in separate terms in calc. using a pseudopotential
-                            ## term from the local part of the pp
-                            #res['nuc_att_vloc_loc'] += _trace(sub_nuc_vloc, np.sum(rdm1_atom, axis=0), scaling = 1.)
-                            ## term from the nonlocal part of the pp
-                            #res['nuc_att_vnlc_loc'] += _trace(sub_nuc_vnl, np.sum(rdm1_atom, axis=0), scaling = 1.)
                         else:
                             sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
                             res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
@@ -217,6 +212,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                             res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vnl, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
                     else:
                         if hasattr(mf, 'vpp'):
+                            # total E_ne from kmesh calculation
                             res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = 1.)
                         else:
                             res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
@@ -239,7 +235,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    #for comp_key in COMP_KEYS[:-2]:
                     for comp_key in COMP_KEYS_noel:
                         res['el'] += res[comp_key]
                 return res
@@ -250,8 +245,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 """
                 # init results
                 if prop_type == 'energy':
-                    #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
-                    #res = {comp_key: 0. for comp_key in COMP_KEYS[:-7]}
                     res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
                 else:
                     res = {'el': np.zeros(3, dtype=np.float64)}
@@ -264,7 +257,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                         if not hasattr(mf, 'vj'):
                             res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
                             res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
-                    # TODO warning if coul, exch not computed 
                     if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
                         res['coul'] += _trace(vj[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
                         res['exch'] -= _trace(vk[select], np.sum(rdm1_tot, axis=0)[select], scaling = .25)
@@ -272,13 +264,8 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     #
                     if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
                         if hasattr(mf, 'vpp'):
-                            #sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                            # total E_ne from kmesh calculation
                             res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.)
-                            ## nuc. attraction split up in separate terms in calc. using a pseudopotential
-                            ## term from the local part of the pp
-                            #res['nuc_att_vloc_loc'] += _trace(sub_nuc_vloc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.) 
-                            ## term from the nonlocal part of the pp
-                            #res['nuc_att_vnlc_loc'] += _trace(sub_nuc_vnl[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.) 
                         else:
                             sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
                             res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
@@ -292,6 +279,7 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                             res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vnl, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
                     else:
                         if hasattr(mf, 'vpp'):
+                            # total E_ne from kmesh calculation
                             res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.)
                         else:
                             res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
@@ -319,7 +307,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    #for comp_key in COMP_KEYS[:-2]:
                     for comp_key in COMP_KEYS_noel:
                         res['el'] += res[comp_key]
                 return res
@@ -330,7 +317,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                 """
                 # init res
                 if prop_type == 'energy':
-                    #res = {comp_key: 0. for comp_key in COMP_KEYS[:-1]}
                     res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
                 else:
                     res = {}
@@ -360,7 +346,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                     res['el'] = -_trace(ao_dip, rdm1_orb)
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    #for comp_key in COMP_KEYS[:-2]:
                     for comp_key in COMP_KEYS_noel:
                         res['el'] += res[comp_key]
                 return res
@@ -393,7 +378,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
         else: # orbs
             # init orbital-specific energy or dipole array
             if prop_type == 'energy':
-                #prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS[:-1]}
                 prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS_nostruct}
             elif prop_type == 'dipole':
                 prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
@@ -462,12 +446,8 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             mydf = mf.with_df
             # individual atomic potentials
             if mol.pseudo:
-                # i only get the ints summed over all atoms if they're computed with kmesh
                 if hasattr(mf, 'vpp'):
-                    #sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = mf.vpp, mf.vloc, mf.vnl
-                    #sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                    ## total nuclear potential
-                    #nuc = sub_nuc_tot
+                    # total E_ne from kmesh calculation
                     nuc = mf.vpp
                     sub_nuc = np.zeros(np.shape(nuc), dtype=nuc.dtype)
                 else:
@@ -675,9 +655,10 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         # if hybrid func: compute vk    
         if abs(ks_hyb) > 1e-10: 
             if hasattr(mf, 'vk'):
+                # vk from kmesh calculation
                 vk = copy.copy(mf.vk)
             else:
-                warnings.warn('Computing exact exchange integrals for a supercell. Check if ao integrals from kmf can be reused instead. ')
+                warnings.warn('Computing exact exchange integrals for a supercell. Check if ao integrals from kmf object can be reused instead. ')
                 _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
             # scale amount of exact exchange
             vk *= ks_hyb
