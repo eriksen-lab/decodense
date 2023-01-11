@@ -128,14 +128,12 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
 
     if cell.dimension != 2 or cell.low_dim_ft_type == 'inf_vacuum':
         coulG = 4*np.pi / absG2
-        # todo is this omega in eq.(5)?
+        # TODO is this omega in eq.(5)?
         coulG *= Gv_weights
         # get_SI(k_vecs) gets the structure factors, n_atm*n_grid 
-        # todo get them only once, save?
         ZSI_total = np.einsum("i,ij->j", chargs, cell.get_SI(Gv))
         ZSI_atomic = np.einsum("i,ij->ij", chargs, cell.get_SI(Gv)) 
         ZexpG2_atomic = ZSI_atomic * np.exp(-absG2/(4*ew_eta**2))
-        # todo diff if atomic part conjugated insead?
         ewg_atomic = .5 * np.einsum('j,ij,j->i', ZSI_total.conj(), ZexpG2_atomic, coulG).real
 
     else:
@@ -143,8 +141,6 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
                     cell.dimension)
         raise NotImplementedError
     
-    ##TODO maybe our own warnings instead of pyscf logger
-    #logger.debug(cell, 'Ewald components = %.15g, %.15g, %.15g', ewovrl_atomic, ewself_atomic, ewg_atomic)
     return ewovrl_atomic + ewself_atomic + ewg_atomic
 
 
@@ -163,19 +159,17 @@ def get_nuc_atomic_df(mydf, kpts=None):
             vne_at = vne_at[0].real
         else:
             vne_at = vne_at[0]
-        #vj_at = vj_at[0]
     return vne_at
 
 def get_pp_atomic_df(mydf, kpts=None):
-    # this is from aft/get_pp and df/incore/get_pp levels
+    # this is from aft/get_pp and df/incore/get_pp modules
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
         kpts_lst = np.reshape(kpts, (-1,3))
     dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
 
-    # rn returns nkpts x nao x nao
-    # FIXME is there a better way?
+    # returns nkpts x nao x nao
     cell = dfbuilder.cell
     kpts = dfbuilder.kpts
     vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
@@ -235,7 +229,6 @@ class _IntNucBuilder(_Int3cBuilder):
         charge = np.append(charge, -charge)  # (charge-of-nuccell, charge-of-fakenuc)
         nchg2  = len(charge)
         # mat is nkpts x natm x naopair
-        # check for component not necessary anymore? 
         # sum over halves of z, chrg and -chrg ints 
         if is_zero(kpts):
             mat_at1 = np.einsum('kxz,z->kzx', bufR, charge)
@@ -251,9 +244,7 @@ class _IntNucBuilder(_Int3cBuilder):
                                              'int3c2e_cart'):
             charge = -cell.atom_charges()
 
-            #nucbar = sum([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
             nucbar = np.asarray([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
-            #nucbar *= np.pi/cell.vol
             nucbar *= np.pi/cell.vol
 
             # nkpts x nao x nao (ravel -> nao x nao)
@@ -323,7 +314,7 @@ class _IntNucBuilder(_Int3cBuilder):
         buf = np.empty((2, nkpts, Gblksize, nao_pair))
         for p0, p1 in lib.prange(0, ngrids, Gblksize):
             # shape of Gpq (2, nkpts, nGv, nao_pair), 2 as in R, I
-            # Gpq for each ao? check this
+            # Gpq for each ao 
             # for each k, column is ao*ao value on a grid grid=nGv
             Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, kpts, out=buf)
             # for each k, separates R and I into 2 matrices (ao values on the grid) 
@@ -417,9 +408,8 @@ class _IntNucBuilder(_Int3cBuilder):
         # buf is a buffer array to gather all integrals into before unpacking
         for cn in range(1, 5):
             fake_cell = pseudo.pp_int.fake_cell_vloc(cell, cn)
-            #fake_cell = pp_int.fake_cell_vloc(cell, cn)
             if fake_cell.nbas > 0:
-                # Make a list on which atoms the gaussians sit (for the current Ci coeff.)
+                # Make a list on which atoms the gaussians sit on (for the current Ci coeff.)
                 fakebas_atom_lst = []
                 for i in range(fake_cell.nbas):
                     fakebas_atom_lst.append(fake_cell.bas_atom(i))
@@ -429,7 +419,7 @@ class _IntNucBuilder(_Int3cBuilder):
                                               auxcell=fake_cell, supmol=supmol)
                 # The int over V_{loc} can be transfered to the 3-center
                 # integrals, in which the aux. basis is given by the fake cell.
-                ##### v is (check) (nkpts, naopairs, naux)
+                # v is (nkpts, naopairs, naux)
                 vR, vI = int3c()
                 # Put the ints for this Ci coeff. in the right places in the 
                 # buffer (i.e. assign to the right atom)
@@ -452,7 +442,6 @@ class _IntNucBuilder(_Int3cBuilder):
             # list of zeros, length nkpts returned when no pp found on atoms
             vpploc_at = [0] * nkpts
         else:
-            # my old code: reshape natm, nkpts, -1 or similar, here seems to not be needed
             # rearrange with einsum
             buf_at = (bufR_at + bufI_at * 1j)
             vpploc_at = []
@@ -521,7 +510,6 @@ class _IntNucBuilder(_Int3cBuilder):
                 # I think this is shell, hl coeff pair.
                 # Either way ib is bas_id and called with bas_atom gives 
                 # the atom id the coeff. belongs to. 
-                # Used to put into the right spot in ppnl[nkpts, NATM, nao, nao]
                 # l is the angular mom. qnr associated with given basis
                 l = fakecell.bas_angular(ib)
                 atm_id_hl = fakecell.bas_atom(ib)
@@ -531,7 +519,7 @@ class _IntNucBuilder(_Int3cBuilder):
                 hl_dim = hl.shape[0]
                 ilp = np.ndarray((hl_dim,nd,nao), dtype=np.complex128, buffer=buf)
                 for i in range(hl_dim):
-                    # p0 takes care that the right m,l sph.harm are taken in projectors?
+                    # p0 takes care that the right m,l sph.harm are taken in projectors
                     p0 = offset[i]
                     ilp[i] = ppnl_half[i][k][p0:p0+nd]
                     offset[i] = p0 + nd
