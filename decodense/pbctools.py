@@ -10,45 +10,35 @@ __maintainer__ = 'Luna Zamok'
 __email__ = 'luza@kemi.dtu.dk'
 __status__ = 'Development'
 
-import numpy as np
-from scipy.special import erf, erfc
-#from typing import List, Tuple, Dict, Union, Any
-
 import copy
 import ctypes
-from pyscf import gto
-from pyscf import lib
+import numpy as np
 from pyscf import __config__
+from pyscf import gto, lib
+# TODO rm logger from code and then here
 from pyscf.lib import logger
 from pyscf.pbc import tools
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
-from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
 from pyscf.pbc.gto import pseudo
 from pyscf.pbc.tools import pbc as pyscf_pbctools
+from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
+from scipy.special import erf, erfc
+from typing import List, Tuple, Dict, Union, Any
 
 libpbc = lib.load_library('libpbc')
 
 PRECISION = getattr(__config__, 'pbc_df_aft_estimate_eta_precision', 1e-8)
 
-''' Nuclear repulsion term '''
-# almost identical to ewald in cell.py
-# TODO: only works for 3D cells, extend to lower dim.
 def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     """
-    this function returns the nuc-nuc repulsion energy for a cell
+    This function returns the nuc-nuc repulsion energy for a cell
+    by performing real (R) and reciprocal (G) space Ewald sum, 
+    which consists of overlap, self and G-space sum 
+    (Formulation of Martin, App. F2.).
     """ 
-    '''Perform real (R) and reciprocal (G) space Ewald sum for the energy,
-       partitioned into atomic contributions.
-    Formulation of Martin, App. F2.
-    Returns:
-        array of floats
-            The Ewald energy consisting of overlap, self, and G-space sum.
-    See Also:
-        pyscf.pbc.gto.get_ewald_params
-    '''
     def cut_mesh_for_ewald(cell, mesh):
         mesh = np.copy(mesh)
         mesh_max = np.asarray(np.linalg.norm(cell.lattice_vectors(), axis=1) * 2,
@@ -61,45 +51,27 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         mesh[mesh>mesh_max] = mesh_max[mesh>mesh_max]
         return mesh
 
-    # If lattice parameter is not set, the cell object is treated as a mole
-    # object. The nuclear repulsion energy is computed.
-    if cell.a is None:
-        return mole.energy_nuc(cell)
-
     if cell.natm == 0:
         return 0
 
-    # get the Ewald 'eta' (exponent eta^2 of the model Gaussian charges) and 
-    # 'cut' (real space cut-off) parameters 
-    #if ew_eta is None: ew_eta = mol.get_ewald_params()[0]
-    #if ew_cut is None: ew_cut = mol.get_ewald_params()[1]
-    ew_eta = cell.get_ewald_params()[0]
-    ew_cut = cell.get_ewald_params()[1]
+    ew_eta, ew_cut = cell.get_ewald_params()[0], cell.get_ewald_params()[1]
+    chargs, coords = cell.atom_charges(), cell.atom_coords()
 
-    # atom coord: [a,b] a=atom, b=cart.coord
-    chargs = cell.atom_charges()
-    coords = cell.atom_coords()
-
-    # (Cartesian, unitful) lattice translation vectors for nearby images
-    # in bohr (prim. lattice vectors (cell.a) in Å)
+    # lattice translation vectors for nearby images (in bohr)
     Lall = cell.get_lattice_Ls(rcut=ew_cut)
 
-    # distances between atoms in cell 0 and nearby images
-    # [L,i,j,d] where L is cell index; i is atom index in cell 0; 
-    # j is atom index in cell L; d is cart. component
+    # coord. difference between atoms in the cell and its nearby images
     rLij = coords[:,None,:] - coords[None,:,:] + Lall[:,None,None,:]
     # euclidean distances 
-    # (n_neighb_cells x n_atoms x n_atoms)
     r = np.sqrt(np.einsum('Lijx,Lijx->Lij', rLij, rLij))
     rLij = None
-    # "eliminate" self-distances -> self-terms skipped (R) sum? 
+    # "eliminate" self-distances 
     r[r<1e-16] = 1e200
     
-    # (R) Ewald sum (shape: n_atoms)
+    # overlap term in R-space sum 
     ewovrl_atomic = .5 * np.einsum('i,j,Lij->i', chargs, chargs, erfc(ew_eta * r) / r)
     
-    # Ewald self-term: cancels self-contribution in (G) sum
-    # last line of Eq. (F.5) in Martin
+    # self term in R-space term (last line of Eq. (F.5) in Martin)
     ewself_factor = -.5 * 2 * ew_eta / np.sqrt(np.pi)
     ewself_atomic = np.einsum('i,i->i', chargs,chargs)
     ewself_atomic = ewself_atomic.astype(float)
@@ -107,19 +79,8 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     if cell.dimension == 3:
         ewself_atomic += -.5 * (chargs*np.sum(chargs)).astype(float) * np.pi/(ew_eta**2 * cell.vol)
 
-    # g-space sum (using g grid) (Eq. (F.6) in Electronic Structure by Richard M. Martin
-    #, but note errors as below)
-    # Eq. (F.6) in Martin is off by a factor of 2, the
-    # exponent is wrong (8->4) and the square is in the wrong place
-    #
-    # Formula should be
-    #   1/2 * 4\pi / Omega \sum_I \sum_{G\neq 0} |ZS_I(G)|^2 \exp[-|G|^2/4\eta^2]
-    # where
-    #   ZS_I(G) = \sum_a Z_a exp (i G.R_a)
-    # See also Eq. (32) of ewald.pdf at
-    #   http://www.fisica.uniud.it/~giannozz/public/ewald.pdf
-    #
-    # (g-grid) of reciprocal lattice vectors
+    # G-space sum (corrected Eq. (F.6) in Electronic Structure by Richard M. Martin)
+    # get G-grid (consisting of reciprocal lattice vectors)
     mesh = cut_mesh_for_ewald(cell, cell.mesh)
     Gv, Gvbase, Gv_weights = cell.get_Gv_weights(mesh)
     absG2 = np.einsum('gi,gi->g', Gv, Gv)
@@ -128,18 +89,15 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
 
     if cell.dimension != 2 or cell.low_dim_ft_type == 'inf_vacuum':
         coulG = 4*np.pi / absG2
-        # TODO is this omega in eq.(5)?
         coulG *= Gv_weights
-        # get_SI(k_vecs) gets the structure factors, n_atm*n_grid 
+        # get the structure factors
         ZSI_total = np.einsum("i,ij->j", chargs, cell.get_SI(Gv))
         ZSI_atomic = np.einsum("i,ij->ij", chargs, cell.get_SI(Gv)) 
         ZexpG2_atomic = ZSI_atomic * np.exp(-absG2/(4*ew_eta**2))
         ewg_atomic = .5 * np.einsum('j,ij,j->i', ZSI_total.conj(), ZexpG2_atomic, coulG).real
 
     else:
-        logger.warn(cell, 'No method for PBC dimension %s, dim-type %s.',
-                    cell.dimension)
-        raise NotImplementedError
+        raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
     
     return ewovrl_atomic + ewself_atomic + ewg_atomic
 
