@@ -267,29 +267,13 @@ class _IntNucBuilder(_Int3cBuilder):
         return np.asarray(vpploc_at)
 
     def get_pp_nl(self):
-        '''Nonlocal; contribution. See PRB, 58, 3641 Eq (2).
-           Done by generating a fake cell for putting V_{nl} gaussian 
-           function p_i^l Y_{lm} in (on the atoms the corr. core basis 
-           func. would sit on). Later the cells are concatenated to 
-           compute overlaps between basis funcs in the real cell & proj. 
-           in fake cell (splitting the ints into two ints to multiply).
-           ------------------------------------------------------------
-            <X_P(r)| sum_A^Nat sum_i^3 sum_j^3 sum_m^(2l+1) Y_lm(r_A) p_lmi(r_A) h^l_i,j p_lmj(r'_A) Y*_lm(r'_A) |X_Q(r')>
-            -> (Y_lm implicit in p^lm)
-            int X_P(r - R_P) p^lm_i(r - R_A) dr  
-            * h^A,lm_i,j                    
-            int p^lm_j(r' - R_A) X(r' - R_Q) dr  
-           ------------------------------------------------------------
-           Y_lm: spherical harmonic, l ang.mom. qnr
-           p_i^l: Gaussian projectors (PRB, 58, 3641 Eq 3)
-           hl_blocks: coeff. for nonlocal projectors
-           h^A,lm_i,j: coeff for atom A, lm,ij 
-           (i & j run up to 3: never larger atom cores than l=3 (d-orbs))
-           X_P: actual basis func. that sits on atom P
-           X_Q: actual basis func. that sits on atom Q
-           A sums over all atoms since each might have a pp 
-           that needs projecting out core sph. harm.
-        '''
+        """
+        Vnl pseudopotential part.
+        PRB, 58, 3641 Eq (2), nonlocal contribution.
+        Project the core basis funcs omitted by using pseudopotentials 
+        out by computing overlaps between basis funcs. (in cell) and 
+        projectors (gaussian, in fakecell).
+        """
         cell = self.cell
         kpts = self.kpts
         if kpts is None:
@@ -298,43 +282,35 @@ class _IntNucBuilder(_Int3cBuilder):
             kpts_lst = np.reshape(kpts, (-1,3))
         nkpts = len(kpts_lst)
 
-        # Generate a fake cell for V_{nl}.gaussian functions p_i^l Y_{lm}. 
+        # generate a fake cell for V_{nl} gaussian functions, and 
+        # matrices of hl coeff. (for each atom, ang. mom.)
         fakecell, hl_blocks = pseudo.pp_int.fake_cell_vnl(cell)
         ppnl_half = pseudo.pp_int._int_vnl(cell, fakecell, hl_blocks, kpts_lst)
         nao = cell.nao_nr()
         natm = cell.natm
         buf = np.empty((3*9*nao), dtype=np.complex128)
 
-        # Set ppnl equal to zeros in case hl_blocks loop is skipped
-        # and ppnl is returned
+        # set equal to zeros in case hl_blocks loop is skipped
         ppnl = np.zeros((nkpts,natm,nao,nao), dtype=np.complex128)
         for k, kpt in enumerate(kpts_lst):
             offset = [0] * 3
-            # hlblocks: for each atom&ang.mom. there is a matrix of coeff. 
-            # e.g. 2ang.mom. on two atoms A and B would give A1 1x1 matrix, 
-            # A2 1x1 matrix, B1 1x1 matrix, B2 1x1 matrix (if only one kind 
-            # of a projector for these ang.mom. for these atoms).
+            # loop over bas_id, hl coeff. array 
             for ib, hl in enumerate(hl_blocks):
-                # This loop is over hlij for all atoms and ang.momenta
-                # I think this is shell, hl coeff pair.
-                # Either way ib is bas_id and called with bas_atom gives 
-                # the atom id the coeff. belongs to. 
-                # l is the angular mom. qnr associated with given basis
+                # the ang. mom. q.nr. associated with given basis
                 l = fakecell.bas_angular(ib)
+                # the id of the atom the coeff. belongs to
                 atm_id_hl = fakecell.bas_atom(ib)
-                # orb magn nr 2L+1
                 nd = 2 * l + 1
-                # dim of the hl coeff. array
                 hl_dim = hl.shape[0]
                 ilp = np.ndarray((hl_dim,nd,nao), dtype=np.complex128, buffer=buf)
                 for i in range(hl_dim):
-                    # p0 takes care that the right m,l sph.harm are taken in projectors
+                    # make sure that the right m,l sph.harm are taken in projectors
                     p0 = offset[i]
                     ilp[i] = ppnl_half[i][k][p0:p0+nd]
                     offset[i] = p0 + nd
                 ppnl[k,atm_id_hl] += np.einsum('ilp,ij,jlq->pq', ilp.conj(), hl, ilp)
         
-        if abs(kpts_lst).sum() < 1e-9:  # gamma_point:
+        if abs(kpts_lst).sum() < 1e-9: 
             ppnl = ppnl.real
         return ppnl
 
