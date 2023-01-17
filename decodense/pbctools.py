@@ -20,7 +20,6 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
 from pyscf.pbc.gto import pseudo
-from pyscf.pbc.tools import pbc as pyscf_pbctools
 from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 from scipy.special import erf, erfc
@@ -138,7 +137,7 @@ class _IntNucBuilder(_Int3cBuilder):
 
         Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
         # Coulomb kernel for all G-vectors
-        coulG = pyscf_pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
+        coulG = tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv) * kws
         # analytical FT AO-pair product
         aoaux = ft_ao.ft_ao(modchg_cell, Gv)
         # G-space integrals for Vnuc - Vloc
@@ -285,13 +284,13 @@ class _IntNucBuilder(_Int3cBuilder):
         # generate a fake cell for V_{nl} gaussian functions, and 
         # matrices of hl coeff. (for each atom, ang. mom.)
         fakecell, hl_blocks = pseudo.pp_int.fake_cell_vnl(cell)
-        ppnl_half = pseudo.pp_int._int_vnl(cell, fakecell, hl_blocks, kpts_lst)
+        vppnl_half = pseudo.pp_int._int_vnl(cell, fakecell, hl_blocks, kpts_lst)
         nao = cell.nao_nr()
         natm = cell.natm
         buf = np.empty((3*9*nao), dtype=np.complex128)
 
         # set equal to zeros in case hl_blocks loop is skipped
-        ppnl = np.zeros((nkpts,natm,nao,nao), dtype=np.complex128)
+        vppnl_at = np.zeros((nkpts,natm,nao,nao), dtype=np.complex128)
         for k, kpt in enumerate(kpts_lst):
             offset = [0] * 3
             # loop over bas_id, hl coeff. array 
@@ -306,17 +305,19 @@ class _IntNucBuilder(_Int3cBuilder):
                 for i in range(hl_dim):
                     # make sure that the right m,l sph.harm are taken in projectors
                     p0 = offset[i]
-                    ilp[i] = ppnl_half[i][k][p0:p0+nd]
+                    ilp[i] = vppnl_half[i][k][p0:p0+nd]
                     offset[i] = p0 + nd
-                ppnl[k,atm_id_hl] += np.einsum('ilp,ij,jlq->pq', ilp.conj(), hl, ilp)
+                vppnl_at[k,atm_id_hl] += np.einsum('ilp,ij,jlq->pq', ilp.conj(), hl, ilp)
         
         if abs(kpts_lst).sum() < 1e-9: 
-            ppnl = ppnl.real
-        return ppnl
+            vppnl_at = vppnl_at.real
+        return vppnl_at
 
 
 def get_nuc_atomic_df(mydf, kpts=None):
-    ''' Nucl.-el. attraction for all el. calculation '''
+    """ 
+    Nucl.-el. attraction for all electron calculation
+    """ 
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -332,7 +333,9 @@ def get_nuc_atomic_df(mydf, kpts=None):
     return vne_at
 
 def get_pp_atomic_df(mydf, kpts=None):
-    ''' Nucl.-el. attraction for calculation using pseudopotentials'''
+    """ 
+    Nucl.-el. attraction for calculation using pseudopotentials
+    """ 
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -356,9 +359,11 @@ def get_pp_atomic_df(mydf, kpts=None):
 
 
 
-#====================FFTDF====================#
 def get_nuc_atomic_fftdf(mydf, kpts=None):
-    ''' V_nuc for all el. calc. with FFT density fitting (not recommended)  '''
+    """ 
+    Nucl.-el. attraction for all electron calculation with FFT 
+    density fitting (not recommended)
+    """ 
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -368,7 +373,6 @@ def get_nuc_atomic_fftdf(mydf, kpts=None):
     mesh = mydf.mesh
     charge = -cell.atom_charges()
     Gv = cell.get_Gv(mesh)
-    # SI: ngrids
     SI = cell.get_SI(Gv)
     natm, ngrids = np.shape(SI)
     nkpts = len(kpts_lst)
@@ -376,16 +380,15 @@ def get_nuc_atomic_fftdf(mydf, kpts=None):
 
     rhoG_at = np.einsum('z,zg->zg', charge, SI)
 
+    # Coulomb kernel for all G-vectors
     coulG = tools.get_coulG(cell, mesh=mesh, Gv=Gv)
     vneG_at = np.einsum('zg,g->zg', rhoG_at, coulG)
-    # vne evaluated in real-space
     vneR_at = np.zeros((natm, ngrids))
     for a in range(natm):
         vneR_at[a] = tools.ifft(vneG_at[a], mesh).real
 
-    # vneR: natm x ngrids
-    # vne: nkpts x natm x nao x nao
     vne_at = np.zeros((nkpts, natm, nao, nao))
+    # ao values on a R-grid
     for a in range(natm):
         for ao_ks_etc, p0, p1 in mydf.aoR_loop(mydf.grids, kpts_lst):
             ao_ks = ao_ks_etc[0]
@@ -394,7 +397,6 @@ def get_nuc_atomic_fftdf(mydf, kpts=None):
             ao = ao_ks = None
 
     if kpts is None or np.shape(kpts) == (3,):
-        # if gamma point
         if np.allclose(kpts_lst, np.zeros((1,3))):
             vne_at = vne_at[0].real
         else:
@@ -402,9 +404,10 @@ def get_nuc_atomic_fftdf(mydf, kpts=None):
     return np.asarray(vne_at)
 
 def get_pp_atomic_fftdf(mydf, kpts=None):
-    '''Get the periodic pseudotential nuc-el AO matrix, with G=0 removed.
-    '''
-    from pyscf import gto
+    """ 
+    Nucl.-el. attraction for calculation using pseudopotentials, 
+    FFT density fitting
+    """ 
     cell = mydf.cell
     if kpts is None:
         kpts_lst = np.zeros((1,3))
