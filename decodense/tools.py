@@ -21,11 +21,11 @@ except ImportError:
     OE_AVAILABLE = False
 from subprocess import Popen, PIPE
 from pyscf import gto, scf, dft, symm, lib
+from pyscf import tools as pyscf_tools
+from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc.tools import k2gamma
-from pyscf import tools as pyscf_tools
 from typing import Tuple, List, Dict, Union
 
 MAX_CYCLE = 100

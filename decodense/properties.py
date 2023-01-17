@@ -11,18 +11,17 @@ __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
 import copy
-import sys
 import warnings
 import numpy as np
 import pyscf.lib
 from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
+from pyscf import tools as pyscf_tools
+from pyscf.dft import numint
+from pyscf.pbc import df as pbc_df
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
-from pyscf.pbc import df as pbc_df
 from pyscf.pbc.dft import numint as pbc_numint
-from pyscf.dft import numint
-from pyscf import tools as pyscf_tools
 from typing import List, Tuple, Dict, Union, Any
 
 from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
@@ -32,17 +31,14 @@ from .decomp import COMP_KEYS
 # block size in _mm_pot()
 BLKSIZE = 200
 
-# FIXME felt short on time, might change later
 # shortened key arrays to skip (or only compute) some prop (el, struct)
 # assumes that struct comes after el in COMP_KEYS
 struct_idx = COMP_KEYS.index('struct')
 el_idx = COMP_KEYS.index('el')
 COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
-COMP_KEYS_noel = COMP_KEYS[:el_idx] #+ COMP_KEYS[struct_idx+1:]
+COMP_KEYS_noel = COMP_KEYS[:el_idx] 
 COMP_KEYS_elstruct = COMP_KEYS[el_idx:struct_idx+1]
 
-#FIXME see if the mol/cell object can get a general name
-# TODO prob. should be pbc_scf.hf.RHF
 def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
@@ -203,7 +199,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                             sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
                             res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                             res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
-                            # nuc. attraction split up in separate terms in calc. using a pseudopotential
                             # term from the local part of the pp
                             res['nuc_att_vloc_glob'] += _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                             res['nuc_att_vloc_loc'] += _trace(np.sum(sub_nuc_vloc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
@@ -270,7 +265,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
                             sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
                             res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                             res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                            # nuc. attraction split up in separate terms in calc. using a pseudopotential
                             # term from the local part of the pp
                             res['nuc_att_vloc_glob'] += _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                             res['nuc_att_vloc_loc'] += _trace(np.sum(sub_nuc_vloc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
@@ -356,8 +350,6 @@ def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft
             if prop_type == 'energy':
                 prop = {comp_key: np.zeros(pmol.natm, dtype=np.float64) for comp_key in COMP_KEYS}
             elif prop_type == 'dipole':
-                # TODO needs to be changed due to new keys for pp calc.
-                #prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS[-2:]}
                 prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS_elstruct}
             # domain
             domain = np.arange(pmol.natm)
@@ -462,7 +454,7 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
                         # total nuclear potential
                         nuc = np.sum(sub_nuc_tot, axis=0)
                     else:
-                        warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
+                        raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
             else:
                 if isinstance(mydf, pbc_df.df.DF):
                     sub_nuc = get_nuc_atomic_df(mydf, kpts=np.zeros(3)) 
@@ -473,7 +465,7 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
                     # total nuclear potential
                     nuc = np.sum(sub_nuc, axis=0)
                 else:
-                    warnings.warn('Decodense code for %s object is not implemented yet. ', mydf)
+                    raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')

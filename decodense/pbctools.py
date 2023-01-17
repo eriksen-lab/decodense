@@ -474,7 +474,6 @@ def get_pp_atomic_fftdf(mydf, kpts=None):
             for l, proj in enumerate(pp[5:]):
                 rl, nl, hl = proj
                 # if the shell is in pp, need coeff. to project
-                # it on the core region of that atom
                 if nl > 0:
                     fakemol._bas[0,gto.ANG_OF] = l
                     fakemol._env[ptr+3] = .5*rl**2

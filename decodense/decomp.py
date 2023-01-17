@@ -12,7 +12,6 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
-import warnings
 import numpy as np
 from pyscf import gto, scf, dft
 from pyscf.pbc import gto as pbc_gto
@@ -52,7 +51,6 @@ class DecompCls(object):
                 self.weights: np.ndarray = None
                 self.centres: np.ndarray = None
 
-# TODO why mol can be None
 def sanity_check(mol: Union[None, gto.Mole, pbc_gto.Cell], \
                  mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
                  decomp: DecompCls) -> None:
@@ -99,5 +97,5 @@ def sanity_check(mol: Union[None, gto.Mole, pbc_gto.Cell], \
             assert mol.dimension == 3 or mol.dimension == 1, \
                'PBC module is in development, current implementation treats 1D- and 3D-cells only.' 
             assert decomp.prop == 'energy' and decomp.part in ['atoms', 'eda'], \
-                'PBC module is in development. Only gamma-point RHF calculation of energy for 1D- and 3D-periodic systems can be decomposed into atomwise contributions.'
+                'PBC module is in development. Only gamma-point calculation of energy for 1D- and 3D-periodic systems can be decomposed into atomwise contributions.'
 

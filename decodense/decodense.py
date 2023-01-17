@@ -10,8 +10,6 @@ __maintainer__ = 'Dr. Janus Juul Eriksen'
 __email__ = 'janus.eriksen@bristol.ac.uk'
 __status__ = 'Development'
 
-import sys
-import warnings
 import numpy as np
 from pyscf import gto, scf, dft
 from pyscf.pbc import gto as pbc_gto
@@ -23,7 +21,6 @@ from .orbitals import loc_orbs, assign_rdm1s
 from .properties import prop_tot
 from .tools import make_natorb, mf_info, write_rdm1
 
-# TODO prob. should be pbc_scf.hf.RHF
 def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
          rdm1_orb: np.ndarray = None, \
