@@ -31,11 +31,10 @@ libpbc = lib.load_library('libpbc')
 PRECISION = getattr(__config__, 'pbc_df_aft_estimate_eta_precision', 1e-8)
 
 
-        # TODO continue here
 class _IntNucBuilder(_Int3cBuilder):
-    '''The integral builder for E_ne term when GDF is used. 
-    ovlp_mask can be reused for different types of intor
-    '''
+    """
+    The integral builder for E_ne term when GDF is used. 
+    """
     def __init__(self, cell, kpts=np.zeros((1,3))):
         # cache ovlp_mask
         self._supmol = None
@@ -44,6 +43,9 @@ class _IntNucBuilder(_Int3cBuilder):
         _Int3cBuilder.__init__(self, cell, None, kpts)
 
     def get_ovlp_mask(self, cutoff, supmol=None, cintopt=None):
+        """
+        ovlp_mask can be reused for different types of intor
+        """
         if self._ovlp_mask is None or supmol is not self._supmol:
             self._ovlp_mask, self._cell0_ovlp_mask = \
                     _Int3cBuilder.get_ovlp_mask(self, cutoff, supmol, cintopt)
@@ -52,9 +54,9 @@ class _IntNucBuilder(_Int3cBuilder):
 
     def _int_nuc_vloc(self, nuccell, intor='int3c2e', aosym='s2', comp=None,
                       with_pseudo=True, supmol=None):
-        '''Vnuc - Vloc. nuccell is the cell for model charges
-        '''
-
+        """
+        Vnuc - Vloc in R-space
+        """
         cell = self.cell
         kpts = self.kpts
         nkpts = len(kpts)
@@ -62,29 +64,28 @@ class _IntNucBuilder(_Int3cBuilder):
         nao_pair = nao * (nao+1) // 2
 
         # use the 3c2e code with steep s gaussians to mimic nuclear density
+        # (nuccell is the cell for model charges)
         fakenuc = _fake_nuc(cell, with_pseudo=with_pseudo)
         fakenuc._atm, fakenuc._bas, fakenuc._env = \
                 gto.conc_env(nuccell._atm, nuccell._bas, nuccell._env,
                              fakenuc._atm, fakenuc._bas, fakenuc._env)
-
         int3c = self.gen_int3c_kernel(intor, aosym, comp=comp, j_only=True,
                                       auxcell=fakenuc, supmol=supmol)
-        # nkpts x nao_pair x nchg2 (nchg2: nr of real and model charges)
         bufR, bufI = int3c()
 
         charge = cell.atom_charges()
         nchg   = len(charge)
-        charge = np.append(charge, -charge)  # (charge-of-nuccell, charge-of-fakenuc)
+        # charge-of-nuccell, charge-of-fakenuc
+        charge = np.append(charge, -charge) 
         nchg2  = len(charge)
-        # mat is nkpts x natm x naopair
-        # sum over halves of z, chrg and -chrg ints 
+        # sum over halves, chrg and -chrg ints 
         if is_zero(kpts):
-            mat_at1 = np.einsum('kxz,z->kzx', bufR, charge)
-            mat_at  = mat_at1[:,nchg:,:] + mat_at1[:,:nchg,:] 
+            vj_at1 = np.einsum('kxz,z->kzx', bufR, charge)
+            vj_at  = vj_at1[:,nchg:,:] + vj_at1[:,:nchg,:] 
         else:
-            mat_at1 = (np.einsum('kxz,z->kzx', bufR, charge) +
+            vj_at1 = (np.einsum('kxz,z->kzx', bufR, charge) +
                       np.einsum('kxz,z->kzx', bufI, charge) * 1j)
-            mat_at  = mat_at1[:,nchg:,:] + mat_at1[:,:nchg,:] 
+            vj_at  = vj_at1[:,nchg:,:] + vj_at1[:,:nchg,:] 
 
         # vbar is the interaction between the background charge
         # and the compensating function.  0D, 1D, 2D do not have vbar.
@@ -95,21 +96,20 @@ class _IntNucBuilder(_Int3cBuilder):
             nucbar = np.asarray([z/nuccell.bas_exp(i)[0] for i,z in enumerate(charge)])
             nucbar *= np.pi/cell.vol
 
-            # nkpts x nao x nao (ravel -> nao x nao)
             ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
-            # mat is nkpts x natm x naopair
-            # inner loop over chrg i: mat[k,i,:] nucbar[i] reshape ovlp to naopair
             for k in range(nkpts):
                 if aosym == 's1':
                     for i in range(nchg):
-                        mat_at[k,i,:] -= nucbar[i] * ovlp[k].reshape(nao_pair) 
+                        vj_at[k,i,:] -= nucbar[i] * ovlp[k].reshape(nao_pair) 
                 else:
                     for i in range(nchg):
-                        mat_at[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
-        return mat_at
+                        vj_at[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
+        return vj_at
 
     def get_nuc(self, mesh=None, with_pseudo=False):
-        ''' Vnuc term '''
+        """
+        Vnuc term 
+        """
         from pyscf.pbc.df.gdf_builder import _guess_eta
 
         cell = self.cell
@@ -194,6 +194,7 @@ class _IntNucBuilder(_Int3cBuilder):
     def get_pp_loc_part1(self, mesh=None):
         return self.get_nuc(mesh, with_pseudo=True)
 
+        # TODO continue here
     def get_pp_loc_part2(self):
         '''PRB, 58, 3641 Eq (1), integrals associated to C1, C2, C3, C4
         '''
