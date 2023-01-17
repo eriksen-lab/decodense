@@ -16,6 +16,7 @@ import numpy as np
 from pyscf import __config__
 from pyscf import gto, lib
 from pyscf.pbc import tools
+from pyscf.pbc import df as pbc_df  
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
@@ -34,14 +35,16 @@ class _IntNucBuilder(_Int3cBuilder):
     """
     The integral builder for E_ne term when GDF is used. 
     """
-    def __init__(self, cell, kpts=np.zeros((1,3))):
+    def __init__(self, cell: pbc_gto.Cell, \
+                 kpts: Union[List[float], np.ndarray] = np.zeros((1,3))) -> None:
         # cache ovlp_mask
         self._supmol = None
         self._ovlp_mask = None
         self._cell0_ovlp_mask = None
         _Int3cBuilder.__init__(self, cell, None, kpts)
 
-    def get_ovlp_mask(self, cutoff, supmol=None, cintopt=None):
+    def get_ovlp_mask(self, cutoff: float, supmol: pbc_df.ft_ao._ExtendedMole = None, \
+                      cintopt: Any = None) -> np.ndarray:
         """
         ovlp_mask can be reused for different types of intor
         """
@@ -51,8 +54,9 @@ class _IntNucBuilder(_Int3cBuilder):
             self._supmol = supmol
         return self._ovlp_mask, self._cell0_ovlp_mask
 
-    def _int_nuc_vloc(self, nuccell, intor='int3c2e', aosym='s2', comp=None,
-                      with_pseudo=True, supmol=None):
+    def _int_nuc_vloc(self, nuccell:  pbc_gto.Cell, intor: str = 'int3c2e', \
+                      aosym: str = 's2', comp: int = None, with_pseudo: bool = True, \
+                      supmol: pbc_df.ft_ao._ExtendedMole = None) -> np.ndarray:
         """
         Vnuc - Vloc in R-space
         """
@@ -105,7 +109,8 @@ class _IntNucBuilder(_Int3cBuilder):
                         vj_at[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
         return vj_at
 
-    def get_nuc(self, mesh=None, with_pseudo=False):
+    def get_nuc(self, mesh: Union[List[int], np.ndarray] = None, \
+                with_pseudo: bool = False) -> np.ndarray:
         """
         Vnuc term 
         """
@@ -190,10 +195,10 @@ class _IntNucBuilder(_Int3cBuilder):
                 vj_kpts_at.append(vj_1atm_kpts)
         return np.asarray(vj_kpts_at)
 
-    def get_pp_loc_part1(self, mesh=None):
+    def get_pp_loc_part1(self, mesh: Union[List[int], np.ndarray] = None) -> np.ndarray:
         return self.get_nuc(mesh, with_pseudo=True)
 
-    def get_pp_loc_part2(self):
+    def get_pp_loc_part2(self) -> np.ndarray:
         """
         Vloc pseudopotential part.
         PRB, 58, 3641 Eq (1), integrals associated to C1, C2, C3, C4
@@ -265,7 +270,7 @@ class _IntNucBuilder(_Int3cBuilder):
                 vloc2_at.append(vloc2_1atm_kpts) 
         return np.asarray(vloc2_at)
 
-    def get_pp_nl(self):
+    def get_pp_nl(self) -> np.ndarray:
         """
         Vnl pseudopotential part.
         PRB, 58, 3641 Eq (2), nonlocal contribution.
@@ -314,7 +319,8 @@ class _IntNucBuilder(_Int3cBuilder):
         return vnl_at
 
 
-def get_nuc_atomic_df(mydf, kpts=None):
+def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
+                      kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
     Nucl.-el. attraction for all electron calculation
     """ 
@@ -332,7 +338,8 @@ def get_nuc_atomic_df(mydf, kpts=None):
             vne_at = vne_at[0]
     return vne_at
 
-def get_pp_atomic_df(mydf, kpts=None):
+def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
+                     kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
     Nucl.-el. attraction for calculation using pseudopotentials
     """ 
@@ -359,7 +366,8 @@ def get_pp_atomic_df(mydf, kpts=None):
 
 
 
-def get_nuc_atomic_fftdf(mydf, kpts=None):
+def get_nuc_atomic_fftdf(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
+                         kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
     Nucl.-el. attraction for all electron calculation with FFT 
     density fitting (not recommended)
@@ -404,7 +412,8 @@ def get_nuc_atomic_fftdf(mydf, kpts=None):
             vne_at = vne_at[0]
     return np.asarray(vne_at)
 
-def get_pp_atomic_fftdf(mydf, kpts=None):
+def get_pp_atomic_fftdf(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
+                        kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
     Nucl.-el. attraction for calculation using pseudopotentials, 
     FFT density fitting
@@ -453,7 +462,7 @@ def get_pp_atomic_fftdf(mydf, kpts=None):
     fakemol._bas[0,gto.PTR_COEFF] = ptr+4
 
     buf = np.empty((48,ngrids), dtype=np.complex128)
-    def vppnl_by_k(kpt):
+    def vppnl_by_k(kpt: np.ndarray) -> np.ndarray:
         """
         Vnl for each kpt
         """
@@ -537,7 +546,7 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     which consists of overlap, self and G-space sum 
     (Formulation of Martin, App. F2.).
     """ 
-    def cut_mesh_for_ewald(cell, mesh):
+    def cut_mesh_for_ewald(cell: pbc_gto.Cell, mesh: List[int]) -> List[int]:
         mesh = np.copy(mesh)
         mesh_max = np.asarray(np.linalg.norm(cell.lattice_vectors(), axis=1) * 2,
                               dtype=int)  # roughly 2 grids per bohr
