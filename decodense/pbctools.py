@@ -194,65 +194,48 @@ class _IntNucBuilder(_Int3cBuilder):
     def get_pp_loc_part1(self, mesh=None):
         return self.get_nuc(mesh, with_pseudo=True)
 
-        # TODO continue here
     def get_pp_loc_part2(self):
-        '''PRB, 58, 3641 Eq (1), integrals associated to C1, C2, C3, C4
-        '''
-        '''
-            Fake cell created to "house" each coeff.*gaussian (on each atom that has it) 
-            for V_loc of pseudopotential (1 fakecell has max 1 gaussian per atom). 
-            Ergo different nr of coeff. ->diff. nr of ints to loop and sum over for diff. atoms
-            See: "Each term of V_{loc} (erf, C_1, C_2, C_3, C_4) is a gaussian type
-            function. The integral over V_{loc} can be transfered to the 3-center
-            integrals, in which the auxiliary basis is given by the fake cell."
-            Later the cell and fakecells are concatenated to compute 3c overlaps between 
-            basis funcs on the real cell & coeff*gaussians on fake cell?
-            TODO check if this is correct
-            <X_P(r)| sum_A^Nat [ -Z_Acore/r erf(r/sqrt(2)r_loc) + sum_i C_iA (r/r_loc)^(2i-2) ] |X_Q(r)>
-            -> 
-            int X_P(r - R_P)     :X_P actual basis func. that sits on atom P  ??
-            * Ci                 :coeff for atom A, coeff nr i
-        '''
+        """
+        Vloc pseudopotential part.
+        PRB, 58, 3641 Eq (1), integrals associated to C1, C2, C3, C4
+        Computed by concatenating the cell (containing basis func.), and the 
+        fakecells (containing, each, a coeff.*gaussian on each atom that has it).
+        """
         if self.rs_cell is None:
             self.build()
         cell = self.cell
+        # initialize an extended Mole object to mimic periodicity
         supmol = self.supmol
-        if supmol.nbas == supmol.bas_mask.size:  # supmol not stripped
+        if supmol.nbas == supmol.bas_mask.size: 
             supmol = self.supmol.strip_basis(inplace=False)
         kpts = self.kpts
         nkpts = len(kpts)
         natm = cell.natm
         nao = cell.nao_nr()
-        # nao_pairs for i<=j upper triangular fx, incl diagonal
         nao_pair = nao * (nao+1) // 2
 
         intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
                   'int3c1e_r4_origk', 'int3c1e_r6_origk')
 
+        # buffer arrays to gather all integrals into before unpacking
         bufR_at = np.zeros((nkpts, natm, nao_pair))
         bufI_at = np.zeros((nkpts, natm, nao_pair))
-        # Loop over coefficients to generate: erf, C1, C2, C3, C4
-        # each coeff.-gaussian put in its own fakecell
-        # If cn = 0, the erf term is generated.  C_1,..,C_4 are generated with cn = 1..4
-        # buf is a buffer array to gather all integrals into before unpacking
+        # loop over coefficients (erf, C1, C2, C3, C4), put each 
+        # coeff.*gaussian in its own fakecell
         for cn in range(1, 5):
             fake_cell = pseudo.pp_int.fake_cell_vloc(cell, cn)
             if fake_cell.nbas > 0:
-                # Make a list on which atoms the gaussians sit on (for the current Ci coeff.)
+                # make a list on which atoms the gaussians sit on
                 fakebas_atom_lst = []
                 for i in range(fake_cell.nbas):
                     fakebas_atom_lst.append(fake_cell.bas_atom(i))
                 fakebas_atom_ids = np.array(fakebas_atom_lst)
-                #
+                
                 int3c = self.gen_int3c_kernel(intors[cn], 's2', comp=1, j_only=True,
                                               auxcell=fake_cell, supmol=supmol)
-                # The int over V_{loc} can be transfered to the 3-center
-                # integrals, in which the aux. basis is given by the fake cell.
-                # v is (nkpts, naopairs, naux)
                 vR, vI = int3c()
-                # Put the ints for this Ci coeff. in the right places in the 
-                # buffer (i.e. assign to the right atom)
-                # k is kpt, i is aux, j is aopair
+                # put the ints for this coeff. in the right places in the 
+                # buffer, i.e. assign to the right atom
                 vR_at = np.einsum('kij->kji', vR) 
                 for k, kpt in enumerate(kpts):
                     bufR_at[k, fakebas_atom_lst] += vR_at[k]
@@ -261,29 +244,26 @@ class _IntNucBuilder(_Int3cBuilder):
                     for k, kpt in enumerate(kpts):
                         bufI_at[k, fakebas_atom_lst] += vI_at[k]
 
-        # if fakecell.nbas are all < 0, buf consists of zeros and we check for elements in the system 
+        # if buffer consists of zeros, check for elements in the system 
         if not np.any(bufR_at) :
             if any(cell.atom_symbol(ia) in cell._pseudo for ia in range(cell.natm)):
                 pass
             else:
                raise ValueError('cell.pseudo was specified but its elements %s '
                              'were not found in the system (pp_part2).', cell._pseudo.keys())
-            # list of zeros, length nkpts returned when no pp found on atoms
             vpploc_at = [0] * nkpts
         else:
-            # rearrange with einsum
             buf_at = (bufR_at + bufI_at * 1j)
             vpploc_at = []
-            # now have the triangular matrix for each k (triangular of nao x nao is n_aopairs)
-            # unpack here to nao x nao for each atom
+            # unpack vpploc for each kpt, atom
             for k, kpt in enumerate(kpts):
-                vpploc_1atm_kpts = [] #
-                for i in range(natm): #
-                    v_1atm_ints = lib.unpack_tril(buf_at[k,i,:]) #
-                    if abs(kpt).sum() < 1e-9:  # gamma_point:
-                         v_1atm_ints = v_1atm_ints.real #
-                    vpploc_1atm_kpts.append(v_1atm_ints) #
-                vpploc_at.append(vpploc_1atm_kpts) #
+                vpploc_1atm_kpts = [] 
+                for i in range(natm): 
+                    v_1atm_ints = lib.unpack_tril(buf_at[k,i,:]) 
+                    if abs(kpt).sum() < 1e-9: 
+                         v_1atm_ints = v_1atm_ints.real 
+                    vpploc_1atm_kpts.append(v_1atm_ints) 
+                vpploc_at.append(vpploc_1atm_kpts) 
         return np.asarray(vpploc_at)
 
     def get_pp_nl(self):
