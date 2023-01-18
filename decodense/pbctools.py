@@ -338,6 +338,7 @@ def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
             vne_at = vne_at[0]
     return vne_at
 
+
 def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
                      kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
@@ -363,7 +364,6 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
         vloc2_at = vloc2_at[0]
         vnl_at   = vnl_at[0]
     return vpp_total, vloc1_at+vloc2_at, vnl_at
-
 
 
 def get_nuc_atomic_fftdf(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
@@ -411,6 +411,7 @@ def get_nuc_atomic_fftdf(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
         else:
             vne_at = vne_at[0]
     return np.asarray(vne_at)
+
 
 def get_pp_atomic_fftdf(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
                         kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
@@ -607,4 +608,5 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
     
     return ewovrl_atomic + ewself_atomic + ewg_atomic
+
 
