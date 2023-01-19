@@ -39,7 +39,8 @@ COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
 COMP_KEYS_noel = COMP_KEYS[:el_idx] 
 COMP_KEYS_elstruct = COMP_KEYS[el_idx:struct_idx+1]
 
-def prop_tot(mol: Union[None, gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
+def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
+             pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:

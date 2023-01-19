@@ -22,7 +22,7 @@ from .properties import prop_tot
 from .tools import make_natorb, mf_info, write_rdm1
 
 def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
-         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF], \
+         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
          rdm1_orb: np.ndarray = None, \
          rdm1_eff: np.ndarray = None, \
          loc_lst: Optional[Any] = None) -> Dict[str, Any]:

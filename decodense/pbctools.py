@@ -2,7 +2,14 @@
 # -*- coding: utf-8 -*
 
 """
-pbc module
+PBC module
+most of the code adapted from functions 
+in the following PySCF modules:
+pbc/df/aft.py
+pbc/df/fft.py
+pbc/df/ft_ao.py
+pbc/df/incore.py
+pbc/gto/cell.py
 """
 
 __author__ = 'Luna Zamok, Technical University of Denmark, DK'
