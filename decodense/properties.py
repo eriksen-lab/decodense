@@ -5,20 +5,20 @@
 properties module
 """
 
-__author__ = 'Dr. Janus Juul Eriksen, University of Bristol, UK'
-__maintainer__ = 'Dr. Janus Juul Eriksen'
-__email__ = 'janus.eriksen@bristol.ac.uk'
+__author__ = 'Janus Juul Eriksen, Technical University of Denmark, DK'
+__maintainer__ = 'Janus Juul Eriksen'
+__email__ = 'janus@kemi.dtu.dk'
 __status__ = 'Development'
 
 import copy
 import warnings
 import numpy as np
-import pyscf.lib
 from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
 from pyscf import tools as pyscf_tools
 from pyscf.dft import numint
 from pyscf.pbc import df as pbc_df
+from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.dft import numint as pbc_numint
@@ -26,23 +26,15 @@ from typing import List, Tuple, Dict, Union, Any
 
 from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
 from .tools import dim, make_rdm1, orbsym, contract
-from .decomp import COMP_KEYS
+from .decomp import CompKeys
 
 # block size in _mm_pot()
 BLKSIZE = 200
 
-# shortened key arrays to skip (or only compute) some prop (el, struct)
-# assumes that struct comes after el in COMP_KEYS
-struct_idx = COMP_KEYS.index('struct')
-el_idx = COMP_KEYS.index('el')
-COMP_KEYS_nostruct = COMP_KEYS[:struct_idx] + COMP_KEYS[struct_idx+1:]
-COMP_KEYS_noel = COMP_KEYS[:el_idx] 
-COMP_KEYS_elstruct = COMP_KEYS[el_idx:struct_idx+1]
-
 def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
              pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             rdm1_eff: np.ndarray, pop: str, prop_type: str, part: str, ndo: bool, multiproc: bool, \
+             rdm1_eff: np.ndarray, pop_method: str, prop_type: str, part: str, ndo: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -51,6 +43,12 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         global prop_atom
         global prop_eda
         global prop_orb
+
+        # restricted reference
+        if mo_occ[0].size == mo_occ[1].size:
+            restrict = np.allclose(mo_coeff[0], mo_coeff[1]) and np.allclose(mo_occ[0], mo_occ[1])
+        else:
+            restrict = False
 
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
@@ -70,7 +68,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # mol object projected into minao basis
-        if pop == 'iao':
+        if pop_method == 'iao':
             pmol = lo.iao.reference_mol(mol)
         else:
             pmol = mol
@@ -105,15 +103,20 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
         # fock potential
-        if dft_calc:
-            if hasattr(mf, 'vj'):
-                vj = mf.vj
-                vk = None
+        if hasattr(mf, 'vj'):
+            vj = copy.copy(mf.vj)
+            if hasattr(mf, 'vk'):
+                vk = copy.copy(mf.vk)
             else:
-                warnings.warn('Computing Coulomb integrals for a supercell. Check if ao integrals from kmf object can be reused instead. ')
-                vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=False)
+                if restrict:
+                    _, vk = mf.get_jk(mol=mol, with_j=False, with_k=not dft_calc)
+                else:
+                    _, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_j=False, with_k=not dft_calc)
         else:
-            vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff)
+            if restrict:
+                vj, vk = mf.get_jk(mol=mol, with_k=not dft_calc)
+            else:
+                vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=not dft_calc)
 
         # calculate xc energy density
         if dft_calc:
@@ -165,13 +168,13 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 this function returns atom-wise energy/dipole contributions
                 """
                 # init results
-                if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS}
-                else:
-                    res = {'el': np.zeros(3, dtype=np.float64)}
+                res = {}
                 # atom-specific rdm1
                 rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
+                if prop_type == 'energy' and not restrict:
+                    res[CompKeys.coul] = 0.
+                    res[CompKeys.exch] = 0.
                 for i, spin_mo in enumerate((alpha, beta)):
                     # loop over spin-orbitals
                     for m, j in enumerate(spin_mo):
@@ -182,57 +185,43 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                         # weighted contribution to rdm1_atom
                         rdm1_atom[i] += rdm1_orb * weights[i][m][atom_idx] / np.sum(weights[i][m])
                     # coulumb & exchange energy associated with given atom
-                    if prop_type == 'energy':
-                        if not hasattr(mf, 'vj'):
-                            res['coul'] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
-                            res['exch'] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
+                    if prop_type == 'energy' and not restrict:
+                        res[CompKeys.coul] += _trace(np.sum(vj, axis=0), rdm1_atom[i], scaling = .5)
+                        res[CompKeys.exch] -= _trace(vk[i], rdm1_atom[i], scaling = .5)
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
-                    res['kin'] += _trace(kin, np.sum(rdm1_atom, axis=0))
-                    if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
-                        res['coul'] += _trace(vj, np.sum(rdm1_atom, axis=0), scaling = .5)
-                        res['exch'] -= _trace(vk, np.sum(rdm1_atom, axis=0), scaling = .25)
-                    if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
-                        if hasattr(mf, 'vpp'):
-                            # total E_ne from kmesh calculation
-                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = 1.)
-                        else:
-                            sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
-                            res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
-                            # term from the local part of the pp
-                            res['nuc_att_vloc_glob'] += _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_vloc_loc'] += _trace(np.sum(sub_nuc_vloc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
-                            # term from the nonlocal part of the pp
-                            res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vnl[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vnl, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                    if restrict:
+                        res[CompKeys.coul] = _trace(vj, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res[CompKeys.exch] = -_trace(vk, np.sum(rdm1_atom, axis=0), scaling = .25)
+                    res[CompKeys.kin] = _trace(kin, np.sum(rdm1_atom, axis=0))
+                    if not mol.has_ecp():
+                        res[CompKeys.nuc_att_loc] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     else:
-                        if hasattr(mf, 'vpp'):
-                            # total E_ne from kmesh calculation
-                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = 1.)
-                        else:
-                            res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_loc'] += _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                        sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                        res[CompKeys.nuc_att_vloc_glob] = _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_vloc_loc] = _trace(np.sum(sub_nuc_vloc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_vnlc_glob] = _trace(sub_nuc_vnl[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_vnlc_loc] = _trace(np.sum(sub_nuc_vnl, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
                     if mm_pot is not None:
-                        res['solvent'] += _trace(mm_pot, np.sum(rdm1_atom, axis=0))
+                        res[CompKeys.solvent] = _trace(mm_pot, np.sum(rdm1_atom, axis=0))
                     if e_solvent is not None:
-                        res['solvent'] += e_solvent[atom_idx]
+                        res[CompKeys.solvent] = e_solvent[atom_idx]
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
                         _, _, rho_atom = _make_rho(ao_value, np.sum(rdm1_atom, axis=0), xc_type)
                         # energy from individual atoms
-                        res['xc'] += _e_xc(eps_xc, grid_weights, rho_atom)
+                        res[CompKeys.xc] = _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
                             _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_atom, axis=0), 'GGA')
-                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
+                            res[CompKeys.xc] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
                 elif prop_type == 'dipole':
-                    res['el'] -= _trace(ao_dip, np.sum(rdm1_atom, axis=0))
+                    res[CompKeys.el] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    for comp_key in COMP_KEYS_noel:
-                        res['el'] += res[comp_key]
+                    res[CompKeys.el] = sum(res.values())
                 return res
 
         def prop_eda(atom_idx: int) -> Dict[str, Any]:
@@ -240,50 +229,35 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 this function returns EDA energy/dipole contributions
                 """
                 # init results
-                if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
-                else:
-                    res = {'el': np.zeros(3, dtype=np.float64)}
+                res = {}
                 # get AOs on atom k
                 select = np.where([atom[0] == atom_idx for atom in ao_labels])[0]
                 # common energy contributions associated with given atom
                 if prop_type == 'energy':
-                    # loop over spins
-                    for i, _ in enumerate((alpha, beta)):
-                        if not hasattr(mf, 'vj'):
-                            res['coul'] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
-                            res['exch'] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
-                    if hasattr(mf, 'vj') and isinstance(mol, pbc_gto.Cell):
-                        res['coul'] += _trace(vj[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                        res['exch'] -= _trace(vk[select], np.sum(rdm1_tot, axis=0)[select], scaling = .25)
-                    res['kin'] += _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    #
-                    if isinstance(mol, pbc_gto.Cell) and mol.pseudo:
-                        if hasattr(mf, 'vpp'):
-                            # total E_ne from kmesh calculation
-                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.)
-                        else:
-                            sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = sub_nuc
-                            res['nuc_att_glob'] += _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                            # term from the local part of the pp
-                            res['nuc_att_vloc_glob'] += _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_vloc_loc'] += _trace(np.sum(sub_nuc_vloc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
-                            # term from the nonlocal part of the pp
-                            res['nuc_att_vnlc_glob'] += _trace(sub_nuc_vnl[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_vnlc_loc'] += _trace(np.sum(sub_nuc_vnl, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                    if restrict:
+                        res[CompKeys.coul] = _trace(vj[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                        res[CompKeys.exch] = -_trace(vk[select], np.sum(rdm1_tot, axis=0)[select], scaling = .25)
                     else:
-                        if hasattr(mf, 'vpp'):
-                            # total E_ne from kmesh calculation
-                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = 1.)
-                        else:
-                            res['nuc_att_glob'] += _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                            res['nuc_att_loc'] += _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                    #
+                        res[CompKeys.coul] = 0.
+                        res[CompKeys.exch] = 0.
+                        # loop over spins
+                        for i, _ in enumerate((alpha, beta)):
+                            res[CompKeys.coul] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
+                            res[CompKeys.exch] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
+                    res[CompKeys.kin] = _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
+                    if not mol.has_ecp():
+                        res[CompKeys.nuc_att_loc] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    else:
+                        sub_nuc_vloc, sub_nuc_vnl = sub_nuc
+                        res[CompKeys.nuc_att_vloc_glob] = _trace(sub_nuc_vloc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_vloc_loc] = _trace(np.sum(sub_nuc_vloc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                        res[CompKeys.nuc_att_vnlc_glob] = _trace(sub_nuc_vnl[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_vnlc_loc] = _trace(np.sum(sub_nuc_vnl, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
                     if mm_pot is not None:
-                        res['solvent'] += _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
+                        res[CompKeys.solvent] = _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
                     if e_solvent is not None:
-                        res['solvent'] += e_solvent[atom_idx]
+                        res[CompKeys.solvent] = e_solvent[atom_idx]
                     # additional xc energy contribution
                     if dft_calc:
                         # atom-specific rho
@@ -291,19 +265,18 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                                                      c1_tot if c1_tot is None else c1_tot[:, :, select], \
                                                      ao_value[:, :, select], xc_type)
                         # energy from individual atoms
-                        res['xc'] += _e_xc(eps_xc, grid_weights, rho_atom)
+                        res[CompKeys.xc] = _e_xc(eps_xc, grid_weights, rho_atom)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
                             rho_atom_vv10 = _make_rho_interm2(c0_vv10[:, select], \
                                                               c1_vv10 if c1_vv10 is None else c1_vv10[:, :, select], \
                                                               ao_value_nlc[:, :, select], 'GGA')
-                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
+                            res[CompKeys.xc] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
                 elif prop_type == 'dipole':
-                    res['el'] -= _trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
+                    res[CompKeys.el] = -_trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    for comp_key in COMP_KEYS_noel:
-                        res['el'] += res[comp_key]
+                    res[CompKeys.el] = sum(res.values())
                 return res
 
         def prop_orb(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
@@ -311,87 +284,74 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 this function returns bond-wise energy/dipole contributions
                 """
                 # init res
-                if prop_type == 'energy':
-                    res = {comp_key: 0. for comp_key in COMP_KEYS_nostruct}
-                else:
-                    res = {}
+                res = {}
                 # get orbital(s)
                 orb = mo_coeff[spin_idx][:, orb_idx].reshape(mo_coeff[spin_idx].shape[0], -1)
                 # orbital-specific rdm1
                 rdm1_orb = make_rdm1(orb, mo_occ[spin_idx][orb_idx])
                 # total energy or dipole moment associated with given spin-orbital
                 if prop_type == 'energy':
-                    res['coul'] += _trace(np.sum(vj, axis=0), rdm1_orb, scaling = .5)
-                    res['exch'] -= _trace(vk[spin_idx], rdm1_orb, scaling = .5)
-                    res['kin'] += _trace(kin, rdm1_orb)
-                    res['nuc_att'] += _trace(nuc, rdm1_orb)
+                    res[CompKeys.coul] = _trace(np.sum(vj, axis=0), rdm1_orb, scaling = .5)
+                    res[CompKeys.exch] = -_trace(vk[spin_idx], rdm1_orb, scaling = .5)
+                    res[CompKeys.kin] = _trace(kin, rdm1_orb)
+                    res[CompKeys.nuc_att] = _trace(nuc, rdm1_orb)
                     if mm_pot is not None:
-                        res['solvent'] += _trace(mm_pot, rdm1_orb)
+                        res[CompKeys.solvent] = _trace(mm_pot, rdm1_orb)
                     # additional xc energy contribution
                     if dft_calc:
                         # orbital-specific rho
                         _, _, rho_orb = _make_rho(ao_value, rdm1_orb, xc_type)
                         # xc energy from individual orbitals
-                        res['xc'] += _e_xc(eps_xc, grid_weights, rho_orb)
+                        res[CompKeys.xc] = _e_xc(eps_xc, grid_weights, rho_orb)
                         # nlc (vv10)
                         if eps_xc_nlc is not None:
                             _, _, rho_orb_vv10 = _make_rho(ao_value_nlc, rdm1_orb, 'GGA')
-                            res['xc'] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
+                            res[CompKeys.xc] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
                 elif prop_type == 'dipole':
-                    res['el'] = -_trace(ao_dip, rdm1_orb)
+                    res[CompKeys.el] = -_trace(ao_dip, rdm1_orb)
                 # sum up electronic contributions
                 if prop_type == 'energy':
-                    for comp_key in COMP_KEYS_noel:
-                        res['el'] += res[comp_key]
+                    res[CompKeys.el] = sum(res.values())
                 return res
 
         # perform decomposition
         if part in ['atoms', 'eda']:
-            # init atom-specific energy or dipole arrays
-            if prop_type == 'energy':
-                prop = {comp_key: np.zeros(pmol.natm, dtype=np.float64) for comp_key in COMP_KEYS}
-            elif prop_type == 'dipole':
-                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in COMP_KEYS_elstruct}
             # domain
             domain = np.arange(pmol.natm)
             # execute kernel
-            if multiproc:
-                n_threads = min(domain.size, lib.num_threads())
-                with mp.Pool(processes=n_threads) as pool:
-                    res = pool.map(prop_atom if part == 'atoms' else prop_eda, domain) # type:ignore
-            else:
-                res = list(map(prop_atom if part == 'atoms' else prop_eda, domain)) # type:ignore
+            res = list(map(prop_atom if part == 'atoms' else prop_eda, domain)) # type: ignore
+            # init atom-specific energy or dipole arrays
+            if prop_type == 'energy':
+                prop = {comp_key: np.zeros(pmol.natm, dtype=np.float64) for comp_key in res[0].keys()}
+            elif prop_type == 'dipole':
+                prop = {comp_key: np.zeros([pmol.natm, 3], dtype=np.float64) for comp_key in res[0].keys()}
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
             if not ndo:
-                prop['struct'] = prop_nuc_rep
-            return {**prop, 'charge_atom': charge_atom}
+                prop[CompKeys.struct] = prop_nuc_rep
+            return {**prop, CompKeys.charge_atom: charge_atom}
         else: # orbs
-            # init orbital-specific energy or dipole array
-            if prop_type == 'energy':
-                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in COMP_KEYS_nostruct}
-            elif prop_type == 'dipole':
-                prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in COMP_KEYS}
             # domain
             domain = np.array([(i, j) for i, orbs in enumerate((alpha, beta)) for j in orbs])
             # execute kernel
-            if multiproc:
-                n_threads = min(domain.size, lib.num_threads())
-                with mp.Pool(processes=n_threads) as pool:
-                    res = pool.starmap(prop_orb, domain) # type:ignore
-            else:
-                res = list(starmap(prop_orb, domain)) # type:ignore
+            res = list(starmap(prop_orb, domain)) # type: ignore
+            # init orbital-specific energy or dipole array
+            if prop_type == 'energy':
+                prop = {comp_key: [np.zeros(alpha.size), np.zeros(beta.size)] for comp_key in res[0].keys()}
+            elif prop_type == 'dipole':
+                prop = {comp_key: [np.zeros([alpha.size, 3], dtype=np.float64), \
+                                   np.zeros([beta.size, 3], dtype=np.float64)] for comp_key in res[0].keys()}
             # collect results
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][domain[k, 0]][domain[k, 1]] = val
             if ndo:
-                prop['struct'] = np.zeros_like(prop_nuc_rep)
+                prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
             else:
-                prop['struct'] = prop_nuc_rep
-            return {**prop, 'mo_occ': mo_occ, 'orbsym': orbsym(mol, mo_coeff), 'ndo': ndo}
+                prop[CompKeys.struct] = prop_nuc_rep
+            return {**prop, CompKeys.mo_occ: mo_occ, CompKeys.orbsym: orbsym(mol, mo_coeff)}
 
 
 def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:
@@ -439,23 +399,18 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             mydf = mf.with_df
             # individual atomic potentials
             if mol.pseudo:
-                if hasattr(mf, 'vpp'):
-                    # total E_ne from kmesh calculation
-                    nuc = mf.vpp
-                    sub_nuc = np.zeros(np.shape(nuc), dtype=nuc.dtype)
+                if isinstance(mydf, pbc_df.df.DF):
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_df(mydf, kpts=np.zeros(3))
+                    sub_nuc = (sub_nuc_vloc, sub_nuc_vnl)
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc_tot, axis=0)
+                elif isinstance(mydf, pbc_df.fft.FFTDF):
+                    sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
+                    sub_nuc = (sub_nuc_vloc, sub_nuc_vnl)
+                    # total nuclear potential
+                    nuc = np.sum(sub_nuc_tot, axis=0)
                 else:
-                    if isinstance(mydf, pbc_df.df.DF):
-                        sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_df(mydf, kpts=np.zeros(3))
-                        sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                        # total nuclear potential
-                        nuc = np.sum(sub_nuc_tot, axis=0)
-                    elif isinstance(mydf, pbc_df.fft.FFTDF):
-                        sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
-                        sub_nuc = (sub_nuc_tot, sub_nuc_vloc, sub_nuc_vnl)
-                        # total nuclear potential
-                        nuc = np.sum(sub_nuc_tot, axis=0)
-                    else:
-                        raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
+                    raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
             else:
                 if isinstance(mydf, pbc_df.df.DF):
                     sub_nuc = get_nuc_atomic_df(mydf, kpts=np.zeros(3)) 
@@ -647,11 +602,7 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         ks_omega, ks_alpha, ks_hyb = mf._numint.rsh_and_hybrid_coeff(xc_func)
         # if hybrid func: compute vk    
         if abs(ks_hyb) > 1e-10: 
-            if hasattr(mf, 'vk'):
-                # vk from kmesh calculation
-                vk = copy.copy(mf.vk)
-            else:
-                warnings.warn('Computing exact exchange integrals for a supercell. Check if ao integrals from kmf object can be reused instead. ')
+            if not hasattr(mf, 'vk'):
                 _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
             # scale amount of exact exchange
             vk *= ks_hyb
