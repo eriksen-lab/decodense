@@ -25,7 +25,7 @@ LOC_CONV = 1.e-10
 def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
              pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
              mo_coeff_in: np.ndarray, mo_occ: np.ndarray, \
-             mo_basis: str, pop_method: str, mo_init: str, loc_exp: int, \
+             minao: str, mo_basis: str, pop_method: str, mo_init: str, loc_exp: int, \
              ndo: bool, verbose: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         this function returns a set of localized MOs of a specific variant
@@ -64,7 +64,8 @@ def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
             else:
                 # IBOs as start guess
-                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, verbose=0)
+                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, \
+                                           minao=minao, verbose=0)
 
             # localize orbitals
             if mo_basis == 'fb':

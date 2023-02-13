@@ -45,11 +45,11 @@ class DecompCls(object):
         """
         this class contains all decomp attributes
         """
-        __slots__ = ('mo_basis', 'pop_method', 'mo_init', 'loc_exp', 'part', 'ndo', \
-                     'gauge_origin', 'prop', 'write', 'verbose', 'unit', \
+        __slots__ = ('minao', 'mo_basis', 'pop_method', 'mo_init', 'loc_exp', 'part', \
+                     'ndo', 'gauge_origin', 'prop', 'write', 'verbose', 'unit', \
                      'res', 'charge_atom', 'dist', 'weights', 'centres')
 
-        def __init__(self, mo_basis: str = 'can', pop_method: str = 'mulliken', \
+        def __init__(self, minao: str = 'MINAO', mo_basis: str = 'can', pop_method: str = 'mulliken', \
                      mo_init: str = 'can', loc_exp: int = 2, \
                      part = 'atoms', ndo: bool = False, \
                      gauge_origin: Union[List[Any], np.ndarray] = np.zeros(3), \
@@ -58,6 +58,7 @@ class DecompCls(object):
                 init molecule attributes
                 """
                 # set system defaults
+                self.minao = minao
                 self.mo_basis = mo_basis
                 self.pop_method = pop_method
                 self.mo_init = mo_init
@@ -82,6 +83,9 @@ def sanity_check(mol: Union[gto.Mole, pbc_gto.Cell], \
         """
         this function performs sanity checks of decomp attributes
         """
+        # Reference basis for IAOs
+        assert decomp.minao in ['MINAO', 'ANO'], \
+            'invalid minao basis. valid choices: `MINAO` (default) or `ANO`'
         # MO basis
         assert decomp.mo_basis in ['can', 'fb', 'pm'], \
             'invalid MO basis. valid choices: `can` (default), `fb`, or `pm`'

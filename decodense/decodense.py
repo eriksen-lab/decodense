@@ -43,7 +43,7 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         # compute localized MOs
         if decomp.mo_basis != 'can':
             mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, \
-                                decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
+                                decomp.minao, decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
                                 decomp.ndo, decomp.verbose)
 
         # decompose property
