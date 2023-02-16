@@ -34,7 +34,7 @@ BLKSIZE = 200
 def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
              pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             rdm1_eff: np.ndarray, pop_method: str, prop_type: str, part: str, ndo: bool, \
+             rdm1_eff: np.ndarray, minao: str, pop_method: str, prop_type: str, part: str, ndo: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -69,7 +69,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
 
         # mol object projected into minao basis
         if pop_method == 'iao':
-            pmol = lo.iao.reference_mol(mol)
+            pmol = lo.iao.reference_mol(mol, minao=minao)
         else:
             pmol = mol
 

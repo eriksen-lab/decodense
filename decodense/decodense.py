@@ -49,11 +49,11 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         # decompose property
         if decomp.part in ['atoms', 'eda']:
             # compute population weights
-            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop_method, decomp.part, \
+            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.minao, decomp.pop_method, decomp.part, \
                                    decomp.ndo, decomp.verbose)
             # compute decomposed results
             decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop_method, decomp.prop, decomp.part, \
+                                  decomp.minao, decomp.pop_method, decomp.prop, decomp.part, \
                                   decomp.ndo, decomp.gauge_origin, \
                                   weights = weights)
         else: # orbs

@@ -64,8 +64,10 @@ def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
             else:
                 # IBOs as start guess
+                print('IBOs in decodense: minao is ', minao)
                 mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, \
                                            minao=minao, verbose=0)
+                print('Done with decodense IBOs part')
 
             # localize orbitals
             if mo_basis == 'fb':
@@ -93,7 +95,7 @@ def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
 
 def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
                  pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
-                 mo_coeff: np.ndarray, mo_occ: np.ndarray, pop_method: str, part: str, ndo: bool, \
+                 mo_coeff: np.ndarray, mo_occ: np.ndarray, minao: str, pop_method: str, part: str, ndo: bool, \
                  verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
@@ -126,7 +128,7 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
             # ndo assertion
             if ndo:
                 raise NotImplementedError('IAO-based populations for NDOs is not implemented')
-            pmol = lo.iao.reference_mol(mol)
+            pmol = lo.iao.reference_mol(mol, minao=minao)
         else:
             pmol = mol
 
@@ -171,7 +173,7 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
             elif pop_method == 'meta_lowdin':
                 mo = contract('ki,kl,lj->ij', lo.orth.orth_ao(pmol, method='meta_lowdin', s=s), s, mo_coeff[i][:, spin_mo])
             elif pop_method == 'iao':
-                iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo])
+                iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo], minao=minao)
                 iao = lo.vec_lowdin(iao, s)
                 mo = contract('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
             elif pop_method == 'becke':
