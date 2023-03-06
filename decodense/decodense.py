@@ -47,21 +47,13 @@ def main(mol: gto.Mole, decomp: DecompCls, \
                                     decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
                                     decomp.ndo, decomp.verbose)
 
-        # decompose property
-        if decomp.part in ['atoms', 'eda']:
-            # compute population weights
-            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop_method, decomp.part, \
-                                   decomp.ndo, decomp.verbose)
-            # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop_method, decomp.prop, decomp.part, \
-                                  decomp.ndo, decomp.gauge_origin, \
-                                  weights = weights)
-        else: # orbs
-            # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop_method, decomp.prop, decomp.part, \
-                                  decomp.ndo, decomp.gauge_origin)
+        # compute population weights
+        weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop_method, decomp.part, \
+                               decomp.ndo, decomp.verbose)
+        # compute decomposed results
+        decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
+                              decomp.pop_method, decomp.prop, decomp.part, \
+                              decomp.ndo, decomp.gauge_origin, weights)
 
         # write rdm1s
         if decomp.write != '':
