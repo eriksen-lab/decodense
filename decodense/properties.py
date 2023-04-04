@@ -89,7 +89,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if dft_calc:
             # ndo assertion
             if ndo:
-                raise NotImplementedError('NDOs for KS-DFT is not implemented')
+                raise NotImplementedError('NDOs for KS-DFT do not yield a lossless decomposition')
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
