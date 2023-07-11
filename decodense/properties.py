@@ -32,7 +32,7 @@ from .decomp import CompKeys
 BLKSIZE = 200
 
 def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
-             pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
+             pbc_scf.hf.RHF, pbc_scf.uhf.UHF, pbc_dft.rks.RKS, pbc_dft.uks.UKS], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              rdm1_eff: np.ndarray, minao: str, pop_method: str, prop_type: str, part: str, ndo: bool, \
              gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
@@ -393,7 +393,7 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
         """
         this function returns the components of the core hamiltonian
         """
-        if (isinstance(mol, pbc_gto.Cell) and isinstance(mf, pbc_scf.hf.RHF)):
+        if (isinstance(mol, pbc_gto.Cell) and isinstance(mf, (pbc_scf.hf.RHF, pbc_scf.uhf.UHF) )):
             # kinetic integrals
             kin = mol.pbc_intor('int1e_kin')
             mydf = mf.with_df
