@@ -84,12 +84,14 @@ def git_version() -> str:
 
         return GIT_REVISION
 
-
 def dim(mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
+        if np.asarray(mo_occ).ndim == 1:
+            return np.where(np.abs(mo_occ) > 0.)[0], np.where(np.abs(mo_occ) > 1.)[0]
+        else:
+            return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
 
 
 def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarray, np.ndarray], \
@@ -97,20 +99,16 @@ def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarra
         """
         retrieve mf information (mo coefficients & occupations)
         """
-        # mo occupations
-        if np.asarray(mf.mo_occ).ndim == 1:
-            mo_occ = (np.ones(np.count_nonzero(0. < mf.mo_occ)), np.ones(np.count_nonzero(1. < mf.mo_occ)))
-        else:
-            mo_occ = (mf.mo_occ[0][np.nonzero(mf.mo_occ[0])], mf.mo_occ[1][np.nonzero(mf.mo_occ[1])])
         # dimensions
-        alpha, beta = dim(mo_occ)
+        alpha, beta = dim(mf.mo_occ)
+        # mo occupations
+        mo_occ = (np.ones_like(alpha), np.ones_like(beta))
         # mo coefficients
         if np.asarray(mf.mo_coeff).ndim == 2:
-            mo_coeff = (mf.mo_coeff[:, alpha].real, mf.mo_coeff[:, beta].real)
+            mo_coeff = (mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta])
         else:
-            mo_coeff = (mf.mo_coeff[0][:, alpha].real, mf.mo_coeff[1][:, beta].real)
+            mo_coeff = (mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta])
 
-        assert (abs((mf.mo_coeff).imag).max() < 1e-7)
         return mo_coeff, mo_occ
 
 
