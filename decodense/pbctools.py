@@ -628,8 +628,10 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
 # TODO check this, introduce
     kpts, is_single_kpt = _check_kpts(mydf, kpts)
     cell = mydf.cell
+    mesh = np.asarray(mydf.mesh)
     charges = cell.atom_charges()
     kpts = self.kpts
+    natm = cell.natm
     nkpts = len(kpts)
     nao = cell.nao_nr()
     #aosym = 's2'
@@ -639,6 +641,7 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
 # TODO check this, introduce
 #    eta, mesh, ke_cutoff = _guess_eta(cell, kpts, mesh)
     ke_guess = estimate_ke_cutoff(cell, cell.precision)
+    mesh = cell.mesh
     mesh_guess = cell.cutoff_to_mesh(ke_guess)
     if np.any(mesh < mesh_guess*KE_SCALING):
         # TODO make a custom warning: '(mydf, 'mesh %s is not enough for AFTDF.get_nuc function to get integral accuracy %g.\nRecommended mesh is %s.', mesh, cell.precision, mesh_guess)'
@@ -661,7 +664,7 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
 
     if with_pseudo:
         # FIXME make this atomic, just a quick test here for now
-        vpplocG = pp_int.get_gth_vlocG_part1(cell, Gv)
+        vpplocG = pseudo.pp_int.get_gth_vlocG_part1(cell, Gv)
         print('shape vpplocG', np.shape(vpplocG))
         #vpplocG = -np.einsum('ij,ij->j', cell.get_SI(Gv), vpplocG)
         vpplocG_at = -np.einsum('xi,xi->xi', cell.get_SI(Gv), vpplocG)
@@ -861,7 +864,7 @@ def estimate_ke_cutoff(cell, precision=None):
         return 0.
     if precision is None:
         precision = cell.precision
-    exps, cs = pbcgto.cell._extract_pgto_params(cell, 'max')
+    exps, cs = pbc_gto.cell._extract_pgto_params(cell, 'max')
     ls = cell._bas[:,gto.ANG_OF]
     cs = gto.gto_norm(ls, exps)
     Ecut = _estimate_ke_cutoff(exps, ls, cs, precision)
