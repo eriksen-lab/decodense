@@ -841,10 +841,28 @@ def _check_kpts(mydf, kpts):
     kpts = kpts.reshape(-1,3)
     return kpts, is_single_kpt
 
-def estimate_ke_cutoff_for_eta(cell, eta, precision=None):
-    '''Given eta, the lower bound of ke_cutoff to produce the required
-    precision in AFTDF Coulomb integrals.
-    '''
-    from pyscf.pbc.df.gdf_builder import estimate_ke_cutoff_for_eta
-    return estimate_ke_cutoff_for_eta(cell, eta, precision)
+def _estimate_ke_cutoff(alpha, l, c, precision, omega=0):
+    '''Energy cutoff estimation for 4-center Coulomb repulsion integrals'''
+    norm_ang = ((2*l+1)/(4*np.pi))**2
+    fac = 8*np.pi**5 * c**4*norm_ang / (2*alpha)**(4*l+2) / precision
+    Ecut = 20.
+    if omega <= 0:
+        Ecut = np.log(fac * (Ecut*.5)**(2*l-.5) + 1.) * 2*alpha
+        Ecut = np.log(fac * (Ecut*.5)**(2*l-.5) + 1.) * 2*alpha
+    else:
+        theta = 1./(1./(2*alpha) + 1./(2*omega**2))
+        Ecut = np.log(fac * (Ecut*.5)**(2*l-.5) + 1.) * theta
+        Ecut = np.log(fac * (Ecut*.5)**(2*l-.5) + 1.) * theta
+    return Ecut
 
+def estimate_ke_cutoff(cell, precision=None):
+    '''Energy cutoff estimation for 4-center Coulomb repulsion integrals'''
+    if cell.nbas == 0:
+        return 0.
+    if precision is None:
+        precision = cell.precision
+    exps, cs = pbcgto.cell._extract_pgto_params(cell, 'max')
+    ls = cell._bas[:,gto.ANG_OF]
+    cs = gto.gto_norm(ls, exps)
+    Ecut = _estimate_ke_cutoff(exps, ls, cs, precision)
+    return Ecut.max()
