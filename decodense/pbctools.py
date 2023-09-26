@@ -28,6 +28,8 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
 from pyscf.pbc.gto import pseudo
+from pyscf.pbc.tools import k2gamma
+from pyscf.pbc.df.incore import Int3cBuilder
 #from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 from scipy.special import erf, erfc
@@ -82,21 +84,22 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
     vpp_loc1_at = get_pp_loc_part1(mydf, kpts, with_pseudo=True)
     print('shape vpp_loc1_at', np.shape(vpp_loc1_at))
     
-    # TODO continue here
-    # returns nkpts x nao x nao
-    cell = dfbuilder.cell
-    kpts = dfbuilder.kpts
-    vloc1_at = dfbuilder.get_pp_loc_part1(mydf.mesh)
-    vloc2_at = dfbuilder.get_pp_loc_part2()
-    vnl_at = dfbuilder.get_pp_nl()
-    vpp_total = vloc1_at + vloc2_at + vnl_at
 
-    if abs(kpts_lst).sum() < 1e-9:
+    pp2builder = _IntPPBuilder(cell, kpts)
+    vpp_loc2_at = pp2builder.get_pp_loc_part2()
+    # TODO continue here
+    vpp_nl_at = pp_int.get_pp_nl(cell, kpts)
+    
+    vpp_total = vpp_loc1_at + vpp_loc2_at + vpp_nl_at
+    if is_single_kpt:   
         vpp_total = vpp_total[0]
-        vloc1_at = vloc1_at[0]
-        vloc2_at = vloc2_at[0]
-        vnl_at   = vnl_at[0]
+        vpp_loc1_at = vloc1_at[0]
+        vpp_loc2_at = vloc2_at[0]
+        vpp_nl_at   = vnl_at[0]
     return vpp_total, vloc1_at+vloc2_at, vnl_at
+    # returns nkpts x nao x nao
+    #vnl_at = dfbuilder.get_pp_nl()
+    #vpp_total = vloc1_at + vloc2_at + vnl_at
 
 # FIXME rewrite these later
 #def get_nuc_atomic_fftdf(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
@@ -759,7 +762,114 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     print('shape vj_kpts_at', np.shape(np.asarray(vj_kpts_at)))
     return np.asarray(vj_kpts_at)
 
-#
+
+class _IntPPBuilder(Int3cBuilder):
+    '''3-center integral builder for pp loc part2 only
+    '''
+    def __init__(self, cell, kpts=np.zeros((1,3))):
+        # cache ovlp_mask which are reused for different types of intor
+        self._supmol = None
+        self._ovlp_mask = None
+        self._cell0_ovlp_mask = None
+        Int3cBuilder.__init__(self, cell, None, kpts)
+
+    def get_ovlp_mask(self, cutoff, supmol=None, cintopt=None):
+        if self._ovlp_mask is None or supmol is not self._supmol:
+            self._ovlp_mask, self._cell0_ovlp_mask = \
+                    Int3cBuilder.get_ovlp_mask(self, cutoff, supmol, cintopt)
+            self._supmol = supmol
+        return self._ovlp_mask, self._cell0_ovlp_mask
+
+    def build(self):
+        pass
+    
+    def get_pp_loc_part2(self):
+        """
+        Vloc pseudopotential part.
+        PRB, 58, 3641 Eq (1), integrals associated to C1, C2, C3, C4
+        Computed by concatenating the cell (containing basis func.), and the 
+        fakecells (containing, each, a coeff.*gaussian on each atom that has it).
+        """
+
+        cell = self.cell
+        kpts = self.kpts 
+        nkpts = len(kpts)
+        natm = cell.natm
+        nao = cell.nao_nr()
+        nao_pair = nao * (nao+1) // 2
+    
+        self.bvk_kmesh = kmesh = k2gamma.kpts_to_kmesh(cell, kpts)
+    
+        self.rs_cell = rs_cell = ft_ao._RangeSeparatedCell.from_cell(
+            cell, self.ke_cutoff, RCUT_THRESHOLD, verbose=log)
+
+        intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
+                  'int3c1e_r4_origk', 'int3c1e_r6_origk')
+        fake_cells = {}
+        fakebas_atm_ids_dict = {}
+        # loop over coefficients (erf, C1, C2, C3, C4), put each 
+        # coeff.*gaussian in its own fakecell
+        for cn in range(1, 5):
+            fake_cell = pseudo.pp_int.fake_cell_vloc(cell, cn)
+            if fake_cell.nbas > 0:
+                # make a list on which atoms the gaussians sit on
+                fakebas_atom_lst = []
+                for i in range(fake_cell.nbas):
+                    fakebas_atom_lst.append(fake_cell.bas_atom(i))
+                fake_cells[cn] = fake_cell
+                fakebas_atm_ids_dict[cn] = fakebas_atom_lst
+        
+        # if no fake_cells, check for elements in the system 
+        if not fake_cells:
+            if any(cell.atom_symbol(ia) in cell._pseudo for ia in range(cell.natm)):
+                pass
+            else:
+                raise ValueError('cell.pseudo was specified but its elements %s '
+                             'were not found in the system (pp_part2).', cell._pseudo.keys())
+            vpp_loc2_at = [0] * nkpts
+            return vpp_loc2_at
+
+        rcut = self._estimate_rcut_3c1e(rs_cell, fake_cells)
+        supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max(), log)
+        self.supmol = supmol.strip_basis(rcut)
+
+        # buffer arrays to gather all integrals into before unpacking
+        bufR_at = np.zeros((nkpts, natm, nao_pair))
+        bufI_at = np.zeros((nkpts, natm, nao_pair))
+        for (cn, fake_cell), (cn1, fakebas_atm_ids) in zip(fake_cells.items(), fakebas_atm_ids_dict.items()):
+            int3c = self.gen_int3c_kernel(
+                intors[cn], 's2', comp=1, j_only=True, auxcell=fake_cell)
+            # put the ints for this coeff. in the right places in the 
+            # buffer, i.e. assign to the right atom
+            vR, vI = int3c()
+            print('np.shape(vR)', np.shape(vR))
+            # TODO check if needs this
+            vR_at = np.einsum('kij->kji', vR) 
+            for k, kpt in enumerate(kpts):
+                    bufR_at[k, fakebas_atom_ids] += vR_at[k]
+                if vI is not None:
+                    vI_at = np.einsum('kij->kji', vI) 
+                    for k, kpt in enumerate(kpts):
+                        bufI_at[k, fakebas_atom_ids] += vI_at[k]
+            #
+            #bufR += np.einsum('...i->...', vR)
+            #if vI is not None:
+            #    bufI += np.einsum('...i->...', vI)
+
+        buf_at = (bufR_at + bufI_at * 1j)#.reshape(nkpts,-1)
+        vpp_loc2_at = []
+        # unpack vloc2 for each kpt, atom
+        for k, kpt in enumerate(kpts):
+           vloc2_1atm_kpts = [] 
+           for i in range(natm):
+               v_1atm_ints = lib.unpack_tril(buf_at[k,i,:])
+               if is_zero(kpt):  # gamma_point:
+                    v_1atm_ints = v_1atm_ints.real
+               vloc2_1atm_kpts.append(v_1atm_ints)
+           vloc2_at.append(vloc2_1atm_kpts)
+        return np.asarray(vloc2_at)
+
+
 # FIXME double check this against a new version
 #def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
 #    """
