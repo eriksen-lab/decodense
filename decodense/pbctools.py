@@ -28,7 +28,7 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.df import ft_ao
 from pyscf.pbc.gto import pseudo
-from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
+#from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 from scipy.special import erf, erfc
 from typing import List, Tuple, Dict, Union, Any
