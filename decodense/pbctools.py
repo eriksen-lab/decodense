@@ -54,7 +54,7 @@ def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
    #     kpts_lst = np.reshape(kpts, (-1,3))
     
     vne_at = get_pp_loc_part1(mydf, kpts, with_pseudo=False)
-    print('shape vne_at', np.shape(vne_at))
+    #print('shape vne_at', np.shape(vne_at))
 
     #dfbuilder = _IntNucBuilder(mydf.cell, kpts_lst)
     #vne_at = dfbuilder.get_nuc(mydf.mesh, with_pseudo=False)
@@ -83,20 +83,20 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
     cell = mydf.cell
     vpp_loc1_at = get_pp_loc_part1(mydf, kpts, with_pseudo=True)
     print('shape vpp_loc1_at', np.shape(vpp_loc1_at))
-    
 
     pp2builder = _IntPPBuilder(cell, kpts)
     vpp_loc2_at = pp2builder.get_pp_loc_part2()
-    # TODO continue here
-    vpp_nl_at = pp_int.get_pp_nl(cell, kpts)
+    print('shape pyscf vpp2', np.shape(vpp2))
+    vpp_nl_at = get_pp_nl(cell, kpts)
+    print('shape pyscf vnl', np.shape(vnl))
     
     vpp_total = vpp_loc1_at + vpp_loc2_at + vpp_nl_at
     if is_single_kpt:   
         vpp_total = vpp_total[0]
-        vpp_loc1_at = vloc1_at[0]
-        vpp_loc2_at = vloc2_at[0]
-        vpp_nl_at   = vnl_at[0]
-    return vpp_total, vloc1_at+vloc2_at, vnl_at
+        vpp_loc1_at = vpp_loc1_at[0]
+        vpp_loc2_at = vpp_loc2_at[0]
+        vpp_nl_at   = vpp_nl_at[0]
+    return vpp_total, vpp_loc1_at+vpp_loc2_at, vpp_nl_at
     # returns nkpts x nao x nao
     #vnl_at = dfbuilder.get_pp_nl()
     #vpp_total = vloc1_at + vloc2_at + vnl_at
@@ -633,12 +633,13 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     cell = mydf.cell
     mesh = np.asarray(mydf.mesh)
     charges = cell.atom_charges()
-    kpts = self.kpts
+    #kpts = self.kpts
     natm = cell.natm
     nkpts = len(kpts)
     nao = cell.nao_nr()
     #aosym = 's2'
     nao_pair = nao * (nao+1) // 2
+    #print('nao_pair', nao_pair, nao)
 
     kpt_allow = np.zeros(3)
 # TODO check this, introduce
@@ -664,14 +665,17 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     #                        supmol=supmol)
 
     Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
+    ngrids = Gv.shape[0]
+    #print('shapes Gv, Gvbase, kws', np.shape(Gv), np.shape(Gvbase), np.shape(kws))
 
     if with_pseudo:
         # FIXME make this atomic, just a quick test here for now
         vpplocG = pseudo.pp_int.get_gth_vlocG_part1(cell, Gv)
-        print('shape vpplocG', np.shape(vpplocG))
+        #print('shape vpplocG', np.shape(vpplocG))
+        #print('mesh that is made here', np.shape(mesh))
         #vpplocG = -np.einsum('ij,ij->j', cell.get_SI(Gv), vpplocG)
         vpplocG_at = -np.einsum('xi,xi->xi', cell.get_SI(Gv), vpplocG)
-        print('shape vpplocG_at', np.shape(vpplocG_at))
+        #print('shape vpplocG_at', np.shape(vpplocG_at))
     else:
         fakenuc = _fake_nuc(cell, with_pseudo=with_pseudo)
         # analytical FT AO-pair product
@@ -681,14 +685,15 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
         coulG = pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
         # G-space integrals for Vnuc - Vloc
         vpplocG    = np.einsum('i,xi->xi', -charges, aoaux)
-        print('shape no pseudo vpplocG', np.shape(vpplocG))
+        #print('shape no pseudo vpplocG', np.shape(vpplocG))
         vpplocG_at = np.einsum('i,xi->xi', coulG, vpplocG)
-        print('shape no pseudo vpplocG_at', np.shape(vpplocG_at))
+        #print('shape no pseudo vpplocG_at', np.shape(vpplocG_at))
 
     vpplocG_at *= kws
-    print('shape vpplocG_at*kws', np.shape(vpplocG_at))
+    #print('shape vpplocG_at*kws', np.shape(vpplocG_at))
     vGR_at = vpplocG_at.real
     vGI_at = vpplocG_at.imag
+    #print('shape vGR_at', np.shape(vGR_at))
 
 ##
 #    ## Coulomb kernel for all G-vectors
@@ -722,14 +727,18 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
         # analytical FT kernel for AO-products (ao values on a G-grid)
         # shape of Gpq (nkpts, nGv, nao_pair)
         for k, (GpqR, GpqI) in enumerate(zip(*Gpq)):
+            #print(' shape of Gpq (nkpts, nGv, nao_pair), real, imag: ', np.shape(Gpq), np.shape(GpqR), np.shape(GpqI) )
+            #print(' shape of vGR_at[p0:p1], GpqR: ', np.shape(vGR_at[p0:p1]), np.shape(GpqR))
+            #print(' shape of vGR_at, p0,p1: ', np.shape(vGR_at), p0, p1)
+
             # rho_ij(G) nuc(-G) / G^2
             # = [Re(rho_ij(G)) + Im(rho_ij(G))*1j] [Re(nuc(G)) - Im(nuc(G))*1j] / G^2
             # contract potential on grid points with value of the ao on that grid point 
-            vjR_at[k] += np.einsum('ji,jx->ix', vGR_at[p0:p1], GpqR)
-            vjR_at[k] += np.einsum('ji,jx->ix', vGI_at[p0:p1], GpqI)
+            vjR_at[k] += np.einsum('ij,jx->ix', vGR_at[:,p0:p1], GpqR)
+            vjR_at[k] += np.einsum('ij,jx->ix', vGI_at[:,p0:p1], GpqI)
             if not is_zero(kpts[k]):
-                vjI_at[k] += np.einsum('ji,jx->ix', vGR_at[p0:p1], GpqI)
-                vjI_at[k] -= np.einsum('ji,jx->ix', vGI_at[p0:p1], GpqR)
+                vjI_at[k] += np.einsum('ji,jx->ix', vGR_at[:,p0:p1], GpqI)
+                vjI_at[k] -= np.einsum('ji,jx->ix', vGI_at[:,p0:p1], GpqR)
 
 ##
     #buf = np.empty((2, nkpts, Gblksize, nao_pair))
@@ -752,14 +761,14 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
         if is_zero(kpt):
             vj_1atm_kpts = []
             for i in range(len(charges)):
-                vj_1atm_kpts.append(lib.unpack_tril(vj_at[k,i,:].real))
+                vj_1atm_kpts.append(lib.unpack_tril(vjR_at[k,i,:].real))
             vj_kpts_at.append(vj_1atm_kpts)
         else:
             vj_1atm_kpts = []
             for i in range(len(charges)):
-                vj_1atm_kpts.append(lib.unpack_tril(vj_at[k,i,:]))
+                vj_1atm_kpts.append(lib.unpack_tril(vjR_at[k,i,:] + vjI_at[k,i,:]*1j) )  
             vj_kpts_at.append(vj_1atm_kpts)
-    print('shape vj_kpts_at', np.shape(np.asarray(vj_kpts_at)))
+    #print('shape vj_kpts_at', np.shape(np.asarray(vj_kpts_at)))
     return np.asarray(vj_kpts_at)
 
 
@@ -801,7 +810,8 @@ class _IntPPBuilder(Int3cBuilder):
         self.bvk_kmesh = kmesh = k2gamma.kpts_to_kmesh(cell, kpts)
     
         self.rs_cell = rs_cell = ft_ao._RangeSeparatedCell.from_cell(
-            cell, self.ke_cutoff, RCUT_THRESHOLD, verbose=log)
+            cell, self.ke_cutoff, RCUT_THRESHOLD)
+            #cell, self.ke_cutoff, RCUT_THRESHOLD, verbose=log)
 
         intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
                   'int3c1e_r4_origk', 'int3c1e_r6_origk')
@@ -830,7 +840,8 @@ class _IntPPBuilder(Int3cBuilder):
             return vpp_loc2_at
 
         rcut = self._estimate_rcut_3c1e(rs_cell, fake_cells)
-        supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max(), log)
+        #supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max(), log)
+        supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max())
         self.supmol = supmol.strip_basis(rcut)
 
         # buffer arrays to gather all integrals into before unpacking
@@ -842,15 +853,15 @@ class _IntPPBuilder(Int3cBuilder):
             # put the ints for this coeff. in the right places in the 
             # buffer, i.e. assign to the right atom
             vR, vI = int3c()
-            print('np.shape(vR)', np.shape(vR))
+            #print('np.shape(vR)', np.shape(vR))
             # TODO check if needs this
             vR_at = np.einsum('kij->kji', vR) 
             for k, kpt in enumerate(kpts):
-                    bufR_at[k, fakebas_atom_ids] += vR_at[k]
-                if vI is not None:
-                    vI_at = np.einsum('kij->kji', vI) 
-                    for k, kpt in enumerate(kpts):
-                        bufI_at[k, fakebas_atom_ids] += vI_at[k]
+                bufR_at[k, fakebas_atm_ids] += vR_at[k]
+            if vI is not None:
+                vI_at = np.einsum('kij->kji', vI) 
+                for k, kpt in enumerate(kpts):
+                    bufI_at[k, fakebas_atm_ids] += vI_at[k]
             #
             #bufR += np.einsum('...i->...', vR)
             #if vI is not None:
@@ -866,81 +877,171 @@ class _IntPPBuilder(Int3cBuilder):
                if is_zero(kpt):  # gamma_point:
                     v_1atm_ints = v_1atm_ints.real
                vloc2_1atm_kpts.append(v_1atm_ints)
-           vloc2_at.append(vloc2_1atm_kpts)
-        return np.asarray(vloc2_at)
+           vpp_loc2_at.append(vloc2_1atm_kpts)
+        return np.asarray(vpp_loc2_at)
+
+    def _estimate_rcut_3c1e(self, cell, fake_cells):
+        '''Estimate rcut for pp-loc part2 based on 3-center overlap integrals.
+        '''
+        precision = cell.precision
+        exps = np.array([e.min() for e in cell.bas_exps()])
+        if exps.size == 0:
+            return np.zeros(1)
+
+        ls = cell._bas[:,gto.ANG_OF]
+        cs = gto.gto_norm(ls, exps)
+        ai_idx = exps.argmin()
+        ai = exps[ai_idx]
+        li = cell._bas[ai_idx,gto.ANG_OF]
+        ci = cs[ai_idx]
+
+        r0 = cell.rcut  # initial guess
+        rcut = []
+        for lk, fake_cell in fake_cells.items():
+            nuc_exps = np.hstack(fake_cell.bas_exps())
+            ak_idx = nuc_exps.argmin()
+            ak = nuc_exps[ak_idx]
+            ck = abs(fake_cell._env[fake_cell._bas[ak_idx,gto.PTR_COEFF]])
+
+            aij = ai + exps
+            ajk = exps + ak
+            aijk = aij + ak
+            aijk1 = aijk**-.5
+            theta = 1./(1./aij + 1./ak)
+            norm_ang = ((2*li+1)*(2*ls+1))**.5/(4*np.pi)
+            c1 = ci * cs * ck * norm_ang
+            sfac = aij*exps/(aij*exps + ai*theta)
+            rfac = ak / (aij * ajk)
+            fl = 2
+            fac = 2**(li+1)*np.pi**2.5 * aijk1**3 * c1 / theta * fl / precision
+
+            r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
+                         (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
+            r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
+                         (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
+            rcut.append(r0)
+        return np.max(rcut, axis=0)
+
+def get_pp_nl(cell, kpts=None):
+    """
+    Vnl pseudopotential part.
+    PRB, 58, 3641 Eq (2), nonlocal contribution.
+    Project the core basis funcs omitted by using pseudopotentials 
+    out by computing overlaps between basis funcs. (in cell) and 
+    projectors (gaussian, in fakecell).
+    """
+    if kpts is None:
+        kpts_lst = np.zeros((1,3))
+    else:
+        kpts_lst = np.reshape(kpts, (-1,3))
+    nkpts = len(kpts_lst)
+
+    # generate a fake cell for V_{nl} gaussian functions, and 
+    # matrices of hl coeff. (for each atom, ang. mom.)
+    fakecell, hl_blocks = pseudo.pp_int.fake_cell_vnl(cell)
+    vppnl_half = pseudo.pp_int._int_vnl(cell, fakecell, hl_blocks, kpts_lst)
+    nao = cell.nao_nr()
+    natm = cell.natm
+    buf = np.empty((3*9*nao), dtype=np.complex128)
+
+    # set equal to zeros in case hl_blocks loop is skipped
+    vnl_at = np.zeros((nkpts,natm,nao,nao), dtype=np.complex128)
+    for k, kpt in enumerate(kpts_lst):
+        offset = [0] * 3
+        # loop over bas_id, hl coeff. array 
+        for ib, hl in enumerate(hl_blocks):
+            # the ang. mom. q.nr. associated with given basis
+            l = fakecell.bas_angular(ib)
+            # the id of the atom the coeff. belongs to
+            atm_id_hl = fakecell.bas_atom(ib)
+            nd = 2 * l + 1
+            hl_dim = hl.shape[0]
+            ilp = np.ndarray((hl_dim,nd,nao), dtype=np.complex128, buffer=buf)
+            for i in range(hl_dim):
+                # make sure that the right m,l sph.harm are taken in projectors
+                p0 = offset[i]
+                ilp[i] = vppnl_half[i][k][p0:p0+nd]
+                offset[i] = p0 + nd
+            vnl_at[k,atm_id_hl] += np.einsum('ilp,ij,jlq->pq', ilp.conj(), hl, ilp)
+    
+    if abs(kpts_lst).sum() < 1e-9: 
+        vnl_at = vnl_at.real
+    return vnl_at
+#
+
 
 
 # FIXME double check this against a new version
-#def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
-#    """
-#    This function returns the nuc-nuc repulsion energy for a cell
-#    by performing real (R) and reciprocal (G) space Ewald sum, 
-#    which consists of overlap, self and G-space sum 
-#    (Formulation of Martin, App. F2.).
-#    """ 
-#    def cut_mesh_for_ewald(cell: pbc_gto.Cell, mesh: List[int]) -> List[int]:
-#        mesh = np.copy(mesh)
-#        mesh_max = np.asarray(np.linalg.norm(cell.lattice_vectors(), axis=1) * 2,
-#                              dtype=int)  # roughly 2 grids per bohr
-#        if (cell.dimension < 2 or
-#            (cell.dimension == 2 and cell.low_dim_ft_type == 'inf_vacuum')):
-#            mesh_max[cell.dimension:] = mesh[cell.dimension:]
-#
-#        mesh_max[mesh_max<80] = 80
-#        mesh[mesh>mesh_max] = mesh_max[mesh>mesh_max]
-#        return mesh
-#
-#    if cell.natm == 0:
-#        return 0
-#
-#    ew_eta, ew_cut = cell.get_ewald_params()[0], cell.get_ewald_params()[1]
-#    chargs, coords = cell.atom_charges(), cell.atom_coords()
-#
-#    # lattice translation vectors for nearby images (in bohr)
-#    Lall = cell.get_lattice_Ls(rcut=ew_cut)
-#
-#    # coord. difference between atoms in the cell and its nearby images
-#    rLij = coords[:,None,:] - coords[None,:,:] + Lall[:,None,None,:]
-#    # euclidean distances 
-#    r = np.sqrt(np.einsum('Lijx,Lijx->Lij', rLij, rLij))
-#    rLij = None
-#    # "eliminate" self-distances 
-#    r[r<1e-16] = 1e200
-#    
-#    # overlap term in R-space sum 
-#    ewovrl_atomic = .5 * np.einsum('i,j,Lij->i', chargs, chargs, erfc(ew_eta * r) / r)
-#    
-#    # self term in R-space term (last line of Eq. (F.5) in Martin)
-#    ewself_factor = -.5 * 2 * ew_eta / np.sqrt(np.pi)
-#    ewself_atomic = np.einsum('i,i->i', chargs,chargs)
-#    ewself_atomic = ewself_atomic.astype(float)
-#    ewself_atomic *= ewself_factor 
-#    if cell.dimension == 3:
-#        ewself_atomic += -.5 * (chargs*np.sum(chargs)).astype(float) * np.pi/(ew_eta**2 * cell.vol)
-#
-#    # G-space sum (corrected Eq. (F.6) in Electronic Structure by Richard M. Martin)
-#    # get G-grid (consisting of reciprocal lattice vectors)
-#    mesh = cut_mesh_for_ewald(cell, cell.mesh)
-#    Gv, Gvbase, Gv_weights = cell.get_Gv_weights(mesh)
-#    absG2 = np.einsum('gi,gi->g', Gv, Gv)
-#    # exclude the G=0 vector
-#    absG2[absG2==0] = 1e200
-#
-#    if cell.dimension != 2 or cell.low_dim_ft_type == 'inf_vacuum':
-#        coulG = 4*np.pi / absG2
-#        coulG *= Gv_weights
-#        # get the structure factors
-#        ZSI_total = np.einsum("i,ij->j", chargs, cell.get_SI(Gv))
-#        ZSI_atomic = np.einsum("i,ij->ij", chargs, cell.get_SI(Gv)) 
-#        ZexpG2_atomic = ZSI_atomic * np.exp(-absG2/(4*ew_eta**2))
-#        ewg_atomic = .5 * np.einsum('j,ij,j->i', ZSI_total.conj(), ZexpG2_atomic, coulG).real
-#
-#    else:
-#        raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
-#    
-#    return ewovrl_atomic + ewself_atomic + ewg_atomic
-#
-#
+def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
+    """
+    This function returns the nuc-nuc repulsion energy for a cell
+    by performing real (R) and reciprocal (G) space Ewald sum, 
+    which consists of overlap, self and G-space sum 
+    (Formulation of Martin, App. F2.).
+    """ 
+    def cut_mesh_for_ewald(cell: pbc_gto.Cell, mesh: List[int]) -> List[int]:
+        mesh = np.copy(mesh)
+        mesh_max = np.asarray(np.linalg.norm(cell.lattice_vectors(), axis=1) * 2,
+                              dtype=int)  # roughly 2 grids per bohr
+        if (cell.dimension < 2 or
+            (cell.dimension == 2 and cell.low_dim_ft_type == 'inf_vacuum')):
+            mesh_max[cell.dimension:] = mesh[cell.dimension:]
+
+        mesh_max[mesh_max<80] = 80
+        mesh[mesh>mesh_max] = mesh_max[mesh>mesh_max]
+        return mesh
+
+    if cell.natm == 0:
+        return 0
+
+    ew_eta, ew_cut = cell.get_ewald_params()[0], cell.get_ewald_params()[1]
+    chargs, coords = cell.atom_charges(), cell.atom_coords()
+
+    # lattice translation vectors for nearby images (in bohr)
+    Lall = cell.get_lattice_Ls(rcut=ew_cut)
+
+    # coord. difference between atoms in the cell and its nearby images
+    rLij = coords[:,None,:] - coords[None,:,:] + Lall[:,None,None,:]
+    # euclidean distances 
+    r = np.sqrt(np.einsum('Lijx,Lijx->Lij', rLij, rLij))
+    rLij = None
+    # "eliminate" self-distances 
+    r[r<1e-16] = 1e200
+    
+    # overlap term in R-space sum 
+    ewovrl_atomic = .5 * np.einsum('i,j,Lij->i', chargs, chargs, erfc(ew_eta * r) / r)
+    
+    # self term in R-space term (last line of Eq. (F.5) in Martin)
+    ewself_factor = -.5 * 2 * ew_eta / np.sqrt(np.pi)
+    ewself_atomic = np.einsum('i,i->i', chargs,chargs)
+    ewself_atomic = ewself_atomic.astype(float)
+    ewself_atomic *= ewself_factor 
+    if cell.dimension == 3:
+        ewself_atomic += -.5 * (chargs*np.sum(chargs)).astype(float) * np.pi/(ew_eta**2 * cell.vol)
+
+    # G-space sum (corrected Eq. (F.6) in Electronic Structure by Richard M. Martin)
+    # get G-grid (consisting of reciprocal lattice vectors)
+    mesh = cut_mesh_for_ewald(cell, cell.mesh)
+    Gv, Gvbase, Gv_weights = cell.get_Gv_weights(mesh)
+    absG2 = np.einsum('gi,gi->g', Gv, Gv)
+    # exclude the G=0 vector
+    absG2[absG2==0] = 1e200
+
+    if cell.dimension != 2 or cell.low_dim_ft_type == 'inf_vacuum':
+        coulG = 4*np.pi / absG2
+        coulG *= Gv_weights
+        # get the structure factors
+        ZSI_total = np.einsum("i,ij->j", chargs, cell.get_SI(Gv))
+        ZSI_atomic = np.einsum("i,ij->ij", chargs, cell.get_SI(Gv)) 
+        ZexpG2_atomic = ZSI_atomic * np.exp(-absG2/(4*ew_eta**2))
+        ewg_atomic = .5 * np.einsum('j,ij,j->i', ZSI_total.conj(), ZexpG2_atomic, coulG).real
+
+    else:
+        raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+    
+    return ewovrl_atomic + ewself_atomic + ewg_atomic
+
+
 def _check_kpts(mydf, kpts):
     '''Check if the argument kpts is a single k-point'''
     if kpts is None:
