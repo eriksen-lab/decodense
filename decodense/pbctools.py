@@ -632,6 +632,7 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     kpts, is_single_kpt = _check_kpts(mydf, kpts)
     cell = mydf.cell
     mesh = np.asarray(mydf.mesh)
+    print('mesh from df obj', mesh)
     charges = cell.atom_charges()
     #kpts = self.kpts
     natm = cell.natm
@@ -645,11 +646,14 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
 # TODO check this, introduce
 #    eta, mesh, ke_cutoff = _guess_eta(cell, kpts, mesh)
     ke_guess = estimate_ke_cutoff(cell, cell.precision)
-    mesh = cell.mesh
-    mesh_guess = cell.cutoff_to_mesh(ke_guess)
-    if np.any(mesh < mesh_guess*KE_SCALING):
-        # TODO make a custom warning: '(mydf, 'mesh %s is not enough for AFTDF.get_nuc function to get integral accuracy %g.\nRecommended mesh is %s.', mesh, cell.precision, mesh_guess)'
-        raise Warning
+    mesh = cell.cutoff_to_mesh(ke_guess)
+    print('mesh from cell', cell.mesh)
+    print('mesh from cell.cutoff_to_mesh(ke_guess)', mesh)
+    #mesh_guess = cell.cutoff_to_mesh(ke_guess)
+    # TODO see if necessary
+    #if np.any(mesh < mesh_guess*KE_SCALING):
+    #    # TODO make a custom warning: '(mydf, 'mesh %s is not enough for AFTDF.get_nuc function to get integral accuracy %g.\nRecommended mesh is %s.', mesh, cell.precision, mesh_guess)'
+    #    raise Warning
 
     ## check for cell with partially de-conracted basis 
     #if self.rs_cell is None:
