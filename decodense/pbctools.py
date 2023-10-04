@@ -87,7 +87,7 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 
     pp2builder = _IntPPBuilder(cell, kpts)
     vpp_loc2_at = pp2builder.get_pp_loc_part2()
-    print('shape pyscf vpp2', np.shape(vpp2))
+    print('shape pyscf vpp_loc2_at', np.shape(vpp_loc2_at))
     vpp_nl_at = get_pp_nl(cell, kpts)
     print('shape pyscf vnl', np.shape(vnl))
     
