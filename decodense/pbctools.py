@@ -620,6 +620,65 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 #                    vj_at[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
 #    return vj_at
 
+def _guess_omega(cell, kpts, mesh=None):
+    if cell.dimension == 0:
+        if mesh is None:
+            mesh = cell.mesh
+        ke_cutoff = pbc_tools.mesh_to_cutoff(cell.lattice_vectors(), mesh).min()
+        return 0, mesh, ke_cutoff
+
+    # requiring Coulomb potential < cell.precision at rcut is often not
+    # enough to truncate the interaction.
+    # omega_min = estimate_omega_min(cell, cell.precision*1e-2)
+    omega_min = OMEGA_MIN
+    ke_min = estimate_ke_cutoff_for_omega(cell, omega_min, cell.precision)
+    a = cell.lattice_vectors()
+
+    if mesh is None:
+        nkpts = len(kpts)
+        ke_cutoff = 20. * nkpts**(-1./3)
+        ke_cutoff = max(ke_cutoff, ke_min)
+        mesh = cell.cutoff_to_mesh(ke_cutoff)
+    else:
+        mesh = np.asarray(mesh)
+        mesh_min = cell.cutoff_to_mesh(ke_min)
+        if np.any(mesh[:cell.dimension] < mesh_min[:cell.dimension]):
+            logger.warn(cell, 'mesh %s is not enough to converge to the required '
+                        'integral precision %g.\nRecommended mesh is %s.',
+                        mesh, cell.precision, mesh_min)
+    ke_cutoff = min(pbc_tools.mesh_to_cutoff(a, mesh)[:cell.dimension])
+    omega = estimate_omega_for_ke_cutoff(cell, ke_cutoff, cell.precision)
+    return omega, mesh, ke_cutoff
+
+def estimate_ke_cutoff_for_omega(cell, omega, precision=None):
+    '''Energy cutoff for AFTDF to converge attenuated Coulomb in moment space
+    '''
+    if precision is None:
+        precision = cell.precision
+    exps, cs = pbc_gto.cell._extract_pgto_params(cell, 'max')
+    ls = cell._bas[:,gto.ANG_OF]
+    cs = gto.gto_norm(ls, exps)
+    Ecut = aft._estimate_ke_cutoff(exps, ls, cs, precision, omega)
+    return Ecut.max()
+
+OMEGA_MIN = 0.08
+
+def estimate_omega_for_ke_cutoff(cell, ke_cutoff, precision=None):
+    '''The minimal omega in attenuated Coulombl given energy cutoff
+    '''
+    if precision is None:
+        precision = cell.precision
+    # esitimation based on \int dk 4pi/k^2 exp(-k^2/4omega) sometimes is not
+    # enough to converge the 2-electron integrals. A penalty term here is to
+    # reduce the error in integrals
+    precision *= 1e-2
+    # Consider l>0 basis here to increate Ecut for slightly better accuracy
+    lmax = np.max(cell._bas[:,gto.ANG_OF])
+    kmax = (ke_cutoff*2)**.5
+    log_rest = np.log(precision / (16*np.pi**2 * kmax**lmax))
+    omega = (-.5 * ke_cutoff / log_rest)**.5
+    return omega
+
 #def get_pp_loc_part1(mydf, mesh: Union[List[int], np.ndarray] = None, \
 def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     """
@@ -631,6 +690,7 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
 # TODO check this, introduce
     kpts, is_single_kpt = _check_kpts(mydf, kpts)
     cell = mydf.cell
+    mydf.build()
     mesh = np.asarray(mydf.mesh)
     print('mesh from df obj', mesh)
     charges = cell.atom_charges()
@@ -643,12 +703,10 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     #print('nao_pair', nao_pair, nao)
 
     kpt_allow = np.zeros(3)
-# TODO check this, introduce
-#    eta, mesh, ke_cutoff = _guess_eta(cell, kpts, mesh)
-    ke_guess = estimate_ke_cutoff(cell, cell.precision)
-    mesh = cell.cutoff_to_mesh(ke_guess)
-    print('mesh from cell', cell.mesh)
-    print('mesh from cell.cutoff_to_mesh(ke_guess)', mesh)
+    auxcell = mydf.auxcell
+    print('auxcell from mydf', auxcell)
+    _, mesh, _ = _guess_omega(auxcell, kpts, mydf.mesh)
+    print('mesh1 from rsgdf_builder._guess_omega and auxcell', mesh)
     #mesh_guess = cell.cutoff_to_mesh(ke_guess)
     # TODO see if necessary
     #if np.any(mesh < mesh_guess*KE_SCALING):

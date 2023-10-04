@@ -24,7 +24,8 @@ from pyscf.pbc import scf as pbc_scf
 from pyscf.pbc.dft import numint as pbc_numint
 from typing import List, Tuple, Dict, Union, Any
 
-from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
+#from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
+from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_pp_atomic_df
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import CompKeys
 
