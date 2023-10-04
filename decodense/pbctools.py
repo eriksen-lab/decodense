@@ -89,7 +89,7 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
     vpp_loc2_at = pp2builder.get_pp_loc_part2()
     print('shape pyscf vpp_loc2_at', np.shape(vpp_loc2_at))
     vpp_nl_at = get_pp_nl(cell, kpts)
-    print('shape pyscf vnl', np.shape(vnl))
+    print('shape pyscf vpp_nl_at', np.shape(vpp_nl_at))
     
     vpp_total = vpp_loc1_at + vpp_loc2_at + vpp_nl_at
     if is_single_kpt:   
