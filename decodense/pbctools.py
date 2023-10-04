@@ -26,7 +26,8 @@ from pyscf.pbc import tools
 from pyscf.pbc import df as pbc_df  
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
-from pyscf.pbc.df import ft_ao
+from pyscf.pbc import tools as pbc_tools
+from pyscf.pbc.df import ft_ao, aft
 from pyscf.pbc.gto import pseudo
 from pyscf.pbc.tools import k2gamma
 from pyscf.pbc.df.incore import Int3cBuilder
