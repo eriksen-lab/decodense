@@ -706,8 +706,11 @@ def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     kpt_allow = np.zeros(3)
     auxcell = mydf.auxcell
     print('auxcell from mydf', auxcell)
-    _, mesh, _ = _guess_omega(auxcell, kpts, mydf.mesh)
+    omega, mesh, _ = _guess_omega(auxcell, kpts, mydf.mesh)
     print('mesh1 from rsgdf_builder._guess_omega and auxcell', mesh)
+    mesh = cell.symmetrize_mesh(mesh)
+    print('mesh sym from rsgdf_builder._guess_omega and auxcell', mesh)
+
     #mesh_guess = cell.cutoff_to_mesh(ke_guess)
     # TODO see if necessary
     #if np.any(mesh < mesh_guess*KE_SCALING):
