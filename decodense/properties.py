@@ -27,7 +27,7 @@ BLKSIZE = 200
 def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              rdm1_eff: np.ndarray, pop_method: str, prop_type: str, part: str, ndo: bool, \
-             gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             gauge_origin: np.ndarray, weights: List[np.ndarray]) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -60,11 +60,8 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             pmol = mol
 
         # effective atomic charges
-        if 'weights' in kwargs:
-            weights = kwargs['weights']
-            charge_atom = -np.sum(weights[0] + weights[1], axis=0)
-            if not ndo:
-                charge_atom += pmol.atom_charges()
+        if part in ['atoms', 'eda']:
+            charge_atom = -np.sum(weights[0] + weights[1], axis=0) + pmol.atom_charges()
         else:
             charge_atom = 0.
 
@@ -92,7 +89,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         if dft_calc:
             # ndo assertion
             if ndo:
-                raise NotImplementedError('NDOs for KS-DFT is not implemented')
+                raise NotImplementedError('NDOs for KS-DFT do not yield a lossless decomposition')
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
