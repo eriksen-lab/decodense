@@ -197,9 +197,9 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             print('\n *** partial population weights: ***')
             print(' spin  ' + 'MO       ' + '      '.join(['{:}'.format(i) for i in symbols]))
             for i, spin_mo in enumerate((alpha, beta)):
-                for j in domain:
+                for j in spin_mo:
                     with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
-                        print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', spin_mo[j], weights[i][j]))
+                        print('  {:s}    {:>2d}   {:}'.format('a' if i == 0 else 'b', j, weights[i][j]))
             with np.printoptions(suppress=True, linewidth=200, formatter={'float': '{:6.3f}'.format}):
                 print('   total    {:}'.format(np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0)))
 

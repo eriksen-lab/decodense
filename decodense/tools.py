@@ -85,7 +85,7 @@ def dim(mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        if np.asarray(mo_occ).ndim == 1:
+        if isinstance(mo_occ, np.ndarray) and mo_occ.ndim == 1:
             return np.where(np.abs(mo_occ) > 0.)[0], np.where(np.abs(mo_occ) > 1.)[0]
         else:
             return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
@@ -128,7 +128,7 @@ def orbsym(mol, mo_coeff):
             try:
                 orbsymm = np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff])
             except:
-                orbsymm = np.array([['A'] * c.shape[1] for c in mo_coeff])
+                orbsymm = np.array([['A'] * c.shape[1] for c in mo_coeff], dtype=object)
 
         return orbsymm
 
