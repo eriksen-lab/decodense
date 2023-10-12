@@ -66,8 +66,9 @@ class KnownValues(unittest.TestCase):
         for loc in LOC:
             for pop in POP:
                 for part in PART:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part, ndo=True)
+                    # `loc` should be `mo_basis` corresponding to `decomp.py`
+                    with self.subTest(mo_basis=loc, pop_method=pop, part=part):
+                        decomp = decodense.DecompCls(mo_basis=loc, pop_method=pop, part=part, ndo=True)
                         if loc == '':
                             if pop == 'mulliken':
                                 if part == 'orbitals':
