@@ -11,8 +11,10 @@ import decodense
 TOL = 9
 
 # settings
-LOC = ('', 'fb', 'pm', 'ibo-2', 'ibo-4')
-POP = ('mulliken', 'iao')
+MO_BASIS = ('can', 'fb', 'pm')
+MO_INIT = ('can', 'cholesky', 'ibo')
+POP_METHOD = ('mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao')
+LOC_EXP = (2, 4)
 PART = ('orbitals', 'eda', 'atoms')
 
 # init molecule
@@ -32,22 +34,19 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
     def test(self):
+        dipmom_tot = np.zeros(3)
         mf_dipmom_tot = mf.dip_moment(unit='au', verbose=0)
-        for loc in LOC:
-            for pop in POP:
-                for part in PART:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part, prop='dipole')
-                        res = decodense.main(mol, decomp, mf)
-                        if part == 'orbitals':
-                            dipmom_tot = np.fromiter(map(np.sum, res['el'][0].T), dtype=np.float64, count=3) \
-                                          + np.fromiter(map(np.sum, res['el'][1].T), dtype=np.float64, count=3) \
-                                          + np.sum(res['struct'], axis=0)
-                        else:
-                            dipmom_tot = np.fromiter(map(np.sum, res['el'].T), dtype=np.float64, count=3) \
-                                          + np.fromiter(map(np.sum, res['struct'].T), dtype=np.float64, count=3)
-                        np.testing.assert_array_almost_equal(mf_dipmom_tot, dipmom_tot, TOL)
-                        self.assertAlmostEqual(np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL)
+        for mo_basis in MO_BASIS:
+            for mo_init in MO_INIT:
+                for pop_method in POP_METHOD:
+                    for part in PART:
+                        with self.subTest(mo_basis=mo_basis, mo_init=mo_init, pop_method=pop_method, part=part):
+                            decomp = decodense.DecompCls(mo_basis=mo_basis, mo_init=mo_init, \
+                                                         pop_method=pop_method, part=part, prop='dipole')
+                            res = decodense.main(mol, decomp, mf)
+                            for ax_idx, axis in enumerate((' (x)', ' (y)', ' (z)')):
+                                dipmom_tot[ax_idx] = np.sum(res[decodense.decomp.CompKeys.tot + axis])
+                            self.assertAlmostEqual(np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL)
 
 if __name__ == '__main__':
     print('test: h2o_b3lyp_dipmom_gs')
