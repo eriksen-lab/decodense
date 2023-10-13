@@ -104,7 +104,7 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # nlc (vv10)
             if mf.nlc.upper() == 'VV10':
-                nlc_pars = dft.libxc.nlc_coeff(mf.xc)
+                nlc_pars = dft.libxc.nlc_coeff(mf.xc)[0][0]
                 ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                 grid_weights_nlc = mf.nlcgrids.weights
                 c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
@@ -272,7 +272,9 @@ def prop_tot(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
-            if not ndo:
+            if ndo:
+                prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
+            else:
                 prop[CompKeys.struct] = prop_nuc_rep
             return {**prop, CompKeys.charge_atom: charge_atom}
         else: # orbs

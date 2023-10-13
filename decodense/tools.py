@@ -116,17 +116,17 @@ def orbsym(mol, mo_coeff):
         if isinstance(mo_coeff, np.ndarray):
             if mo_coeff.ndim == 2:
                 try:
-                    orbsymm = symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff)
+                    orbsymm = np.array(symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff), dtype=object)
                 except:
-                    orbsymm = np.array(['A'] * mo_coeff.shape[1])
+                    orbsymm = np.array(['A'] * mo_coeff.shape[1], dtype=object)
             else:
                 try:
-                    orbsymm = np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff])
+                    orbsymm = np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff], dtype=object)
                 except:
-                    orbsymm = np.array([['A'] * c.shape[1] for c in mo_coeff])
+                    orbsymm = np.array([['A'] * c.shape[1] for c in mo_coeff], dtype=object)
         else:
             try:
-                orbsymm = np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff])
+                orbsymm = np.array([symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, c) for c in mo_coeff], dtype=object)
             except:
                 orbsymm = np.array([['A'] * c.shape[1] for c in mo_coeff], dtype=object)
 

@@ -11,11 +11,8 @@ import decodense
 TOL = 9
 
 # settings
-LOC = ('', 'fb', 'pm', 'ibo-2', 'ibo-4')
-POP = ('mulliken', 'iao')
 PART = ('orbitals', 'eda', 'atoms')
 
-# 1a2 state
 OCC_IDX, VIRT_IDX = 4, 5
 
 def format_mf(mf):
@@ -63,20 +60,12 @@ def tearDownModule():
 class KnownValues(unittest.TestCase):
     def test(self):
         mf_e_tot = mf_ex.e_tot - mf_gs.e_tot
-        for loc in LOC:
-            for pop in POP:
-                for part in PART:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part, ndo=True)
-                        if loc == '':
-                            if pop == 'mulliken':
-                                if part == 'orbitals':
-                                    res = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_delta, rdm1_eff=rdm1_sum)
-                                    e_tot = np.sum(res['el'][0]) + np.sum(res['el'][1])
-                                    self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
-                        else:
-                            with self.assertRaises(NotImplementedError):
-                                res = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_delta, rdm1_eff=rdm1_sum)
+        for part in PART:
+            with self.subTest(part=part):
+                decomp = decodense.DecompCls(part=part, ndo=True)
+                res = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_delta, rdm1_eff=rdm1_sum)
+                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 if __name__ == '__main__':
     print('test: ch2_hf_ndo')
