@@ -31,6 +31,9 @@ from pyscf.pbc.df import ft_ao, aft
 from pyscf.pbc.gto import pseudo
 from pyscf.pbc.tools import k2gamma
 from pyscf.pbc.df.incore import Int3cBuilder
+from pyscf.pbc.df.rsdf_builder import _RSGDFBuilder, estimate_rcut, estimate_ke_cutoff_for_omega, estimate_omega_for_ke_cutoff, estimate_ft_rcut 
+from pyscf.pbc.df.rsdf_builder import _guess_omega, _ExtendedMoleFT, _int_dd_block
+from pyscf.pbc.df.gdf_builder import _CCGDFBuilder
 #from pyscf.pbc.df.incore import _Int3cBuilder, _compensate_nuccell, _fake_nuc, _strip_basis, aux_e2
 from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
 from scipy.special import erf, erfc
@@ -82,7 +85,22 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 
     kpts, is_single_kpt = _check_kpts(mydf, kpts)
     cell = mydf.cell
-    vpp_loc1_at = get_pp_loc_part1(mydf, kpts, with_pseudo=True)
+    print('cell.omega', cell.omega)
+    #vpp_loc1_at = get_pp_loc_part1(mydf, kpts, with_pseudo=True)
+    if mydf._prefer_ccdf or cell.omega > 0:
+        # For long-range integrals _CCGDFBuilder is the only option
+        print('CCNuc builder')
+        print('CCNuc builder')
+        print('CCNuc builder')
+        pp1builder = _CCNucBuilder(cell, kpts).build()
+    else:
+        print('RSNuc builder')
+        print('RSNuc builder')
+        print('RSNuc builder')
+        pp1builder = _RSNucBuilder(cell, kpts).build()
+
+    #vpp_loc1_at = get_pp_part1_from_rsdfbuilder(mydf, kpts, with_pseudo=True)
+    vpp_loc1_at = pp1builder.get_pp_loc_part1()
     print('shape vpp_loc1_at', np.shape(vpp_loc1_at))
 
     pp2builder = _IntPPBuilder(cell, kpts)
@@ -621,72 +639,74 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 #                    vj_at[k,i,:] -= nucbar[i] * lib.pack_tril(ovlp[k])
 #    return vj_at
 
-def _guess_omega(cell, kpts, mesh=None):
-    if cell.dimension == 0:
-        if mesh is None:
-            mesh = cell.mesh
-        ke_cutoff = pbc_tools.mesh_to_cutoff(cell.lattice_vectors(), mesh).min()
-        return 0, mesh, ke_cutoff
-
-    # requiring Coulomb potential < cell.precision at rcut is often not
-    # enough to truncate the interaction.
-    # omega_min = estimate_omega_min(cell, cell.precision*1e-2)
-    omega_min = OMEGA_MIN
-    ke_min = estimate_ke_cutoff_for_omega(cell, omega_min, cell.precision)
-    a = cell.lattice_vectors()
-
-    if mesh is None:
-        nkpts = len(kpts)
-        ke_cutoff = 20. * nkpts**(-1./3)
-        ke_cutoff = max(ke_cutoff, ke_min)
-        mesh = cell.cutoff_to_mesh(ke_cutoff)
-    else:
-        mesh = np.asarray(mesh)
-        mesh_min = cell.cutoff_to_mesh(ke_min)
-        if np.any(mesh[:cell.dimension] < mesh_min[:cell.dimension]):
-            logger.warn(cell, 'mesh %s is not enough to converge to the required '
-                        'integral precision %g.\nRecommended mesh is %s.',
-                        mesh, cell.precision, mesh_min)
-    ke_cutoff = min(pbc_tools.mesh_to_cutoff(a, mesh)[:cell.dimension])
-    omega = estimate_omega_for_ke_cutoff(cell, ke_cutoff, cell.precision)
-    return omega, mesh, ke_cutoff
-
-def estimate_ke_cutoff_for_omega(cell, omega, precision=None):
-    '''Energy cutoff for AFTDF to converge attenuated Coulomb in moment space
-    '''
-    if precision is None:
-        precision = cell.precision
-    exps, cs = pbc_gto.cell._extract_pgto_params(cell, 'max')
-    ls = cell._bas[:,gto.ANG_OF]
-    cs = gto.gto_norm(ls, exps)
-    Ecut = aft._estimate_ke_cutoff(exps, ls, cs, precision, omega)
-    return Ecut.max()
-
-OMEGA_MIN = 0.08
-
-def estimate_omega_for_ke_cutoff(cell, ke_cutoff, precision=None):
-    '''The minimal omega in attenuated Coulombl given energy cutoff
-    '''
-    if precision is None:
-        precision = cell.precision
-    # esitimation based on \int dk 4pi/k^2 exp(-k^2/4omega) sometimes is not
-    # enough to converge the 2-electron integrals. A penalty term here is to
-    # reduce the error in integrals
-    precision *= 1e-2
-    # Consider l>0 basis here to increate Ecut for slightly better accuracy
-    lmax = np.max(cell._bas[:,gto.ANG_OF])
-    kmax = (ke_cutoff*2)**.5
-    log_rest = np.log(precision / (16*np.pi**2 * kmax**lmax))
-    omega = (-.5 * ke_cutoff / log_rest)**.5
-    return omega
+##OK
+## ngrids ~= 8*naux = prod(mesh)
+#def _guess_omega(cell, kpts, mesh=None):
+#    if cell.dimension == 0:
+#        if mesh is None:
+#            mesh = cell.mesh
+#        ke_cutoff = pbc_tools.mesh_to_cutoff(cell.lattice_vectors(), mesh).min()
+#        return 0, mesh, ke_cutoff
+#
+#    # requiring Coulomb potential < cell.precision at rcut is often not
+#    # enough to truncate the interaction.
+#    # omega_min = estimate_omega_min(cell, cell.precision*1e-2)
+#    omega_min = OMEGA_MIN
+#    ke_min = estimate_ke_cutoff_for_omega(cell, omega_min, cell.precision)
+#    a = cell.lattice_vectors()
+#
+#    if mesh is None:
+#        nkpts = len(kpts)
+#        ke_cutoff = 20. * nkpts**(-1./3)
+#        ke_cutoff = max(ke_cutoff, ke_min)
+#        mesh = cell.cutoff_to_mesh(ke_cutoff)
+#    else:
+#        mesh = np.asarray(mesh)
+#        mesh_min = cell.cutoff_to_mesh(ke_min)
+#        if np.any(mesh[:cell.dimension] < mesh_min[:cell.dimension]):
+#            logger.warn(cell, 'mesh %s is not enough to converge to the required '
+#                        'integral precision %g.\nRecommended mesh is %s.',
+#                        mesh, cell.precision, mesh_min)
+#    ke_cutoff = min(pbc_tools.mesh_to_cutoff(a, mesh)[:cell.dimension])
+#    omega = estimate_omega_for_ke_cutoff(cell, ke_cutoff, cell.precision)
+#    return omega, mesh, ke_cutoff
+#
+##OK, from rsdf_builder
+#def estimate_ke_cutoff_for_omega(cell, omega, precision=None):
+#    '''Energy cutoff for AFTDF to converge attenuated Coulomb in moment space
+#    '''
+#    if precision is None:
+#        precision = cell.precision
+#    exps, cs = pbc_gto.cell._extract_pgto_params(cell, 'max')
+#    ls = cell._bas[:,gto.ANG_OF]
+#    cs = gto.gto_norm(ls, exps)
+#    Ecut = aft._estimate_ke_cutoff(exps, ls, cs, precision, omega)
+#    return Ecut.max()
+#
+#OMEGA_MIN = 0.08
+#
+##OK, from rsdf_builder
+#def estimate_omega_for_ke_cutoff(cell, ke_cutoff, precision=None):
+#    '''The minimal omega in attenuated Coulombl given energy cutoff
+#    '''
+#    if precision is None:
+#        precision = cell.precision
+#    # esitimation based on \int dk 4pi/k^2 exp(-k^2/4omega) sometimes is not
+#    # enough to converge the 2-electron integrals. A penalty term here is to
+#    # reduce the error in integrals
+#    precision *= 1e-2
+#    # Consider l>0 basis here to increate Ecut for slightly better accuracy
+#    lmax = np.max(cell._bas[:,gto.ANG_OF])
+#    kmax = (ke_cutoff*2)**.5
+#    log_rest = np.log(precision / (16*np.pi**2 * kmax**lmax))
+#    omega = (-.5 * ke_cutoff / log_rest)**.5
+#    return omega
 
 #def get_pp_loc_part1(mydf, mesh: Union[List[int], np.ndarray] = None, \
 def get_pp_loc_part1(mydf, kpts=None, with_pseudo: bool = True) -> np.ndarray:
     """
     Vnuc term 
     """
-# TODO needed ?
-#    from pyscf.pbc.df.gdf_builder import _guess_eta
 
 # TODO check this, introduce
     kpts, is_single_kpt = _check_kpts(mydf, kpts)
@@ -1146,3 +1166,635 @@ def estimate_ke_cutoff(cell, precision=None):
     cs = gto.gto_norm(ls, exps)
     Ecut = _estimate_ke_cutoff(exps, ls, cs, precision)
     return Ecut.max()
+######################################
+######################################
+######################################
+class _RSNucBuilder(_RSGDFBuilder):
+
+    # TODO after fixing merge_dd, change back to True
+    exclude_dd_block = False
+    exclude_d_aux = False
+
+    def __init__(self, cell, kpts=np.zeros((1,3))):
+        self.mesh = None
+        self.omega = None
+        self.auxcell = self.rs_auxcell = None
+        Int3cBuilder.__init__(self, cell, self.auxcell, kpts)
+
+    def build(self, omega=None):
+        cell = self.cell
+        fakenuc = aft._fake_nuc(cell, with_pseudo=True)
+        kpts = self.kpts
+        nkpts = len(kpts)
+
+        self.bvk_kmesh = kmesh = k2gamma.kpts_to_kmesh(cell, kpts)
+
+        if cell.dimension == 0:
+            self.omega, self.mesh, self.ke_cutoff = _guess_omega(cell, kpts, self.mesh)
+        else:
+            if omega is None:
+                omega = 1./(1.+nkpts**(1./9))
+            ke_cutoff = estimate_ke_cutoff_for_omega(cell, omega)
+            self.mesh = cell.cutoff_to_mesh(ke_cutoff)
+            self.ke_cutoff = min(pbc_tools.mesh_to_cutoff(
+                cell.lattice_vectors(), self.mesh)[:cell.dimension])
+            self.omega = estimate_omega_for_ke_cutoff(cell, self.ke_cutoff)
+            if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
+                #self.mesh[2] = _estimate_meshz(cell)
+                raise NotImplementedError('No implemenmtation for el-nuc integrals for cell of dimension %s.', cell.dimension)
+            elif cell.dimension < 2:
+                self.mesh[cell.dimension:] = cell.mesh[cell.dimension:]
+            self.mesh = cell.symmetrize_mesh(self.mesh)
+
+        self.dump_flags()
+
+        exp_min = np.hstack(cell.bas_exps()).min()
+        # For each basis i in (ij|, small integrals accumulated by the lattice
+        # sum for j are not negligible.
+        lattice_sum_factor = max((2*cell.rcut)**3/cell.vol * 1/exp_min, 1)
+        cutoff = cell.precision / lattice_sum_factor * .1
+        self.direct_scf_tol = cutoff / cell.atom_charges().max()
+        #log.debug('Set _RSNucBuilder.direct_scf_tol to %g', cutoff)
+
+        self.rs_cell = rs_cell = ft_ao._RangeSeparatedCell.from_cell(
+            cell, self.ke_cutoff, RCUT_THRESHOLD)
+        rcut_sr = estimate_rcut(rs_cell, fakenuc, self.omega,
+                                rs_cell.precision, self.exclude_dd_block)
+        supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut_sr.max())
+        supmol.omega = -self.omega
+        self.supmol = supmol.strip_basis(rcut_sr)
+        #log.debug('sup-mol nbas = %d cGTO = %d pGTO = %d',
+                  #supmol.nbas, supmol.nao, supmol.npgto_nr())
+
+        rcut = estimate_ft_rcut(rs_cell, cell.precision, self.exclude_dd_block)
+        supmol_ft = _ExtendedMoleFT.from_cell(rs_cell, kmesh, rcut.max())
+        supmol_ft.exclude_dd_block = self.exclude_dd_block
+        self.supmol_ft = supmol_ft.strip_basis(rcut)
+        #log.debug('sup-mol-ft nbas = %d cGTO = %d pGTO = %d',
+        #          supmol_ft.nbas, supmol_ft.nao, supmol_ft.npgto_nr())
+        #log.timer_debug1('initializing supmol', *cpu0)
+        return self
+
+    def _int_nuc_vloc(self, fakenuc:  pbc_gto.Cell, intor: str = 'int3c2e', \
+                      aosym: str = 's2', comp: int = None) -> np.ndarray:
+    #def _int_nuc_vloc(self, fakenuc, intor='int3c2e', aosym='s2', comp=None):
+        '''Real space integrals {intor} for SR-Vnuc
+        '''
+
+        cell = self.cell
+        kpts = self.kpts
+        nkpts = len(kpts)
+        # TODO rm if not needed
+        nao = cell.nao_nr()
+        nao_pair = nao * (nao+1) // 2
+
+        int3c = self.gen_int3c_kernel(intor, aosym, comp=comp, j_only=True,
+                                      auxcell=fakenuc)
+        bufR, bufI = int3c()
+
+        charge = -cell.atom_charges()
+        #charge = cell.atom_charges()
+        nchg   = len(charge)
+        nchg2 = 2*nchg
+        print('nchg, nao, nao_pair', nchg, nao, nao_pair)
+        print('nchg', nchg)
+        print('nchg', nchg)
+        ## charge-of-nuccell, charge-of-fakenuc
+        #charge = np.append(charge, -charge)
+        #nchg2  = len(charge)
+        if is_zero(kpts):
+            print('shape bfR', np.shape(bufR) )
+            mat = np.einsum('k...z,z->k...', bufR, charge)
+            vj_at1 = np.einsum('kxz,z->kxz', bufR, charge)
+            print('shape mat', np.shape(mat) )
+            print('shape vj_at1', np.shape(vj_at1) )
+            print('allclose mat and vj_at1?', np.allclose(mat, np.einsum('kxz->kx', vj_at1)) )
+        else:
+            mat = (np.einsum('k...z,z->k...', bufR, charge) +
+                   np.einsum('k...z,z->k...', bufI, charge) * 1j)
+            vj_at1 = (np.einsum('kxz,z->kxz', bufR, charge) +
+                      np.einsum('kxz,z->kxz', bufI, charge) * 1j)
+        vj_at1 = np.einsum('kxz->kzx', vj_at1)
+        print('vj_at1 rearranged', np.shape(vj_at1) )
+
+        # G = 0 contributions to SR integrals
+        if (self.omega != 0 and
+            (intor in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart')) and
+            (cell.dimension == 3)):
+            #logger.debug2(self, 'G=0 part for %s', intor)
+            nucbar = np.pi / self.omega**2 / cell.vol * charge.sum()
+            nucbar_at = np.pi / self.omega**2 / cell.vol * charge
+            print('shape nucbar', np.shape(nucbar), nucbar)
+            print('shape nucbar', np.shape(nucbar_at), nucbar_at)
+            if self.exclude_dd_block:
+                rs_cell = self.rs_cell
+                ovlp = rs_cell.pbc_intor('int1e_ovlp', hermi=1, kpts=kpts)
+                print('shape ovlp', np.shape(ovlp) )
+                smooth_ao_idx = rs_cell.get_ao_type() == ft_ao.SMOOTH_BASIS
+                for s in ovlp:
+                    print('s in ovlp', np.shape(s) )
+                    s[smooth_ao_idx[:,None] & smooth_ao_idx] = 0
+                    print('s shape AFTER', np.shape(s) )
+                recontract_2d = rs_cell.recontract(dim=2)
+                ovlp = [recontract_2d(s) for s in ovlp]
+                print('shape ovlp recontracted', np.shape(ovlp) )
+            else:
+                ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
+                print('shape ovlp', np.shape(ovlp) )
+
+            for k in range(nkpts):
+                if aosym == 's1':
+                    mat[k] -= nucbar * ovlp[k].ravel()
+                else:
+                    mat[k] -= nucbar * lib.pack_tril(ovlp[k])
+            #atomic
+            for k in range(nkpts):
+                if aosym == 's1':
+                    for i in range(nchg):
+                        print('k, i, vj_at1[k,i,:]', k, i, np.shape(vj_at1[k,i,:]) )
+                        vj_at1[k,i,:] -= nucbar_at[i] * ovlp[k].reshape(nao_pair)
+                else:
+                    for i in range(nchg):
+                        print('k, i, vj_at1[k,i,:]', k, i, np.shape(vj_at1[k,i,:]) )
+                        vj_at1[k,i,:] -= nucbar_at[i] * lib.pack_tril(ovlp[k])
+            print('vj_at1 and mat, allclose?', np.allclose(mat, np.einsum('kix->kx', vj_at1) ) )
+            print('vj_at1 returned shape', np.shape(vj_at1) )
+        return vj_at1, mat
+
+    _int_dd_block = _int_dd_block
+
+    def get_pp_loc_part1(self, mesh=None, with_pseudo=True):
+        if self.rs_cell is None:
+            self.build()
+        cell = self.cell
+        kpts = self.kpts
+        nkpts = len(kpts)
+        nao = cell.nao_nr()
+        aosym = 's2'
+        nao_pair = nao * (nao+1) // 2
+        mesh = self.mesh
+
+        fakenuc = aft._fake_nuc(cell, with_pseudo=with_pseudo)
+        vj, vj_tot = self._int_nuc_vloc(fakenuc)
+        if cell.dimension == 0:
+            raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+            #return lib.unpack_tril(vj)
+        
+        # TODO continue by re-checking here if merge_dd is fixed
+        if self.exclude_dd_block:
+            print('exclude_dd_block set to True')
+            cell_d = self.rs_cell.smooth_basis_cell()
+            if cell_d.nao > 0 and fakenuc.natm > 0:
+                merge_dd = self.rs_cell.merge_diffused_block(aosym)
+                if is_zero(kpts):
+                    print('computing vj_dd')
+                    vj_dd = self._int_dd_block(fakenuc)
+                    vj_dd_at = _int_dd_block_at(self, fakenuc)
+                    print('shape vj_dd', np.shape(vj_dd) )
+                    print('shape vj_dd', np.shape(vj_dd_at) )
+                    print('are they close?', np.allclose(vj_dd, np.einsum('kix->kx', vj_dd_at)) )
+                    print('shape vj', np.shape(vj) )
+                    vj1 = np.empty(np.shape(vj))
+                    for i in range(2):
+                        vj1[:,i,:] = merge_dd(vj[:,i,:], vj_dd_at[:,i,:])
+                    #merge_dd(vj, vj_dd_at)
+                    merge_dd(vj_tot, vj_dd)
+                    print('shape after merge:', np.shape(vj),np.shape(vj_tot) )
+                    print('shape1 after merge:', np.shape(vj1),np.shape(vj_tot) )
+                else:
+                    print('exclude_dd_block set to False')
+                    vj_ddR, vj_ddI = self._int_dd_block(fakenuc)
+                    for k in range(nkpts):
+                        outR = vj[k].real.copy()
+                        outI = vj[k].imag.copy()
+                        merge_dd(outR, vj_ddR[k])
+                        merge_dd(outI, vj_ddI[k])
+                        vj[k] = outR + outI * 1j
+        #print('vj_tot-vj', vj_tot[0] - vj[0,0,:] - vj[0,1,:])
+        #print('vj_tot and vj after merge_dd', np.allclose(vj_tot, vj[0,0,:]+vj[0,1,:]) )
+        #print('vj1_tot-vj', vj_tot[0] - vj1[0,0,:] - vj1[0,1,:])
+        #print('vj_tot and vj1 after merge_dd', np.allclose(vj_tot, vj1[0,0,:]+vj1[0,1,:]) )
+        # TODO continue by re-checking here if merge_dd is fixed
+
+        print('vj_tot and vj, allclose?', np.allclose(vj_tot, np.einsum('kix->kx', vj)) )
+
+        kpt_allow = np.zeros(3)
+        Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
+        gxyz = lib.cartesian_prod([np.arange(len(x)) for x in Gvbase])
+        b = cell.reciprocal_vectors()
+        aoaux = ft_ao.ft_ao(fakenuc, Gv, None, b, gxyz, Gvbase)
+        charges = -cell.atom_charges()
+
+        if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
+            raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+            #coulG = pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
+            #with lib.temporary_env(cell, dimension=3):
+            #    coulG_SR = pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv,
+            #                                  omega=-self.omega)
+            #coulG_LR = coulG - coulG_SR
+        else:
+            coulG_LR = pbc_tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv,
+                                          omega=self.omega)
+        print('coulG_LR shape, kws', np.shape(coulG_LR), kws )
+        wcoulG = coulG_LR * kws
+        vG_tot = np.einsum('i,xi,x->x', charges, aoaux, wcoulG)
+        vG = np.einsum('i,xi,x->xi', charges, aoaux, wcoulG)
+        print('vG', np.shape(vG))
+        print('allclose?', np.allclose(np.einsum('xi->x', vG), vG_tot))
+
+        # contributions due to pseudo.pp_int.get_gth_vlocG_part1
+        if cell.dimension == 3:
+            G0_idx = 0
+            exps = np.hstack(fakenuc.bas_exps())
+            exps_chg = np.pi/exps * kws
+            exps_chg  *= charges
+            vG_tot[G0_idx] -= charges.dot(np.pi/exps) * kws
+            for i in range(len(exps_chg)):
+                vG[G0_idx,i] -= exps_chg[i]
+        print('vG and vG_tto now close?', np.allclose(vG_tot, np.einsum('xi->x', vG)) )
+
+        ft_kern = self.supmol_ft.gen_ft_kernel(aosym, return_complex=False,
+                                               kpts=kpts)
+        ngrids = Gv.shape[0]
+        max_memory = max(2000, self.max_memory-lib.current_memory()[0])
+        Gblksize = max(16, int(max_memory*.8e6/16/(nao_pair*nkpts))//8*8)
+        Gblksize = min(Gblksize, ngrids, 200000)
+        vGR_tot = vG_tot.real
+        vGI_tot = vG_tot.imag
+        vGR = vG.real
+        vGI = vG.imag
+        print('shape vGR_tot, vGR', np.shape(vGR_tot), np.shape(vGR))
+
+        buf = np.empty((2, nkpts, Gblksize, nao_pair))
+        for p0, p1 in lib.prange(0, ngrids, Gblksize):
+            # shape of Gpq (nkpts, nGv, nao_pair)
+            Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, out=buf)
+            for k, (GpqR, GpqI) in enumerate(zip(*Gpq)):
+                # rho_ij(G) nuc(-G) / G^2
+                # = [Re(rho_ij(G)) + Im(rho_ij(G))*1j] [Re(nuc(G)) - Im(nuc(G))*1j] / G^2
+                vR_tot = np.einsum('k,kx->x', vGR_tot[p0:p1], GpqR)
+                vR_tot += np.einsum('k,kx->x', vGI_tot[p0:p1], GpqI)
+                vj_tot[k] += vR_tot
+                if not is_zero(kpts[k]):
+                    vI_tot = np.einsum('k,kx->x', vGR_tot[p0:p1], GpqI)
+                    vI_tot -= np.einsum('k,kx->x', vGI_tot[p0:p1], GpqR)
+                    vj_tot[k].imag += vI_tot
+
+                vR  = np.einsum('ji,jx->ix', vGR[p0:p1], GpqR)
+                vR += np.einsum('ji,jx->ix', vGI[p0:p1], GpqI)
+                vj[k] += vR
+                if not is_zero(kpts[k]):
+                    vI  = np.einsum('ji,jx->ix', vGR[p0:p1], GpqI)
+                    vI += np.einsum('ji,jx->ix', vGI[p0:p1], GpqR)
+                    vj[k] += vI * 1j
+        print('vj and vj_tot', np.shape(vj), np.shape(vj_tot))
+        print('vj and vj_tot close?', np.allclose(np.einsum('kix->kx', vj), vj_tot))
+        print('vj and vj_tot close?', np.allclose(np.einsum('kix->kx', vj), vj_tot))
+
+        #vj_kpts = []
+        #for k, kpt in enumerate(kpts):
+        #    if is_zero(kpt):
+        #        vj_kpts.append(lib.unpack_tril(vj[k].real))
+        #    else:
+        #        vj_kpts.append(lib.unpack_tril(vj[k]))
+        #return np.asarray(vj_kpts)
+        # unpacking the triangular vj matrices
+        vj_kpts_at = []
+        for k, kpt in enumerate(kpts):
+            if is_zero(kpt):
+                vj_1atm_kpts = []
+                for i in range(len(charges)):
+                    vj_1atm_kpts.append(lib.unpack_tril(vj[k,i,:].real))
+                vj_kpts_at.append(vj_1atm_kpts)
+            else:
+                vj_1atm_kpts = []
+                for i in range(len(charges)):
+                    vj_1atm_kpts.append(lib.unpack_tril(vj[k,i,:]))
+                vj_kpts_at.append(vj_1atm_kpts)
+        return np.asarray(vj_kpts_at)
+
+# keep
+def _int_dd_block_at(dfbuilder, fakenuc, intor='int3c2e', comp=None):
+    '''
+    The block of smooth AO basis in i and j of (ij|L) with full Coulomb kernel
+    '''
+    if intor not in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart'):
+        raise NotImplementedError
+
+    cell = dfbuilder.cell
+    cell_d = dfbuilder.rs_cell.smooth_basis_cell()
+    nao = cell_d.nao
+    kpts = dfbuilder.kpts
+    nkpts = kpts.shape[0]
+    if nao == 0 or fakenuc.natm == 0:
+        if is_zero(kpts): 
+            return np.zeros((nao,nao,1))
+        else:
+            return np.zeros((2,nkpts,nao,nao,1))
+
+    mesh = cell_d.mesh
+    Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
+    b = cell_d.reciprocal_vectors()
+    gxyz = lib.cartesian_prod([np.arange(len(x)) for x in Gvbase])
+
+    kpt_allow = np.zeros(3)
+    charges = -cell.atom_charges()
+    #:rhoG = np.dot(charges, SI)
+    aoaux = ft_ao.ft_ao(fakenuc, Gv, None, b, gxyz, Gvbase) 
+    print('int dd atomic: aoaux', np.shape(aoaux))
+    rhoG = np.einsum('i,xi->xi', charges, aoaux)
+    rhoG_tot = np.einsum('i,xi->x', charges, aoaux)
+    print('int dd atomic: rhoG', np.shape(rhoG))
+    print('int dd atomic: rhoG allclose?', np.allclose(rhoG_tot, np.einsum('xi->x', rhoG) ))
+    coulG = pbc_tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
+    print('int dd atomic: coulG', np.shape(coulG))
+    vG_tot = rhoG_tot * coulG
+    #vG = rhoG * coulG
+    rhoG = np.einsum('xi->ix', rhoG)
+    print('int dd atomic: reordered rhoG', np.shape(rhoG))
+    vG = [i*coulG for i in rhoG]
+    print('int dd atomic: vG', np.shape(vG), np.allclose(vG_tot, vG[0]+vG[1]) )
+    print('type vG', type(vG))
+    vG = np.asarray(vG)
+    print('vG as array', np.shape(vG))
+    
+    if cell.dimension == 3:
+        print('vG_tot[0] before', vG_tot[0])
+        vG_G0_tot = charges.dot(np.pi/np.hstack(fakenuc.bas_exps()))
+        vG_G0 = np.zeros(len(charges))
+        fakenucbas = np.pi/np.hstack(fakenuc.bas_exps())
+        print('fakenucbas size', np.shape(fakenucbas), np.size(fakenucbas), fakenucbas)
+        for z in range(len(charges)):
+            vG_G0[z] = charges[z]*fakenucbas[z]
+            print('z, vG_G0[z]', z, vG_G0[z])
+            print('z, vG[z,0]', z, vG[z,0])
+            vG[z,0] -= vG_G0[z]
+            print('z, vG[z,0]', z, vG[z,0])
+        print('vG_G0. sum, tot', vG_G0, np.sum(vG_G0), vG_G0_tot)
+        vG_tot[0] -= charges.dot(np.pi/np.hstack(fakenuc.bas_exps()))
+        print('vG_tot[0] after bckgr', vG_tot[0])
+        
+    else:
+        raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+    print('int dd atomic: vG after bckrg', np.shape(vG), np.allclose(vG_tot, vG[0]+vG[1]) )
+
+    vR_tot = pbc_tools.ifft(vG_tot, mesh).real
+    print('vR_tot', np.shape(vR_tot))
+    vR = pbc_tools.ifft(vG, mesh).real
+    print('vR', np.shape(vR), np.shape(vR_tot))
+    print('vR and vR_tot close?', np.allclose((vR[0]+vR[1]).real, vR_tot))
+
+    coords = cell_d.get_uniform_grids(mesh)
+    if is_zero(kpts):
+        ao_ks = cell_d.pbc_eval_gto('GTOval', coords)
+        # rearrange to (n_g x nao)
+        #ao_ks = np.einsum('xa->ax', ao_ks)
+        print('np.shape ao_ks', np.shape(ao_ks) )
+        j3c = np.zeros((len(charges),nao,nao,1))
+        for z in range(len(charges)):
+            j3c[z] = lib.dot(ao_ks.T * vR[z], ao_ks).reshape(nao,nao,1)    
+        j3c_tot = lib.dot(ao_ks.T * vR_tot, ao_ks).reshape(nao,nao,1)
+        print('j3c_tot', np.shape(j3c_tot))
+        print('j3c', np.shape(j3c), np.allclose(j3c_tot, j3c[0]+j3c[1]))
+
+    else:
+        ao_ks = cell_d.pbc_eval_gto('GTOval', coords, kpts=kpts)
+        j3cR = np.empty((nkpts, len(charges), nao, nao))
+        j3cI = np.empty((nkpts, len(charges), nao, nao))
+        for k in range(nkpts):
+            for z in range(len(charges)):
+                v = lib.dot(ao_ks[k].conj().T * vR[z], ao_ks[k])
+                j3cR[k,z,:] = v.real
+                j3cI[k,z,:] = v.imag
+        j3c = j3cR.reshape(nkpts,len(charges),nao,nao,1), j3cI.reshape(nkpts,len(charges),nao,nao,1)
+    return j3c
+######################################
+######################################
+######################################
+class _CCNucBuilder(_CCGDFBuilder):
+
+    exclude_dd_block = True
+
+    def __init__(self, cell, kpts=np.zeros((1,3))):
+        self.mesh = None
+        self.fused_cell = None
+        self.modchg_cell = None
+        self.auxcell = self.rs_auxcell = None
+        Int3cBuilder.__init__(self, cell, self.auxcell, kpts)
+
+    def dump_flags(self, verbose=None):
+        logger.info(self, '\n')
+        logger.info(self, '******** %s ********', self.__class__)
+        logger.info(self, 'mesh = %s (%d PWs)', self.mesh, np.prod(self.mesh))
+        logger.info(self, 'ke_cutoff = %s', self.ke_cutoff)
+        logger.info(self, 'eta = %s', self.eta)
+        logger.info(self, 'j2c_eig_always = %s', self.j2c_eig_always)
+        return self
+
+    def build(self, eta=None):
+        cpu0 = logger.process_clock(), logger.perf_counter()
+        log = logger.new_logger(self)
+        cell = self.cell
+        kpts = self.kpts
+        nkpts = len(kpts)
+
+        self.bvk_kmesh = kmesh = k2gamma.kpts_to_kmesh(cell, kpts)
+        log.debug('kmesh for bvk-cell = %s', kmesh)
+
+        if cell.dimension == 0:
+            self.eta, self.mesh, self.ke_cutoff = _guess_eta(cell, kpts, self.mesh)
+        else:
+            if eta is None:
+                eta = max(.5/(.5+nkpts**(1./9)), ETA_MIN)
+            ke_cutoff = estimate_ke_cutoff_for_eta(cell, eta)
+            self.mesh = cell.cutoff_to_mesh(ke_cutoff)
+            self.ke_cutoff = min(pbctools.mesh_to_cutoff(
+                cell.lattice_vectors(), self.mesh)[:cell.dimension])
+            self.eta = estimate_eta_for_ke_cutoff(cell, self.ke_cutoff)
+            if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
+                self.mesh[2] = rsdf_builder._estimate_meshz(cell)
+            elif cell.dimension < 2:
+                self.mesh[cell.dimension:] = cell.mesh[cell.dimension:]
+            self.mesh = cell.symmetrize_mesh(self.mesh)
+
+        self.dump_flags()
+
+        self.modchg_cell = _compensate_nuccell(cell, self.eta)
+        self.rs_cell = rs_cell = ft_ao._RangeSeparatedCell.from_cell(
+            cell, self.ke_cutoff, rsdf_builder.RCUT_THRESHOLD, verbose=log)
+        rcut = estimate_rcut(rs_cell, self.modchg_cell,
+                             exclude_dd_block=self.exclude_dd_block)
+        rcut_max = rcut.max()
+        supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut_max, log)
+        supmol.exclude_dd_block = self.exclude_dd_block
+        self.supmol = supmol.strip_basis(rcut)
+        log.debug('sup-mol nbas = %d cGTO = %d pGTO = %d',
+                  supmol.nbas, supmol.nao, supmol.npgto_nr())
+
+        exp_min = np.hstack(cell.bas_exps()).min()
+        lattice_sum_factor = max((2*cell.rcut)**3/cell.vol * 1/exp_min, 1)
+        cutoff = cell.precision / lattice_sum_factor * .1
+        self.direct_scf_tol = cutoff / cell.atom_charges().max()
+        log.debug('Set _CCNucBuilder.direct_scf_tol to %g', cutoff)
+
+        rcut = rsdf_builder.estimate_ft_rcut(rs_cell, cell.precision,
+                                             self.exclude_dd_block)
+        supmol_ft = rsdf_builder._ExtendedMoleFT.from_cell(rs_cell, kmesh,
+                                                           rcut.max(), log)
+        supmol_ft.exclude_dd_block = self.exclude_dd_block
+        self.supmol_ft = supmol_ft.strip_basis(rcut)
+        log.debug('sup-mol-ft nbas = %d cGTO = %d pGTO = %d',
+                  supmol_ft.nbas, supmol_ft.nao, supmol_ft.npgto_nr())
+        log.timer_debug1('initializing supmol', *cpu0)
+        return self
+
+    def _int_nuc_vloc(self, fakenuc, intor='int3c2e', aosym='s2', comp=None,
+                      supmol=None):
+        '''Vnuc - Vloc.
+        '''
+        logger.debug2(self, 'Real space integrals %s for Vnuc - Vloc', intor)
+
+        cell = self.cell
+        kpts = self.kpts
+        nkpts = len(kpts)
+
+        charge = -cell.atom_charges()
+        if cell.dimension > 0:
+            mod_cell = self.modchg_cell
+            fakenuc = copy.copy(fakenuc)
+            fakenuc._atm, fakenuc._bas, fakenuc._env = \
+                    gto.conc_env(mod_cell._atm, mod_cell._bas, mod_cell._env,
+                                 fakenuc._atm, fakenuc._bas, fakenuc._env)
+            charge = np.append(-charge, charge)
+
+        int3c = self.gen_int3c_kernel(intor, aosym, comp=comp, j_only=True,
+                                      auxcell=fakenuc, supmol=supmol)
+        bufR, bufI = int3c()
+
+        if is_zero(kpts):
+            mat = np.einsum('k...z,z->k...', bufR, charge)
+        else:
+            mat = (np.einsum('k...z,z->k...', bufR, charge) +
+                   np.einsum('k...z,z->k...', bufI, charge) * 1j)
+
+        # vbar is the interaction between the background charge
+        # and the compensating function.  0D, 1D, 2D do not have vbar.
+        if ((intor in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart')) and
+            (cell.dimension == 3 or
+             (cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum'))):
+            logger.debug2(self, 'G=0 part for %s', intor)
+
+            # Note only need to remove the G=0 for mod_cell. when fakenuc is
+            # constructed for pseudo potentail, don't remove its G=0 contribution
+            charge = -cell.atom_charges()
+            nucbar = (charge / np.hstack(mod_cell.bas_exps())).sum()
+            nucbar *= np.pi/cell.vol
+            if self.exclude_dd_block:
+                rs_cell = self.rs_cell
+                ovlp = rs_cell.pbc_intor('int1e_ovlp', hermi=1, kpts=kpts)
+                smooth_ao_idx = rs_cell.get_ao_type() == ft_ao.SMOOTH_BASIS
+                for s in ovlp:
+                    s[smooth_ao_idx[:,None] & smooth_ao_idx] = 0
+                recontract_2d = rs_cell.recontract(dim=2)
+                ovlp = [recontract_2d(s) for s in ovlp]
+            else:
+                ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
+
+            for k in range(nkpts):
+                if aosym == 's1':
+                    mat[k] -= nucbar * ovlp[k].ravel()
+                else:
+                    mat[k] -= nucbar * lib.pack_tril(ovlp[k])
+        return mat
+
+    #_int_dd_block = rsdf_builder._int_dd_block
+
+    def get_pp_loc_part1(self, mesh=None, with_pseudo=True):
+        log = logger.Logger(self.stdout, self.verbose)
+        t0 = t1 = (logger.process_clock(), logger.perf_counter())
+        if self.rs_cell is None:
+            self.build()
+        cell = self.cell
+        kpts = self.kpts
+        nkpts = len(kpts)
+        nao = cell.nao_nr()
+        aosym = 's2'
+        nao_pair = nao * (nao+1) // 2
+        mesh = self.mesh
+
+        fakenuc = aft._fake_nuc(cell, with_pseudo=with_pseudo)
+        vj = self._int_nuc_vloc(fakenuc)
+        if cell.dimension == 0:
+            return lib.unpack_tril(vj)
+
+        if self.exclude_dd_block:
+            cell_d = self.rs_cell.smooth_basis_cell()
+            if cell_d.nao > 0 and fakenuc.natm > 0:
+                merge_dd = self.rs_cell.merge_diffused_block(aosym)
+                if is_zero(kpts):
+                    vj_dd = self._int_dd_block(fakenuc)
+                    merge_dd(vj, vj_dd)
+                else:
+                    vj_ddR, vj_ddI = self._int_dd_block(fakenuc)
+                    for k in range(nkpts):
+                        outR = vj[k].real.copy()
+                        outI = vj[k].imag.copy()
+                        merge_dd(outR, vj_ddR[k])
+                        merge_dd(outI, vj_ddI[k])
+                        vj[k] = outR + outI * 1j
+        t0 = t1 = log.timer_debug1('vnuc pass1: analytic int', *t0)
+
+        kpt_allow = np.zeros(3)
+        Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
+        b = cell.reciprocal_vectors()
+        gxyz = lib.cartesian_prod([np.arange(len(x)) for x in Gvbase])
+        charges = -cell.atom_charges()
+
+        if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
+            coulG = pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
+            with lib.temporary_env(cell, dimension=3):
+                coulG_full = pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
+            aoaux = ft_ao.ft_ao(self.modchg_cell, Gv, None, b, gxyz, Gvbase)
+            vG = np.einsum('i,xi,x->x', charges, aoaux, coulG_full * kws)
+            aoaux = ft_ao.ft_ao(fakenuc, Gv, None, b, gxyz, Gvbase)
+            vG += np.einsum('i,xi,x->x', charges, aoaux, (coulG-coulG_full)*kws)
+        else:
+            aoaux = ft_ao.ft_ao(self.modchg_cell, Gv, None, b, gxyz, Gvbase)
+            coulG = pbctools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
+            vG = np.einsum('i,xi,x->x', charges, aoaux, coulG * kws)
+
+        ft_kern = self.supmol_ft.gen_ft_kernel(aosym, return_complex=False,
+                                               verbose=log)
+        ngrids = Gv.shape[0]
+        max_memory = max(2000, self.max_memory-lib.current_memory()[0])
+        Gblksize = max(16, int(max_memory*.8e6/16/(nao_pair*nkpts))//8*8)
+        Gblksize = min(Gblksize, ngrids, 200000)
+        vGR = vG.real
+        vGI = vG.imag
+        log.debug1('max_memory = %s  Gblksize = %s  ngrids = %s',
+                   max_memory, Gblksize, ngrids)
+
+        buf = np.empty((2, nkpts, Gblksize, nao_pair))
+        for p0, p1 in lib.prange(0, ngrids, Gblksize):
+            # shape of Gpq (nkpts, nGv, nao_pair)
+            Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, kpts, out=buf)
+            for k, (GpqR, GpqI) in enumerate(zip(*Gpq)):
+                # rho_ij(G) nuc(-G) / G^2
+                # = [Re(rho_ij(G)) + Im(rho_ij(G))*1j] [Re(nuc(G)) - Im(nuc(G))*1j] / G^2
+                vR = np.einsum('k,kx->x', vGR[p0:p1], GpqR)
+                vR+= np.einsum('k,kx->x', vGI[p0:p1], GpqI)
+                vj[k] += vR
+                if not is_zero(kpts[k]):
+                    vI = np.einsum('k,kx->x', vGR[p0:p1], GpqI)
+                    vI-= np.einsum('k,kx->x', vGI[p0:p1], GpqR)
+                    vj[k] += vI * 1j
+            t1 = log.timer_debug1('contracting Vnuc [%s:%s]'%(p0, p1), *t1)
+        log.timer_debug1('contracting Vnuc', *t0)
+
+        vj_kpts = []
+        for k, kpt in enumerate(kpts):
+            if is_zero(kpt):
+                vj_kpts.append(lib.unpack_tril(vj[k].real))
+            else:
+                vj_kpts.append(lib.unpack_tril(vj[k]))
+        return np.asarray(vj_kpts)
