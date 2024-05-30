@@ -88,7 +88,7 @@ def dim(mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        if np.asarray(mo_occ).ndim == 1:
+        if isinstance(mo_occ, np.ndarray) and mo_occ.ndim == 1:
             return np.where(np.abs(mo_occ) > 0.)[0], np.where(np.abs(mo_occ) > 1.)[0]
         else:
             return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
