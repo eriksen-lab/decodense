@@ -99,6 +99,7 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 
 
 class _RSNucBuilder(_RSGDFBuilder):
+    ''' Range-separated 3-center integral builder for Vnuc/Vpp part1 integrals '''
 
     #exclude_dd_block = False
     exclude_dd_block = True
@@ -133,7 +134,7 @@ class _RSNucBuilder(_RSGDFBuilder):
                 cell.lattice_vectors(), self.mesh)[:cell.dimension])
             self.omega = estimate_omega_for_ke_cutoff(cell, self.ke_cutoff)
             if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
-                raise NotImplementedError('No implementation for el-nuc integrals for cell of dimension %s.', cell.dimension)
+                raise NotImplementedError('No implementation for nuc-el integrals for cell of dimension %s.', cell.dimension)
             elif cell.dimension < 2:
                 self.mesh[cell.dimension:] = cell.mesh[cell.dimension:]
             self.mesh = cell.symmetrize_mesh(self.mesh)
@@ -166,8 +167,7 @@ class _RSNucBuilder(_RSGDFBuilder):
 
     def _int_nuc_vloc(self, fakenuc:  pbc_gto.Cell, intor: str = 'int3c2e', \
                       aosym: str = 's2', comp: int = None) -> np.ndarray:
-        '''Real space integrals for SR-Vnuc
-        '''
+        '''Real-space integrals for SR-Vnuc '''
 
         cell = self.cell
         kpts = self.kpts
@@ -190,6 +190,7 @@ class _RSNucBuilder(_RSGDFBuilder):
         vj_at = np.einsum('kxz->kzx', vj_at)
 
         # G = 0 contributions to SR integrals
+        # arxiv.org/abs/2012.07929v2 Eq. (21)
         if (self.omega != 0 and
             (intor in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart')) and
             (cell.dimension == 3)):
@@ -231,13 +232,16 @@ class _RSNucBuilder(_RSGDFBuilder):
         # fakenuc: a cell that contains the steep Gaussians to mimic nuclear density
         # used as the compensating background charges, defined by the PP parameters
         fakenuc = aft._fake_nuc(cell, with_pseudo=with_pseudo)
-        # TODO SR Vnuc integrals (with the compensating backgrouynd charge?)
+        # SR Vnuc integrals (with the compensating background charge)
         vj = self._int_nuc_vloc(fakenuc)
         if cell.dimension == 0:
-            raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+            raise NotImplementedError('No Vnuc/Vpp implementation for dimension %s.', cell.dimension)
 
-        # TODO update comment re: paper
-        # which ints are handled how
+        # If exclude_dd_block then compute the SR integrals containing compact densities
+        # separately from those containing diffuse densities - i.e.
+        # (DD| (integrals that contain diffuse densities, i.e. two diffuse Gaussians).
+        # The former (compact) are computed in real space, and the latter (diffuse) 
+        # are computed in G-space togteher with LR part.
         if self.exclude_dd_block:
             # a cell with only the smooth part of the AO basis
             cell_d = self.rs_cell.smooth_basis_cell()
@@ -260,7 +264,7 @@ class _RSNucBuilder(_RSGDFBuilder):
                         merge_dd(outI, vj_ddI[k])
                         vj[k] = outR + outI * 1j
         else:
-            print('exclude_dd_block set to False')
+            print('exclude_dd_block is set to False in decodense')
 
         kpt_allow = np.zeros(3)
         Gv, Gvbase, kws = cell.get_Gv_weights(mesh)
@@ -272,7 +276,7 @@ class _RSNucBuilder(_RSGDFBuilder):
         charges = -cell.atom_charges()
 
         if cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum':
-            raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+            raise NotImplementedError('No Vnuc/Vpp implementation for dimension %s.', cell.dimension)
         else:
             # The Coulomb kernel for all G-vectors, handling G=0
             coulG_LR = pbc_tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv,
@@ -282,8 +286,11 @@ class _RSNucBuilder(_RSGDFBuilder):
         vG = np.einsum('i,xi,x->xi', charges, aoaux, wcoulG)
 
         # contributions due to pseudo.pp_int.get_gth_vlocG_part1
+        # The V_GTH^local1 (G), i.e. the first term in PRB, 58, 3641 Eq (5)
+        # for G=0
         if cell.dimension == 3:
             G0_idx = 0
+            # exps of all basis in the cell with Gaussian charges
             exps = np.hstack(fakenuc.bas_exps())
             exps_chg = np.pi/exps * kws
             exps_chg  *= charges
@@ -333,7 +340,7 @@ class _RSNucBuilder(_RSGDFBuilder):
 
 
 class _IntPPBuilder(Int3cBuilder):
-    '''3-center integral builder for pp loc part2 only
+    '''3-center integral builder, for pp loc part2 only
     '''
     def __init__(self, cell, kpts=np.zeros((1,3))):
         # cache ovlp_mask which are reused for different types of intor
@@ -475,14 +482,16 @@ class _IntPPBuilder(Int3cBuilder):
         return np.max(rcut, axis=0)
 
 
-def get_pp_nl(cell, kpts=None):
-    """
+def get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
+              -> np.ndarray:
+    '''
     Vnl pseudopotential part.
     PRB, 58, 3641 Eq (2), nonlocal contribution.
     Project the core basis funcs omitted by using pseudopotentials 
     in by computing overlaps between basis funcs. (in cell) and 
     projectors (gaussian, in fakecell).
-    """
+    '''
+
     if kpts is None:
         kpts_lst = np.zeros((1,3))
     else:
@@ -522,12 +531,13 @@ def get_pp_nl(cell, kpts=None):
     return vnl_at
 
 
-def _int_dd_block_at(dfbuilder, fakenuc, intor='int3c2e', comp=None):
+def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
+                     intor: str = 'int3c2e', comp: int = None) -> np.ndarray:
     '''
     The block of smooth AO basis in i and j of (ij|L) with full Coulomb kernel
     '''
     if intor not in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart'):
-        raise NotImplementedError
+        raise NotImplementedError('% intor type in _int_dd_block_at', intor)
 
     cell = dfbuilder.cell
     cell_d = dfbuilder.rs_cell.smooth_basis_cell()
@@ -551,7 +561,6 @@ def _int_dd_block_at(dfbuilder, fakenuc, intor='int3c2e', comp=None):
     aoaux = ft_ao.ft_ao(fakenuc, Gv, None, b, gxyz, Gvbase) 
     rhoG = np.einsum('i,xi->xi', charges, aoaux)
     coulG = pbc_tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
-    #vG = rhoG * coulG
     rhoG = np.einsum('xi->ix', rhoG)
     vG = np.einsum('ix,x->ix', rhoG, coulG)
     
@@ -563,7 +572,7 @@ def _int_dd_block_at(dfbuilder, fakenuc, intor='int3c2e', comp=None):
             vG[z,0] -= vG_G0[z]
         
     elif (cell.dimension == 2 and cell.low_dim_ft_type != 'inf_vacuum'):
-        raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
+        raise NotImplementedError('No _int_dd_block_at implementation for dimension %s.', cell.dimension)
 
     vR = pbc_tools.ifft(vG, mesh).real
 
@@ -587,8 +596,8 @@ def _int_dd_block_at(dfbuilder, fakenuc, intor='int3c2e', comp=None):
     return j3c
 
 
-def _merge_dd_at(rscell, aosym='s1'):
-    '''For AO pair that are evaluated in blocks with using the basis
+def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') -> np.ndarray:
+    '''For AO pairs that are evaluated in blocks with using the basis
     partitioning rscell.compact_basis_cell() and rscell.smooth_basis_cell(),
     merge the DD block into the CC, CD, DC blocks (C ~ compact basis,
     D ~ diffused basis)
@@ -603,11 +612,6 @@ def _merge_dd_at(rscell, aosym='s1'):
     nao = ao_loc[-1]
     naod = smooth_ao_idx.size
     natm = rscell.ref_cell.natm
-
-    # Get offset of every shell in the spherical basis function spectrum. 
-    # Each entry is the corresponding start basis function id
-    #offset_ao_lists = rscell.ref_cell.offset_ao_by_atom()
-    #offset_ao_lists = [lst[2:] for lst in offset_ao_lists]
 
     def merge(j3c, j3c_dd, shls_slice=None):
 
@@ -642,8 +646,7 @@ def _merge_dd_at(rscell, aosym='s1'):
         return j3c
     return merge
 
-
-# FIXME double check this against a new version
+# Note: based on the PySCF v2.1
 def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     """
     This function (PySCF 2.1) returns the nuc-nuc repulsion energy for a cell
@@ -712,8 +715,8 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         raise NotImplementedError('No Ewald sum for dimension %s.', cell.dimension)
     return ewovrl_atomic + ewself_atomic + ewg_atomic
 
-
-def _check_kpts(mydf, kpts):
+def _check_kpts(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF], kpts: \
+                Union[List[float], np.ndarray]) -> Tuple[np.ndarray, bool]:
     '''Check if the argument kpts is a single k-point'''
     if kpts is None:
         kpts = np.asarray(mydf.kpts)
