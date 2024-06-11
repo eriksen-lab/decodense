@@ -55,13 +55,9 @@ def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
         # For long-range integrals _CCGDFBuilder is the only option
         # it is not implemented (yet)
         raise NotImplementedError('No implementation for el-nuc long-range integrals.')
-    else:
-        pp1builder = _RSNucBuilder(cell, kpts).build()
-
-    vne_at = pp1builder.get_pp_loc_part1(with_pseudo=False)
-
-    if is_single_kpt:
-        vne_at = vne_at[0]
+    
+    pp1builder = _RSNucBuilder(cell, kpts).build()
+    vne_at = pp1builder.get_pp_loc_part1(with_pseudo=False)[0]
     return vne_at
 
 
@@ -79,23 +75,17 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
         # For long-range integrals _CCGDFBuilder is the only option
         # it is not implemented (yet)
         raise NotImplementedError('No implementation for el-nuc long-range integrals.')
-    else:
-        pp1builder = _RSNucBuilder(cell, kpts).build()
-
-    vpp_loc1_at = pp1builder.get_pp_loc_part1()
+    
+    pp1builder = _RSNucBuilder(cell, kpts).build()
+    vpp_loc1_at = pp1builder.get_pp_loc_part1()[0]
 
     pp2builder = _IntPPBuilder(cell, kpts)
-    vpp_loc2_at = pp2builder.get_pp_loc_part2()
+    vpp_loc2_at = pp2builder.get_pp_loc_part2()[0]
 
-    vpp_nl_at = get_pp_nl(cell, kpts)
+    vpp_nl_at = get_pp_nl(cell, kpts)[0]
     
     vpp_total = vpp_loc1_at + vpp_loc2_at + vpp_nl_at
-    if is_single_kpt:   
-        vpp_total = vpp_total[0]
-        vpp_loc1_at = vpp_loc1_at[0]
-        vpp_loc2_at = vpp_loc2_at[0]
-        vpp_nl_at   = vpp_nl_at[0]
-    return vpp_total, vpp_loc1_at, vpp_loc2_at+vpp_nl_at
+    return vpp_total
 
 
 class _RSNucBuilder(_RSGDFBuilder):

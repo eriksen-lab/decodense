@@ -199,14 +199,8 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                         res[CompKeys.nuc_att_loc] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
                         res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     else:
-                        sub_nuc_vnuc, sub_nuc_vpp = sub_nuc
-                        sub_nuc_tot = sub_nuc_vnuc + sub_nuc_vpp
-                        res[CompKeys.nuc_att_loc] = _trace(np.sum(sub_nuc_tot, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
-                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vnuc_glob] = _trace(sub_nuc_vnuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vnuc_loc] = _trace(np.sum(sub_nuc_vnuc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vpp_glob] = _trace(sub_nuc_vpp[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vpp_loc] = _trace(np.sum(sub_nuc_vpp, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_loc] = _trace(np.sum(sub_nuc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
+                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res[CompKeys.solvent] = _trace(mm_pot, np.sum(rdm1_atom, axis=0))
                     if e_solvent is not None:
@@ -253,14 +247,8 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                         res[CompKeys.nuc_att_loc] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
                         res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     else:
-                        sub_nuc_vnuc, sub_nuc_vpp = sub_nuc
-                        sub_nuc_tot = sub_nuc_vnuc + sub_nuc_vpp
-                        res[CompKeys.nuc_att_loc] = _trace(np.sum(sub_nuc_tot, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
-                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc_tot[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vnuc_glob] = _trace(sub_nuc_vnuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vnuc_loc] = _trace(np.sum(sub_nuc_vnuc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
-                        #res[CompKeys.nuc_att_vpp_glob] = _trace(sub_nuc_vpp[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                        #res[CompKeys.nuc_att_vpp_loc] = _trace(np.sum(sub_nuc_vpp, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                        res[CompKeys.nuc_att_loc] = _trace(np.sum(sub_nuc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
+                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res[CompKeys.solvent] = _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
                     if e_solvent is not None:
@@ -407,15 +395,13 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             # individual atomic potentials
             if mol.pseudo:
                 if isinstance(mydf, pbc_df.df.DF):
-                    sub_nuc_tot, sub_nuc_vnuc, sub_nuc_vpp = get_pp_atomic_df(mydf, kpts=np.zeros(3))
-                    sub_nuc = (sub_nuc_vnuc, sub_nuc_vpp)
+                    sub_nuc = get_pp_atomic_df(mydf, kpts=np.zeros(3))
                     # total nuclear potential
-                    nuc = np.sum(sub_nuc_tot, axis=0)
+                    nuc = np.sum(sub_nuc, axis=0)
                 elif isinstance(mydf, pbc_df.fft.FFTDF):
-                    sub_nuc_tot, sub_nuc_vnuc, sub_nuc_vpp = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
-                    sub_nuc = (sub_nuc_vnuc, sub_nuc_vpp)
+                    sub_nuc = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
                     # total nuclear potential
-                    nuc = np.sum(sub_nuc_tot, axis=0)
+                    nuc = np.sum(sub_nuc, axis=0)
                 else:
                     raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
             else:
