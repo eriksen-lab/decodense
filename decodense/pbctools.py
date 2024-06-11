@@ -42,6 +42,26 @@ PRECISION = getattr(__config__, 'pbc_df_aft_estimate_eta_precision', 1e-8)
 KE_SCALING = getattr(__config__, 'pbc_df_aft_ke_cutoff_scaling', 0.75)
 RCUT_THRESHOLD = getattr(__config__, 'pbc_scf_rsjk_rcut_threshold', 2.0)
 
+def get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF]) -> np.ndarray:
+
+    """ Nuc.-el. """
+    
+    if cell.pseudo:
+        if isinstance(mydf, pbc_df.df.DF):
+            vne = get_pp_atomic_df(mydf, kpts=np.zeros(3))
+        elif isinstance(mydf, pbc_df.fft.FFTDF):
+            raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
+        else:
+            raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
+    else:
+        if isinstance(mydf, pbc_df.df.DF):
+            vne = get_nuc_atomic_df(mydf, kpts=np.zeros(3))
+        elif isinstance(mydf, pbc_df.fft.FFTDF):
+            raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
+        else:
+            raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
+    return vne
+
 def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
                       kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 

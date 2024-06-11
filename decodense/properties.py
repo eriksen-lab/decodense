@@ -25,7 +25,7 @@ from pyscf.pbc.dft import numint as pbc_numint
 from typing import List, Tuple, Dict, Union, Any
 
 #from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
-from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_pp_atomic_df
+from .pbctools import ewald_e_nuc, get_nuc_pbc
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import CompKeys
 
@@ -195,12 +195,8 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                         res[CompKeys.coul] = _trace(vj, np.sum(rdm1_atom, axis=0), scaling = .5)
                         res[CompKeys.exch] = -_trace(vk, np.sum(rdm1_atom, axis=0), scaling = .25)
                     res[CompKeys.kin] = _trace(kin, np.sum(rdm1_atom, axis=0))
-                    if not mol.has_ecp():
-                        res[CompKeys.nuc_att_loc] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
-                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                    else:
-                        res[CompKeys.nuc_att_loc] = _trace(np.sum(sub_nuc, axis=0), np.sum(rdm1_atom, axis=0), scaling = .5)
-                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res[CompKeys.nuc_att_loc] = _trace(nuc, np.sum(rdm1_atom, axis=0), scaling = .5)
+                    res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res[CompKeys.solvent] = _trace(mm_pot, np.sum(rdm1_atom, axis=0))
                     if e_solvent is not None:
@@ -243,12 +239,8 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                             res[CompKeys.coul] += _trace(np.sum(vj, axis=0)[select], rdm1_tot[i][select], scaling = .5)
                             res[CompKeys.exch] -= _trace(vk[i][select], rdm1_tot[i][select], scaling = .5)
                     res[CompKeys.kin] = _trace(kin[select], np.sum(rdm1_tot, axis=0)[select])
-                    if not mol.has_ecp():
-                        res[CompKeys.nuc_att_loc] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
-                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
-                    else:
-                        res[CompKeys.nuc_att_loc] = _trace(np.sum(sub_nuc, axis=0)[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5) 
-                        res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
+                    res[CompKeys.nuc_att_loc] = _trace(nuc[select], np.sum(rdm1_tot, axis=0)[select], scaling = .5)
+                    res[CompKeys.nuc_att_glob] = _trace(sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling = .5)
                     if mm_pot is not None:
                         res[CompKeys.solvent] = _trace(mm_pot[select], np.sum(rdm1_tot, axis=0)[select])
                     if e_solvent is not None:
@@ -393,47 +385,35 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             kin = mol.pbc_intor('int1e_kin')
             mydf = mf.with_df
             # individual atomic potentials
-            if mol.pseudo:
-                if isinstance(mydf, pbc_df.df.DF):
-                    sub_nuc = get_pp_atomic_df(mydf, kpts=np.zeros(3))
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc, axis=0)
-                elif isinstance(mydf, pbc_df.fft.FFTDF):
-                    sub_nuc = get_pp_atomic_fftdf(mydf, kpts=np.zeros(3))
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc, axis=0)
-                else:
-                    raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
-            else:
-                if isinstance(mydf, pbc_df.df.DF):
-                    sub_nuc = get_nuc_atomic_df(mydf, kpts=np.zeros(3)) 
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc, axis=0)
-                elif isinstance(mydf, pbc_df.fft.FFTDF):
-                    sub_nuc = get_nuc_atomic_fftdf(mydf, kpts=np.zeros(3)) 
-                    # total nuclear potential
-                    nuc = np.sum(sub_nuc, axis=0)
-                else:
-                    raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
+            sub_nuc = get_nuc_pbc(mol, mydf)
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')
-            # coordinates and charges of nuclei
-            coords = mol.atom_coords()
-            charges = mol.atom_charges()
             # individual atomic potentials
-            sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
-            for k in range(mol.natm):
-                with mol.with_rinv_origin(coords[k]):
-                    sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
-            # total nuclear potential
-            nuc = np.sum(sub_nuc, axis=0)
+            sub_nuc = _get_nuc(mol) 
+        # total nuclear potential
+        nuc = np.sum(sub_nuc, axis=0)
         # possible mm potential
         if mm_mol is not None:
             mm_pot = _mm_pot(mol, mm_mol)
         else:
             mm_pot = None
         return kin, nuc, sub_nuc, mm_pot
+
+
+def _get_nuc(mol: gto.Mole) -> np.ndarray:
+    """
+    individual atomic potentials for molecules
+    """
+    # coordinates and charges of nuclei
+    coords = mol.atom_coords()
+    charges = mol.atom_charges()
+    # individual atomic potentials
+    sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
+    for k in range(mol.natm):
+        with mol.with_rinv_origin(coords[k]):
+            sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
+    return sub_nuc
 
 
 def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:
