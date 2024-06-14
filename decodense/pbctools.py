@@ -99,8 +99,7 @@ def _get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 
     vpp_nl_at = _get_pp_nl(cell, kpts)[0]
     
-    vpp_total = vpp_loc1_at + vpp_loc2_at + vpp_nl_at
-    return vpp_total
+    return vpp_loc1_at + vpp_loc2_at + vpp_nl_at
 
 
 class _RSNucBuilder(_RSGDFBuilder):
@@ -505,8 +504,7 @@ def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) 
                 offset[i] = p0 + nd
             vnl_at[k,atm_id_hl] += np.einsum('ilp,ij,jlq->pq', ilp.conj(), hl, ilp)
     
-    vnl_at = vnl_at.real
-    return vnl_at
+    return vnl_at.real
 
 
 def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
