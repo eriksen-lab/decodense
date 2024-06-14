@@ -585,7 +585,11 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         if abs(ks_omega) > 1e-10:
             vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)
             vk_lr *= (ks_alpha - ks_hyb)
-            vk += vk_lr
+            if not hasattr(mf, 'vk'):
+                vk += vk_lr
+            else:
+                print('vklr shape', np.shape(vk_lr))
+                vk += np.sum(vk_lr, axis=0)
         return vk
 
 
