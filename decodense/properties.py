@@ -24,8 +24,7 @@ from pyscf.pbc import scf as pbc_scf
 from pyscf.pbc.dft import numint as pbc_numint
 from typing import List, Tuple, Dict, Union, Any
 
-#from .pbctools import ewald_e_nuc, get_nuc_atomic_df, get_nuc_atomic_fftdf, get_pp_atomic_df, get_pp_atomic_fftdf
-from .pbctools import ewald_e_nuc, get_nuc_pbc
+from .pbctools import _ewald_e_nuc, _get_nuc_pbc
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import CompKeys
 
@@ -95,7 +94,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         # nuclear repulsion property
         if prop_type == 'energy':
             if isinstance(mol, pbc_gto.Cell):
-                prop_nuc_rep = ewald_e_nuc(mol)
+                prop_nuc_rep = _ewald_e_nuc(mol)
             else:
                 prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
@@ -385,7 +384,7 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             kin = mol.pbc_intor('int1e_kin')
             mydf = mf.with_df
             # individual atomic potentials
-            sub_nuc = get_nuc_pbc(mol, mydf)
+            sub_nuc = _get_nuc_pbc(mol, mydf)
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')
@@ -402,18 +401,18 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
 
 
 def _get_nuc(mol: gto.Mole) -> np.ndarray:
-    """
-    individual atomic potentials for molecules
-    """
-    # coordinates and charges of nuclei
-    coords = mol.atom_coords()
-    charges = mol.atom_charges()
-    # individual atomic potentials
-    sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
-    for k in range(mol.natm):
-        with mol.with_rinv_origin(coords[k]):
-            sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
-    return sub_nuc
+        """
+        individual atomic potentials for molecules
+        """
+        # coordinates and charges of nuclei
+        coords = mol.atom_coords()
+        charges = mol.atom_charges()
+        # individual atomic potentials
+        sub_nuc = np.zeros([mol.natm, mol.nao_nr(), mol.nao_nr()], dtype=np.float64)
+        for k in range(mol.natm):
+            with mol.with_rinv_origin(coords[k]):
+                sub_nuc[k] = -1. * mol.intor('int1e_rinv') * charges[k]
+        return sub_nuc
 
 
 def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:

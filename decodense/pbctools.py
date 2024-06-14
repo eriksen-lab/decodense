@@ -42,24 +42,24 @@ KE_SCALING = getattr(__config__, 'pbc_df_aft_ke_cutoff_scaling', 0.75)
 RCUT_THRESHOLD = getattr(__config__, 'pbc_scf_rsjk_rcut_threshold', 2.0)
 
 
-def get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF]) -> np.ndarray:
+def _get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF]) -> np.ndarray:
 
     """ Nuc.-el. """
     
     if cell.pseudo:
         if isinstance(mydf, pbc_df.df.DF):
-            vne = get_pp_atomic_df(mydf, kpts=np.zeros(3))
+            vne = _get_pp_atomic_df(mydf, kpts=np.zeros(3))
         else:
             raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
     else:
         if isinstance(mydf, pbc_df.df.DF):
-            vne = get_nuc_atomic_df(mydf, kpts=np.zeros(3))
+            vne = _get_all_e_atomic_df(mydf, kpts=np.zeros(3))
         else:
             raise NotImplementedError('Decodense code for %s object is not implemented yet. ', mydf)
     return vne
 
 
-def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
+def _get_all_e_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
                       kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
     Nuc.-el. attraction for all electron calculation
@@ -77,7 +77,7 @@ def get_nuc_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
     return vne_at
 
 
-def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
+def _get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
                      kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
     """ 
     Nuc.-el. attraction for calculation using pseudopotentials
@@ -97,7 +97,7 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
     pp2builder = _IntPPBuilder(cell, kpts)
     vpp_loc2_at = pp2builder.get_pp_loc_part2()[0]
 
-    vpp_nl_at = get_pp_nl(cell, kpts)[0]
+    vpp_nl_at = _get_pp_nl(cell, kpts)[0]
     
     vpp_total = vpp_loc1_at + vpp_loc2_at + vpp_nl_at
     return vpp_total
@@ -461,7 +461,7 @@ class _IntPPBuilder(Int3cBuilder):
         return np.max(rcut, axis=0)
 
 
-def get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
+def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
               -> np.ndarray:
     '''
     Vnl pseudopotential part.
@@ -611,7 +611,7 @@ def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') ->
     return merge
 
 # Note: based on the PySCF v2.1
-def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
+def _ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     """
     This function (PySCF 2.1) returns the nuc-nuc repulsion energy for a cell
     by performing real (R) and reciprocal (G) space Ewald sum, 
