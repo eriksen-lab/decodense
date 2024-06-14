@@ -30,6 +30,7 @@ from pyscf.pbc.df import ft_ao, aft
 from pyscf.pbc.gto import pseudo
 from pyscf.pbc.tools import k2gamma
 from pyscf.pbc.df.incore import Int3cBuilder
+from pyscf.pbc.df.aft import _IntPPBuilder as pyscf_IntPPBuilder 
 from pyscf.pbc.df.rsdf_builder import _RSGDFBuilder, estimate_rcut, estimate_ke_cutoff_for_omega, estimate_omega_for_ke_cutoff, estimate_ft_rcut 
 from pyscf.pbc.df.rsdf_builder import _guess_omega, _ExtendedMoleFT
 from scipy.special import erf, erfc
@@ -43,8 +44,9 @@ RCUT_THRESHOLD = getattr(__config__, 'pbc_scf_rsjk_rcut_threshold', 2.0)
 
 
 def _get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF]) -> np.ndarray:
-
-        """ Nuc.-el. """
+        """
+        Nuc.-el. 
+        """
         
         if cell.pseudo:
             if isinstance(mydf, pbc_df.df.DF):
@@ -103,7 +105,10 @@ def _get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 
 
 class _RSNucBuilder(_RSGDFBuilder):
-        ''' Range-separated 3-center integral builder for Vnuc/Vpp part1 integrals '''
+        """
+        Range-separated 3-center integral builder for Vnuc/Vpp part1 integrals
+        (adpated from: pbc/df/rsdf_builder.py:_RSNucBuilder(_RSGDFBuilder) in PySCF)
+        """
 
         exclude_dd_block = True
         exclude_d_aux = False
@@ -170,7 +175,9 @@ class _RSNucBuilder(_RSGDFBuilder):
 
         def _int_nuc_vloc(self, fakenuc:  pbc_gto.Cell, intor: str = 'int3c2e', \
                           aosym: str = 's2', comp: int = None) -> np.ndarray:
-            '''Real-space integrals for SR-Vnuc '''
+            """
+            Real-space integrals for SR-Vnuc
+            """
 
             cell = self.cell
             kpts = self.kpts
@@ -319,8 +326,10 @@ class _RSNucBuilder(_RSGDFBuilder):
 
 
 class _IntPPBuilder(Int3cBuilder):
-        '''3-center integral builder, for pp loc part2 only
-        '''
+        """
+        3-center integral builder, for pp loc part2 only
+        (adpated from: pbc/df/aft.py:_IntPPBuilder(Int3cBuilder) in PySCF)
+        """
         def __init__(self, cell, kpts=np.zeros((1,3))):
             # cache ovlp_mask which are reused for different types of intor
             self._supmol = None
@@ -384,7 +393,8 @@ class _IntPPBuilder(Int3cBuilder):
                 vpp_loc2_at = [0] * nkpts
                 return vpp_loc2_at
 
-            rcut = self._estimate_rcut_3c1e(rs_cell, fake_cells)
+            #rcut = self._estimate_rcut_3c1e(rs_cell, fake_cells)
+            rcut = pyscf_IntPPBuilder._estimate_rcut_3c1e(_IntPPBuilder, rs_cell, fake_cells)
             supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max())
             self.supmol = supmol.strip_basis(rcut)
 
@@ -417,58 +427,59 @@ class _IntPPBuilder(Int3cBuilder):
                vpp_loc2_at.append(vloc2_1atm_kpts)
             return np.asarray(vpp_loc2_at)
 
-        def _estimate_rcut_3c1e(self, cell, fake_cells):
-            '''Estimate rcut for pp-loc part2 based on 3-center overlap integrals.
-            '''
-            precision = cell.precision
-            exps = np.array([e.min() for e in cell.bas_exps()])
-            if exps.size == 0:
-                return np.zeros(1)
+        #def _estimate_rcut_3c1e(self, cell, fake_cells):
+        #    '''Estimate rcut for pp-loc part2 based on 3-center overlap integrals.
+        #    '''
+        #    precision = cell.precision
+        #    exps = np.array([e.min() for e in cell.bas_exps()])
+        #    if exps.size == 0:
+        #        return np.zeros(1)
 
-            ls = cell._bas[:,gto.ANG_OF]
-            cs = gto.gto_norm(ls, exps)
-            ai_idx = exps.argmin()
-            ai = exps[ai_idx]
-            li = cell._bas[ai_idx,gto.ANG_OF]
-            ci = cs[ai_idx]
+        #    ls = cell._bas[:,gto.ANG_OF]
+        #    cs = gto.gto_norm(ls, exps)
+        #    ai_idx = exps.argmin()
+        #    ai = exps[ai_idx]
+        #    li = cell._bas[ai_idx,gto.ANG_OF]
+        #    ci = cs[ai_idx]
 
-            r0 = cell.rcut  # initial guess
-            rcut = []
-            for lk, fake_cell in fake_cells.items():
-                nuc_exps = np.hstack(fake_cell.bas_exps())
-                ak_idx = nuc_exps.argmin()
-                ak = nuc_exps[ak_idx]
-                ck = abs(fake_cell._env[fake_cell._bas[ak_idx,gto.PTR_COEFF]])
+        #    r0 = cell.rcut  # initial guess
+        #    rcut = []
+        #    for lk, fake_cell in fake_cells.items():
+        #        nuc_exps = np.hstack(fake_cell.bas_exps())
+        #        ak_idx = nuc_exps.argmin()
+        #        ak = nuc_exps[ak_idx]
+        #        ck = abs(fake_cell._env[fake_cell._bas[ak_idx,gto.PTR_COEFF]])
 
-                aij = ai + exps
-                ajk = exps + ak
-                aijk = aij + ak
-                aijk1 = aijk**-.5
-                theta = 1./(1./aij + 1./ak)
-                norm_ang = ((2*li+1)*(2*ls+1))**.5/(4*np.pi)
-                c1 = ci * cs * ck * norm_ang
-                sfac = aij*exps/(aij*exps + ai*theta)
-                rfac = ak / (aij * ajk)
-                fl = 2
-                fac = 2**(li+1)*np.pi**2.5 * aijk1**3 * c1 / theta * fl / precision
+        #        aij = ai + exps
+        #        ajk = exps + ak
+        #        aijk = aij + ak
+        #        aijk1 = aijk**-.5
+        #        theta = 1./(1./aij + 1./ak)
+        #        norm_ang = ((2*li+1)*(2*ls+1))**.5/(4*np.pi)
+        #        c1 = ci * cs * ck * norm_ang
+        #        sfac = aij*exps/(aij*exps + ai*theta)
+        #        rfac = ak / (aij * ajk)
+        #        fl = 2
+        #        fac = 2**(li+1)*np.pi**2.5 * aijk1**3 * c1 / theta * fl / precision
 
-                r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
-                             (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
-                r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
-                             (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
-                rcut.append(r0)
-            return np.max(rcut, axis=0)
+        #        r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
+        #                     (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
+        #        r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
+        #                     (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
+        #        rcut.append(r0)
+        #    return np.max(rcut, axis=0)
 
 
 def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
                   -> np.ndarray:
-        '''
+        """
         Vnl pseudopotential part.
         PRB, 58, 3641 Eq (2), nonlocal contribution.
         Project the core basis funcs omitted by using pseudopotentials 
         in by computing overlaps between basis funcs. (in cell) and 
         projectors (gaussian, in fakecell).
-        '''
+        (adpated from: pbc/gto/pseudo/pp_int.py:get_pp_nl(cell, kpts=None) in PySCF)
+        """
 
         if kpts is None:
             kpts_lst = np.zeros((1,3))
@@ -509,9 +520,10 @@ def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) 
 
 def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
                          intor: str = 'int3c2e', comp: int = None) -> np.ndarray:
-        '''
+        """
         The block of smooth AO basis in i and j of (ij|L) with full Coulomb kernel
-        '''
+        (adpated from: pbc/df/rsdf_builder.py:_int_dd_block(dfbuilder, fakenuc, intor='int3c2e', comp=None) in PySCF)
+        """
         if intor not in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart'):
             raise NotImplementedError('% intor type in _int_dd_block_at', intor)
 
@@ -558,11 +570,13 @@ def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
 
 
 def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') -> np.ndarray:
-        '''For AO pairs that are evaluated in blocks with using the basis
+        """
+        For AO pairs that are evaluated in blocks with using the basis
         partitioning rscell.compact_basis_cell() and rscell.smooth_basis_cell(),
         merge the DD block into the CC, CD, DC blocks (C ~ compact basis,
         D ~ diffused basis)
-        '''
+        (adapted from: pbc/df/ft_ao.py:_RangeSeparatedCell.merge_diffused_block(aosym) in PySCF)
+        """
         libpbc = lib.load_library('libpbc')
         SMOOTH_BASIS = 2
         drv = getattr(libpbc, f'PBCnr3c_fuse_dd_{aosym}')
@@ -608,13 +622,13 @@ def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') ->
             return j3c
         return merge
 
-# Note: based on the PySCF v2.1
 def _ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         """
         This function (PySCF 2.1) returns the nuc-nuc repulsion energy for a cell
         by performing real (R) and reciprocal (G) space Ewald sum, 
         which consists of overlap, self and G-space sum 
         (Formulation of Martin, App. F2.).
+        (adapted from: pbc/gto/cell.py:ewald(cell) from PySCF v2.1)
         """ 
         def cut_mesh_for_ewald(cell: pbc_gto.Cell, mesh: List[int]) -> List[int]:
             mesh = np.copy(mesh)
