@@ -31,8 +31,7 @@ from pyscf.pbc.gto import pseudo
 from pyscf.pbc.tools import k2gamma
 from pyscf.pbc.df.incore import Int3cBuilder
 from pyscf.pbc.df.rsdf_builder import _RSGDFBuilder, estimate_rcut, estimate_ke_cutoff_for_omega, estimate_omega_for_ke_cutoff, estimate_ft_rcut 
-from pyscf.pbc.df.rsdf_builder import _guess_omega, _ExtendedMoleFT, _int_dd_block
-from pyscf.pbc.lib.kpts_helper import is_zero
+from pyscf.pbc.df.rsdf_builder import _guess_omega, _ExtendedMoleFT
 from scipy.special import erf, erfc
 from typing import List, Tuple, Dict, Union, Any
 
@@ -107,7 +106,6 @@ def get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 class _RSNucBuilder(_RSGDFBuilder):
     ''' Range-separated 3-center integral builder for Vnuc/Vpp part1 integrals '''
 
-    #exclude_dd_block = False
     exclude_dd_block = True
     exclude_d_aux = False
 
@@ -188,7 +186,6 @@ class _RSNucBuilder(_RSGDFBuilder):
         charge = -cell.atom_charges()
         nchg   = len(charge)
         nchg2 = 2*nchg
-        #TODO ATOMIC. here we do not sum over charges
         vj_at = np.einsum('kxz,z->kxz', bufR, charge)
         vj_at = np.einsum('kxz->kzx', vj_at)
 
@@ -197,7 +194,6 @@ class _RSNucBuilder(_RSGDFBuilder):
         if (self.omega != 0 and
             (intor in ('int3c2e', 'int3c2e_sph', 'int3c2e_cart')) and
             (cell.dimension == 3)):
-            #TODO ATOMIC. here we do not sum over charges
             nucbar_at = np.pi / self.omega**2 / cell.vol * charge
             if self.exclude_dd_block:
                 rs_cell = self.rs_cell
@@ -210,7 +206,6 @@ class _RSNucBuilder(_RSGDFBuilder):
             else:
                 ovlp = cell.pbc_intor('int1e_ovlp', 1, lib.HERMITIAN, kpts)
 
-            #TODO ATOMIC. here we do not sum over charges
             for k in range(nkpts):
                 if aosym == 's1':
                     for i in range(nchg):
@@ -220,7 +215,6 @@ class _RSNucBuilder(_RSGDFBuilder):
                         vj_at[k,i,:] -= nucbar_at[i] * lib.pack_tril(ovlp[k])
         return vj_at
 
-    _int_dd_block = _int_dd_block
 
     def get_pp_loc_part1(self, mesh=None, with_pseudo=True):
         if self.rs_cell is None:
@@ -255,9 +249,7 @@ class _RSNucBuilder(_RSGDFBuilder):
                 # partitioning self.compact_basis_cell() and self.smooth_basis_cell(),
                 # merge the DD block into the CC, CD, DC blocks (C ~ compact basis,
                 # D ~ diffused basis)
-                #TODO ATOMIC. here we need to make sure to merge in the right place re: atm index
                 merge_dd_at = _merge_dd_at(self.rs_cell(), aosym)
-                #TODO ATOMIC. here we need an atomic version of the function
                 vj_dd_at = _int_dd_block_at(self, fakenuc) 
                 merge_dd_at(vj, vj_dd_at)
         else:
@@ -280,7 +272,6 @@ class _RSNucBuilder(_RSGDFBuilder):
                                           omega=self.omega)
         # LR Coulomb in G-space
         wcoulG = coulG_LR * kws
-        #TODO ATOMIC. here we do not sum over charges
         vG = np.einsum('i,xi,x->xi', charges, aoaux, wcoulG)
 
         # contributions due to pseudo.pp_int.get_gth_vlocG_part1
@@ -292,7 +283,6 @@ class _RSNucBuilder(_RSGDFBuilder):
             exps = np.hstack(fakenuc.bas_exps())
             exps_chg = np.pi/exps * kws
             exps_chg  *= charges
-            #TODO ATOMIC. here we do not sum over charges
             # could in principle subtract average but I assume this makes most sense
             for i in range(len(exps_chg)):
                 vG[G0_idx,i] -= exps_chg[i]
@@ -312,18 +302,12 @@ class _RSNucBuilder(_RSGDFBuilder):
         for p0, p1 in lib.prange(0, ngrids, Gblksize):
             # shape of Gpq (nkpts, nGv, nao_pair)
             Gpq = ft_kern(Gv[p0:p1], gxyz[p0:p1], Gvbase, kpt_allow, out=buf)
-            #TODO ATOMIC. here we do not sum over charges
             for k, (GpqR, GpqI) in enumerate(zip(*Gpq)):
                 # rho_ij(G) nuc(-G) / G^2
                 # = [Re(rho_ij(G)) + Im(rho_ij(G))*1j] [Re(nuc(G)) - Im(nuc(G))*1j] / G^2
                 vR  = np.einsum('ji,jx->ix', vGR[p0:p1], GpqR)
                 vR += np.einsum('ji,jx->ix', vGI[p0:p1], GpqI)
                 vj[k] += vR
-                # TODO rm
-                #if not is_zero(kpts[k]):
-                #    vI  = np.einsum('ji,jx->ix', vGR[p0:p1], GpqI)
-                #    vI += np.einsum('ji,jx->ix', vGI[p0:p1], GpqR)
-                #    vj[k] += vI * 1j
 
         # unpacking the triangular vj matrices
         vj_kpts_at = []
@@ -377,7 +361,6 @@ class _IntPPBuilder(Int3cBuilder):
 
         intors = ('int3c2e', 'int3c1e', 'int3c1e_r2_origk',
                   'int3c1e_r4_origk', 'int3c1e_r6_origk')
-        #TODO ATOMIC. here I note where the coefficients/gaussians for each atom are placed
         fake_cells = {}
         fakebas_atm_ids_dict = {}
         # loop over coefficients (erf, C1, C2, C3, C4), put each 
@@ -406,7 +389,6 @@ class _IntPPBuilder(Int3cBuilder):
         supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max())
         self.supmol = supmol.strip_basis(rcut)
 
-        #TODO ATOMIC. here we do not sum over charges, makes sense re: GTH expression
         # buffer arrays to gather all integrals into before unpacking
         bufR_at = np.zeros((nkpts, natm, nao_pair))
         bufI_at = np.zeros((nkpts, natm, nao_pair))
@@ -503,7 +485,6 @@ def get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
     natm = cell.natm
     buf = np.empty((3*9*nao), dtype=np.complex128)
 
-    #TODO ATOMIC. here we do not sum over charges, makes sense re: GTH expression
     # set equal to zeros in case hl_blocks loop is skipped
     vnl_at = np.zeros((nkpts,natm,nao,nao), dtype=np.complex128)
     for k, kpt in enumerate(kpts_lst):
@@ -527,7 +508,6 @@ def get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
     vnl_at = vnl_at.real
     return vnl_at
 
-###########
 
 def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
                      intor: str = 'int3c2e', comp: int = None) -> np.ndarray:
@@ -554,13 +534,11 @@ def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
     charges = -cell.atom_charges()
     #:rhoG = np.dot(charges, SI)
     aoaux = ft_ao.ft_ao(fakenuc, Gv, None, b, gxyz, Gvbase) 
-    #TODO ATOMIC. here we do not sum over charges
     rhoG = np.einsum('i,xi->xi', charges, aoaux)
     coulG = pbc_tools.get_coulG(cell, kpt_allow, mesh=mesh, Gv=Gv)
     rhoG = np.einsum('xi->ix', rhoG)
     vG = np.einsum('ix,x->ix', rhoG, coulG)
     
-    #TODO ATOMIC. here we remove G=0 contribution separately for each atom
     if cell.dimension == 3:
         vG_G0 = np.zeros(len(charges))
         fakenucbas = np.pi/np.hstack(fakenuc.bas_exps())
@@ -574,23 +552,10 @@ def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
     vR = pbc_tools.ifft(vG, mesh).real
 
     coords = cell_d.get_uniform_grids(mesh)
-    #TODO ATOMIC. here we do not sum over charges
-    if is_zero(kpts):
-        ao_ks = cell_d.pbc_eval_gto('GTOval', coords)
-        j3c = np.zeros((len(charges),nao,nao,1))
-        for z in range(len(charges)):
-            j3c[z] = lib.dot(ao_ks.T * vR[z], ao_ks).reshape(nao,nao,1)    
-
-    else:
-        ao_ks = cell_d.pbc_eval_gto('GTOval', coords, kpts=kpts)
-        j3cR = np.empty((nkpts, len(charges), nao, nao))
-        j3cI = np.empty((nkpts, len(charges), nao, nao))
-        for k in range(nkpts):
-            for z in range(len(charges)):
-                v = lib.dot(ao_ks[k].conj().T * vR[z], ao_ks[k])
-                j3cR[k,z,:] = v.real
-                j3cI[k,z,:] = v.imag
-        j3c = j3cR.reshape(nkpts,len(charges),nao,nao,1), j3cI.reshape(nkpts,len(charges),nao,nao,1)
+    ao_ks = cell_d.pbc_eval_gto('GTOval', coords)
+    j3c = np.zeros((len(charges),nao,nao,1))
+    for z in range(len(charges)):
+        j3c[z] = lib.dot(ao_ks.T * vR[z], ao_ks).reshape(nao,nao,1)    
     return j3c
 
 
@@ -628,7 +593,6 @@ def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') ->
         j3c_dd = np.asarray(j3c_dd[:,d0:d1], order='C')
         naux = j3c_dd.shape[-1]
 
-        #TODO ATOMIC. here we make sure the DD integrals are merged into 
         # the compact integrals for the right atoms
         for i in range(natm):
             if j3c_dd.size > 0:
@@ -684,10 +648,8 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
     r[r<1e-16] = 1e200
     
     # overlap (between the smeared Gaussian charge dist.) term in R-space sum 
-    #TODO ATOMIC. here we do not sum over charges
     ewovrl_atomic = .5 * np.einsum('i,j,Lij->i', chargs, chargs, erfc(ew_eta * r) / r)
     
-    #TODO ATOMIC. here we do not sum over charges
     # self term in R-space term (last line of Eq. (F.5) in Martin)
     # cancel the self-terms in G-space sum
     ewself_factor = -.5 * 2 * ew_eta / np.sqrt(np.pi)
@@ -709,7 +671,6 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         coulG = 4*np.pi / absG2
         coulG *= Gv_weights
         # get the structure factors
-        #TODO ATOMIC. here we do not sum over charges
         ZSI_total = np.einsum("i,ij->j", chargs, cell.get_SI(Gv))
         ZSI_atomic = np.einsum("i,ij->ij", chargs, cell.get_SI(Gv)) 
         ZexpG2_atomic = ZSI_atomic * np.exp(-absG2/(4*ew_eta**2))
