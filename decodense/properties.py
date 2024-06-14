@@ -136,7 +136,9 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
             # nlc (vv10)
-            if not isinstance(mol, pbc_gto.Cell):
+            if isinstance(mol, pbc_gto.Cell):
+                eps_xc_nlc = None
+            else:
                 if mf.nlc.upper() == 'VV10':
                     nlc_pars = dft.libxc.nlc_coeff(mf.xc)
                     ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
@@ -146,8 +148,6 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                                                  grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
                 else:
                     eps_xc_nlc = None
-            else:
-                eps_xc_nlc = None
         else:
             xc_type = ''
             grid_weights = grid_weights_nlc = None
