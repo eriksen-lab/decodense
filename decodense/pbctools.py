@@ -393,7 +393,6 @@ class _IntPPBuilder(Int3cBuilder):
                 vpp_loc2_at = [0] * nkpts
                 return vpp_loc2_at
 
-            #rcut = self._estimate_rcut_3c1e(rs_cell, fake_cells)
             rcut = pyscf_IntPPBuilder._estimate_rcut_3c1e(_IntPPBuilder, rs_cell, fake_cells)
             supmol = ft_ao.ExtendedMole.from_cell(rs_cell, kmesh, rcut.max())
             self.supmol = supmol.strip_basis(rcut)
@@ -426,48 +425,6 @@ class _IntPPBuilder(Int3cBuilder):
                    vloc2_1atm_kpts.append(v_1atm_ints)
                vpp_loc2_at.append(vloc2_1atm_kpts)
             return np.asarray(vpp_loc2_at)
-
-        #def _estimate_rcut_3c1e(self, cell, fake_cells):
-        #    '''Estimate rcut for pp-loc part2 based on 3-center overlap integrals.
-        #    '''
-        #    precision = cell.precision
-        #    exps = np.array([e.min() for e in cell.bas_exps()])
-        #    if exps.size == 0:
-        #        return np.zeros(1)
-
-        #    ls = cell._bas[:,gto.ANG_OF]
-        #    cs = gto.gto_norm(ls, exps)
-        #    ai_idx = exps.argmin()
-        #    ai = exps[ai_idx]
-        #    li = cell._bas[ai_idx,gto.ANG_OF]
-        #    ci = cs[ai_idx]
-
-        #    r0 = cell.rcut  # initial guess
-        #    rcut = []
-        #    for lk, fake_cell in fake_cells.items():
-        #        nuc_exps = np.hstack(fake_cell.bas_exps())
-        #        ak_idx = nuc_exps.argmin()
-        #        ak = nuc_exps[ak_idx]
-        #        ck = abs(fake_cell._env[fake_cell._bas[ak_idx,gto.PTR_COEFF]])
-
-        #        aij = ai + exps
-        #        ajk = exps + ak
-        #        aijk = aij + ak
-        #        aijk1 = aijk**-.5
-        #        theta = 1./(1./aij + 1./ak)
-        #        norm_ang = ((2*li+1)*(2*ls+1))**.5/(4*np.pi)
-        #        c1 = ci * cs * ck * norm_ang
-        #        sfac = aij*exps/(aij*exps + ai*theta)
-        #        rfac = ak / (aij * ajk)
-        #        fl = 2
-        #        fac = 2**(li+1)*np.pi**2.5 * aijk1**3 * c1 / theta * fl / precision
-
-        #        r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
-        #                     (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
-        #        r0 = (np.log(fac * r0 * (rfac*exps*r0+aijk1)**li *
-        #                     (rfac*ai*r0+aijk1)**ls + 1.) / (sfac*theta))**.5
-        #        rcut.append(r0)
-        #    return np.max(rcut, axis=0)
 
 
 def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
