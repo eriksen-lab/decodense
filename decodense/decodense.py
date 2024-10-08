@@ -24,8 +24,11 @@ from .properties import prop_tot
 from .tools import make_natorb, mf_info, write_rdm1
 from .results import fmt
 
+
 def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
          mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
+         mo_coeff: np.ndarray = None, \
+         mo_occ: np.ndarray = None,
          rdm1_orb: np.ndarray = None, \
          rdm1_eff: np.ndarray = None) -> pd.DataFrame:
         """
@@ -34,33 +37,26 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         # sanity check
         sanity_check(mol, mf, decomp)
 
-        # format orbitals from mean-field calculation
-        if rdm1_orb is None:
-            mo_coeff, mo_occ = mf_info(mf)
-        else:
-            mo_coeff, mo_occ = make_natorb(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
+        # get orbitals and mo occupation
+        if mo_coeff is None or mo_occ is None:
+            # format orbitals from mean-field calculation
+            if rdm1_orb is None:
+                mo_coeff, mo_occ = mf_info(mf)
+            else:
+                mo_coeff, mo_occ = make_natorb(mol, np.asarray(mf.mo_coeff), np.asarray(rdm1_orb))
+            # compute localized MOs
+            if decomp.mo_basis != 'can':
+                mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, \
+                                    decomp.minao, decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
+                                    decomp.ndo, decomp.verbose)
 
-        # compute localized MOs
-        if decomp.mo_basis != 'can':
-            mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, \
-                                decomp.minao, decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
-                                decomp.ndo, decomp.verbose)
-
-        # decompose property
-        if decomp.part in ['atoms', 'eda']:
-            # compute population weights
-            weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.minao, decomp.pop_method, decomp.part, \
-                                   decomp.ndo, decomp.verbose)
-            # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.minao, decomp.pop_method, decomp.prop, decomp.part, \
-                                  decomp.ndo, decomp.gauge_origin, \
-                                  weights = weights)
-        else: # orbs
-            # compute decomposed results
-            decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                                  decomp.pop_method, decomp.prop, decomp.part, \
-                                  decomp.ndo, decomp.gauge_origin)
+        # compute population weights
+        weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.minao, decomp.pop_method, decomp.part, \
+                               decomp.ndo, decomp.verbose)
+        # compute decomposed results
+        decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
+                              decomp.minao, decomp.pop_method, decomp.prop, decomp.part, \
+                              decomp.ndo, decomp.gauge_origin, weights)
 
         # write rdm1s
         if decomp.write != '':

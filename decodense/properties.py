@@ -35,7 +35,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
              pbc_scf.hf.RHF, pbc_scf.uhf.UHF, pbc_dft.rks.RKS, pbc_dft.uks.UKS], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
              rdm1_eff: np.ndarray, minao: str, pop_method: str, prop_type: str, part: str, ndo: bool, \
-             gauge_origin: np.ndarray, **kwargs: Any) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+             gauge_origin: np.ndarray, weights: List[np.ndarray]) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
         """
@@ -74,11 +74,8 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             pmol = mol
 
         # effective atomic charges
-        if 'weights' in kwargs:
-            weights = kwargs['weights']
-            charge_atom = -np.sum(weights[0] + weights[1], axis=0)
-            if not ndo:
-                charge_atom += pmol.atom_charges()
+        if part in ['atoms', 'eda']:
+            charge_atom = -np.sum(weights[0] + weights[1], axis=0) + pmol.atom_charges()
         else:
             charge_atom = 0.
 
@@ -122,7 +119,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         if dft_calc:
             # ndo assertion
             if ndo:
-                raise NotImplementedError('NDOs for KS-DFT is not implemented')
+                raise NotImplementedError('NDOs for KS-DFT do not yield a lossless decomposition')
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
@@ -140,7 +137,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 eps_xc_nlc = None
             else:
                 if mf.nlc.upper() == 'VV10':
-                    nlc_pars = dft.libxc.nlc_coeff(mf.xc)
+                    nlc_pars = dft.libxc.nlc_coeff(mf.xc)[0][0]
                     ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                     grid_weights_nlc = mf.nlcgrids.weights
                     c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
@@ -315,7 +312,9 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             for k, r in enumerate(res):
                 for key, val in r.items():
                     prop[key][k] = val
-            if not ndo:
+            if ndo:
+                prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
+            else:
                 prop[CompKeys.struct] = prop_nuc_rep
             return {**prop, CompKeys.charge_atom: charge_atom}
         else: # orbs

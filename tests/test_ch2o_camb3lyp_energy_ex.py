@@ -11,8 +11,10 @@ import decodense
 TOL = 9
 
 # settings
-LOC = ('', 'fb', 'pm', 'ibo-2', 'ibo-4')
-POP = ('mulliken', 'iao')
+MO_BASIS = ('can', 'fb', 'pm')
+MO_INIT = ('can', 'cholesky', 'ibo')
+POP_METHOD = ('mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao')
+LOC_EXP = (2, 4)
 PART = ('orbitals', 'eda', 'atoms')
 
 # 1a2 state
@@ -26,16 +28,16 @@ def format_mf(mf):
     return mo_coeff, mo_occ
 
 def gs_calc(mol):
-    mf_gs = dft.RKS(mol).density_fit(auxbasis='weigend', only_dfj=True)
-    mf_gs._numint.libxc = dft.xcfun
+    mf_gs = dft.RKS(mol)
     mf_gs.xc = 'camb3lyp'
-    return scf.fast_newton(mf_gs, conv_tol=1.e-10)
+    mf_gs.conv_tol = 1.e-10
+    mf_gs.kernel()
+    return mf_gs
 
 def ex_calc(mol, mo_coeff, mo_occ):
     mo_occ[0][OCC_IDX] = 0.
     mo_occ[0][VIRT_IDX] = 1.
-    mf_ex = dft.UKS(mol).density_fit(auxbasis='weigend', only_dfj=True)
-    mf_ex._numint.libxc = dft.xcfun
+    mf_ex = dft.UKS(mol)
     mf_ex.xc = 'camb3lyp'
     mf_ex.conv_tol = 1.e-10
     mf_ex = scf.addons.mom_occ(mf_ex, mo_coeff, mo_occ)
@@ -59,63 +61,56 @@ def tearDownModule():
     del mol, mf_gs, mf_ex
 
 class KnownValues(unittest.TestCase):
-    def test_1(self):
+    def test(self):
         mf_e_tot = mf_ex.e_tot
-        for loc in LOC:
-            for pop in POP:
-                for part in PART:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
-                        res_ex = decodense.main(mol, decomp, mf_ex)
-                        if part == 'orbitals':
-                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
-                        else:
-                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
-                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+        for mo_basis in MO_BASIS:
+            for mo_init in MO_INIT:
+                for pop_method in POP_METHOD:
+                    for part in PART:
+                        with self.subTest(mo_basis=mo_basis, mo_init=mo_init, pop_method=pop_method, part=part):
+                            decomp = decodense.DecompCls(mo_basis=mo_basis, mo_init=mo_init, pop_method=pop_method, part=part)
+                            res = decodense.main(mol, decomp, mf_ex)
+                            e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                            self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
     def test_2(self):
         mf_e_tot = mf_ex.e_tot
-        rdm1_ex = mf_ex.make_rdm1()
-        for loc in LOC[:1]:
-            for pop in POP[:1]:
-                for part in PART[1:]:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
-                        res_ex = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_ex)
-                        if part == 'orbitals':
-                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
-                        else:
-                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
-                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+        mo_coeff = (mf_ex.mo_coeff[0][:, mf_ex.mo_occ[0] > 0.], mf_ex.mo_coeff[1][:, mf_ex.mo_occ[1] > 0.])
+        mo_occ = (mf_ex.mo_occ[0][mf_ex.mo_occ[0] > 0.], mf_ex.mo_occ[1][mf_ex.mo_occ[1] > 0.])
+        for part in PART:
+            with self.subTest(part=part):
+                decomp = decodense.DecompCls(part=part)
+                res = decodense.main(mol, decomp, mf_ex, mo_coeff=mo_coeff, mo_occ=mo_occ)
+                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
     def test_3(self):
         mf_e_tot = mf_ex.e_tot
-        rdm1_ex = mf_ex.make_rdm1()
-        for loc in LOC[:1]:
-            for pop in POP[:1]:
-                for part in PART[1:]:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
-                        res_ex = decodense.main(mol, decomp, mf_ex, rdm1_eff=rdm1_ex)
-                        if part == 'orbitals':
-                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
-                        else:
-                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
-                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+        rdm1 = mf_ex.make_rdm1()
+        for part in PART:
+            with self.subTest(part=part):
+                decomp = decodense.DecompCls(part=part)
+                res = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1)
+                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
     def test_4(self):
         mf_e_tot = mf_ex.e_tot
-        rdm1_ex = mf_ex.make_rdm1()
-        for loc in LOC[:1]:
-            for pop in POP[:1]:
-                for part in PART[1:]:
-                    with self.subTest(loc=loc, pop=pop, part=part):
-                        decomp = decodense.DecompCls(loc=loc, pop=pop, part=part)
-                        res_ex = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_ex, rdm1_eff=rdm1_ex)
-                        if part == 'orbitals':
-                            e_tot= np.sum(res_ex['struct']) + np.sum(res_ex['el'][0]) + np.sum(res_ex['el'][1])
-                        else:
-                            e_tot = np.sum(res_ex['struct']) + np.sum(res_ex['el'])
-                        self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+        rdm1 = mf_ex.make_rdm1()
+        for part in PART:
+            with self.subTest(part=part):
+                decomp = decodense.DecompCls(part=part)
+                res = decodense.main(mol, decomp, mf_ex, rdm1_eff=rdm1)
+                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+    def test_5(self):
+        mf_e_tot = mf_ex.e_tot
+        rdm1 = mf_ex.make_rdm1()
+        for part in PART:
+            with self.subTest(part=part):
+                decomp = decodense.DecompCls(part=part)
+                res = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1, rdm1_eff=rdm1)
+                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 if __name__ == '__main__':
-    print('test: ch2o_camb3lyp_energy_ex')
+    print('test: test_ch2o_camb3lyp_energy_ex.py')
     unittest.main()
 
