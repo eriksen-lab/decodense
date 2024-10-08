@@ -13,6 +13,9 @@ __status__ = 'Development'
 import numpy as np
 import pandas as pd
 from pyscf import gto, scf, dft
+from pyscf.pbc import dft as pbc_dft
+from pyscf.pbc import gto as pbc_gto
+from pyscf.pbc import scf as pbc_scf
 from typing import Dict, Tuple, List, Union, Optional, Any
 
 from .decomp import DecompCls, sanity_check
@@ -22,8 +25,8 @@ from .tools import make_natorb, mf_info, write_rdm1
 from .results import fmt
 
 
-def main(mol: gto.Mole, decomp: DecompCls, \
-         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
+def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
+         mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
          mo_coeff: np.ndarray = None, \
          mo_occ: np.ndarray = None,
          rdm1_orb: np.ndarray = None, \
@@ -32,7 +35,7 @@ def main(mol: gto.Mole, decomp: DecompCls, \
         main decodense program
         """
         # sanity check
-        sanity_check(mol, decomp)
+        sanity_check(mol, mf, decomp)
 
         # get orbitals and mo occupation
         if mo_coeff is None or mo_occ is None:
@@ -44,15 +47,15 @@ def main(mol: gto.Mole, decomp: DecompCls, \
             # compute localized MOs
             if decomp.mo_basis != 'can':
                 mo_coeff = loc_orbs(mol, mf, mo_coeff, mo_occ, \
-                                    decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
+                                    decomp.minao, decomp.mo_basis, decomp.pop_method, decomp.mo_init, decomp.loc_exp, \
                                     decomp.ndo, decomp.verbose)
 
         # compute population weights
-        weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.pop_method, decomp.part, \
+        weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.minao, decomp.pop_method, decomp.part, \
                                decomp.ndo, decomp.verbose)
         # compute decomposed results
         decomp.res = prop_tot(mol, mf, mo_coeff, mo_occ, rdm1_eff, \
-                              decomp.pop_method, decomp.prop, decomp.part, \
+                              decomp.minao, decomp.pop_method, decomp.prop, decomp.part, \
                               decomp.ndo, decomp.gauge_origin, weights)
 
         # write rdm1s
