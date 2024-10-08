@@ -64,10 +64,8 @@ def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
             else:
                 # IBOs as start guess
-                print('IBOs in decodense: minao is ', minao)
                 mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, \
                                            minao=minao, verbose=0)
-                print('Done with decodense IBOs part')
 
             # localize orbitals
             if mo_basis == 'fb':
