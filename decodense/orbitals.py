@@ -12,6 +12,9 @@ __status__ = 'Development'
 
 import numpy as np
 from pyscf import gto, scf, dft, lo, lib
+from pyscf.pbc import dft as pbc_dft
+from pyscf.pbc import gto as pbc_gto
+from pyscf.pbc import scf as pbc_scf
 from typing import List, Tuple, Dict, Union, Any
 
 from .tools import dim, make_rdm1, contract
@@ -19,9 +22,10 @@ from .tools import dim, make_rdm1, contract
 LOC_CONV = 1.e-10
 
 
-def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
+def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
+             pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
              mo_coeff_in: np.ndarray, mo_occ: np.ndarray, \
-             mo_basis: str, pop_method: str, mo_init: str, loc_exp: int, \
+             minao: str, mo_basis: str, pop_method: str, mo_init: str, loc_exp: int, \
              ndo: bool, verbose: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         this function returns a set of localized MOs of a specific variant
@@ -37,7 +41,10 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             raise NotImplementedError('localization of NDOs is not implemented')
 
         # overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
+        if isinstance(mol, pbc_gto.Cell):
+            s = mol.pbc_intor('int1e_ovlp_sph') 
+        else:
+            s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
         alpha, beta = dim(mo_occ)
@@ -57,7 +64,8 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
                 mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
             else:
                 # IBOs as start guess
-                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, verbose=0)
+                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, \
+                                           minao=minao, verbose=0)
 
             # localize orbitals
             if mo_basis == 'fb':
@@ -83,8 +91,9 @@ def loc_orbs(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         return mo_coeff_out
 
 
-def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
-                 mo_coeff: np.ndarray, mo_occ: np.ndarray, pop_method: str, part: str, ndo: bool, \
+def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
+                 pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
+                 mo_coeff: np.ndarray, mo_occ: np.ndarray, minao: str, pop_method: str, part: str, ndo: bool, \
                  verbose: int, **kwargs: Any) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
@@ -101,8 +110,10 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
         else:
             rhf = False
 
-        # overlap matrix
-        s = mol.intor_symmetric('int1e_ovlp')
+        if isinstance(mol, pbc_gto.Cell):
+            s = mol.pbc_intor('int1e_ovlp_sph') 
+        else:
+            s = mol.intor_symmetric('int1e_ovlp')
 
         # molecular dimensions
         alpha, beta = dim(mo_occ)
@@ -115,7 +126,7 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             # ndo assertion
             if ndo:
                 raise NotImplementedError('IAO-based populations for NDOs is not implemented')
-            pmol = lo.iao.reference_mol(mol)
+            pmol = lo.iao.reference_mol(mol, minao=minao)
         else:
             pmol = mol
 
@@ -160,7 +171,7 @@ def assign_rdm1s(mol: gto.Mole, mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT], \
             elif pop_method == 'meta_lowdin':
                 mo = contract('ki,kl,lj->ij', lo.orth.orth_ao(pmol, method='meta_lowdin', s=s), s, mo_coeff[i][:, spin_mo])
             elif pop_method == 'iao':
-                iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo])
+                iao = lo.iao.iao(mol, mo_coeff[i][:, spin_mo], minao=minao)
                 iao = lo.vec_lowdin(iao, s)
                 mo = contract('ki,kl,lj->ij', iao, s, mo_coeff[i][:, spin_mo])
             elif pop_method == 'becke':
