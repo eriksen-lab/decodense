@@ -11,13 +11,13 @@ __email__ = 'janus@kemi.dtu.dk'
 __status__ = 'Development'
 
 import numpy as np
-from pyscf import gto, scf, dft, lo, lib
+from pyscf import gto, scf, dft, lo
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from typing import List, Tuple, Dict, Union, Any
+from typing import List, Tuple, Union, Any
 
-from .tools import dim, make_rdm1, contract
+from .tools import dim, contract
 
 LOC_CONV = 1.e-10
 
@@ -75,8 +75,15 @@ def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 if 0 < verbose: loc.verbose = 4
                 mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
             else:
-                # pipek-mezey procedure with given pop_method
-                loc = lo.PM(mol, mf=mf)
+                # pipek-mezey procedure with given pop_method, create mock object to 
+                # circumvent pyscf issue #1896
+                if pop_method == "iao":
+                    mock_mf = mf.copy()
+                    mock_mf.mo_coeff = mf.mo_coeff[i]
+                    mock_mf.mo_occ = mf.mo_occ[i]
+                    loc = lo.PM(mol, mf=mock_mf)
+                else:
+                    loc = lo.PM(mol, mf=mf)
                 loc.conv_tol = LOC_CONV
                 loc.pop_method = pop_method
                 loc.exponent = loc_exp
@@ -98,9 +105,6 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """
-        # declare nested kernel function in global scope
-        global get_weights
-
         # dft logical
         dft_calc = isinstance(mf, dft.rks.KohnShamDFT)
 
@@ -142,18 +146,16 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
         else:
             ovlp = np.eye(pmol.nao_nr())
 
-        def get_weights(orb_idx: int):
+        def get_weights(mo: np.ndarray, mocc: np.ndarray) -> np.ndarray:
             """
             this function computes the full set of population weights
             """
-            # get orbital
-            orb = mo[:, orb_idx].reshape(mo.shape[0], 1)
             if pop_method == 'becke':
                 # population weights of orb
-                return _population_becke(natm, charge_matrix, orb)
+                return _population_becke(charge_matrix, mo)
             else:
-                # orbital-specific rdm1
-                rdm1_orb = make_rdm1(orb, mocc[orb_idx])
+                # orbital-specific rdm1s
+                rdm1_orb = contract('p,ip,jp->ijp', mocc, mo, mo)
                 # population weights of rdm1_orb
                 return _population_mul(natm, ao_labels, ovlp, rdm1_orb)
 
@@ -192,10 +194,8 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
                 mo = mo_coeff[i][:, spin_mo]
             mocc = mo_occ[i][spin_mo]
 
-            # domain
-            domain = np.arange(spin_mo.size)
             # execute kernel
-            weights[i] = list(map(get_weights, domain)) # type: ignore
+            weights[i] = list(get_weights(mo, mocc))
 
             # closed-shell reference
             if rhf:
@@ -217,31 +217,28 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
         return weights
 
 
-def _population_mul(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
+def _population_mul(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> List[np.ndarray]:
         """
         this function returns the mulliken populations on the individual atoms
         """
-        # mulliken population array
-        pop = contract('ij,ji->i', rdm1, ovlp)
         # init populations
-        populations = np.zeros(natm)
+        populations = np.zeros((rdm1.shape[2], natm), dtype=np.float64)
+
+        # mulliken population array
+        pop = contract('ijp,ji->ip', rdm1, ovlp)
 
         # loop over AOs
-        for i, k in enumerate(ao_labels):
-            populations[k[0]] += pop[i]
+        for ao_pop, k in zip(pop, ao_labels):
+            populations[:, k[0]] += ao_pop
 
         return populations
 
 
-def _population_becke(natm: int, charge_matrix: np.ndarray, orb: np.ndarray) -> np.ndarray:
+def _population_becke(charge_matrix: np.ndarray, orbs: np.ndarray) -> np.ndarray:
         """
         this function returns the becke populations on the individual atoms
         """
-        # init populations
-        populations = np.zeros(natm)
-
-        # loop over atoms
-        for i in range(natm):
-            populations[i] = contract('ki,kl,lj->ij', orb, charge_matrix[i], orb)
+        # calculate populations
+        populations = contract('mi,amn,ni->ia', orbs, charge_matrix, orbs)
 
         return populations

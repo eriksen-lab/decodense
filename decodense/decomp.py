@@ -14,7 +14,7 @@ import numpy as np
 from pyscf import gto, scf, dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from pyscf.pbc.lib.kpts_helper import is_zero, gamma_point
+from pyscf.pbc.lib.kpts_helper import gamma_point
 from typing import List, Dict, Union, Any
 
 

@@ -10,11 +10,10 @@ __maintainer__ = 'Janus Juul Eriksen'
 __email__ = 'janus@kemi.dtu.dk'
 __status__ = 'Development'
 
-import os
 import numpy as np
 import pandas as pd
-from pyscf import gto, lo
-from typing import Dict, Tuple, List, Union, Any
+from pyscf import gto
+from typing import Dict, Tuple, Union, Any
 
 from .decomp import CompKeys, DecompCls
 from .tools import git_version, dim

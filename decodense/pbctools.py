@@ -10,10 +10,9 @@ import copy
 import ctypes
 import numpy as np
 from pyscf import __config__
-from pyscf import gto, lib
+from pyscf import lib
 from pyscf.pbc import df as pbc_df  
 from pyscf.pbc import gto as pbc_gto  
-from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc import tools as pbc_tools
 from pyscf.pbc.df import ft_ao, aft
 from pyscf.pbc.gto import pseudo
@@ -22,8 +21,8 @@ from pyscf.pbc.df.incore import Int3cBuilder
 from pyscf.pbc.df.aft import _IntPPBuilder as pyscf_IntPPBuilder 
 from pyscf.pbc.df.rsdf_builder import _RSGDFBuilder, estimate_rcut, estimate_ke_cutoff_for_omega, estimate_omega_for_ke_cutoff, estimate_ft_rcut 
 from pyscf.pbc.df.rsdf_builder import _guess_omega, _ExtendedMoleFT
-from scipy.special import erf, erfc
-from typing import List, Tuple, Dict, Union, Any
+from scipy.special import erfc
+from typing import List, Union
 
 libpbc = lib.load_library('libpbc')
 

@@ -12,7 +12,6 @@ __status__ = 'Development'
 
 import sys
 import os
-import copy
 import numpy as np
 try:
     import opt_einsum as oe
@@ -20,13 +19,10 @@ try:
 except ImportError:
     OE_AVAILABLE = False
 from subprocess import Popen, PIPE
-from pyscf import gto, scf, dft, symm, lib
+from pyscf import gto, scf, dft, symm
 from pyscf import tools as pyscf_tools
-from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
-from pyscf.pbc import scf as pbc_scf
-from pyscf.pbc.tools import k2gamma
-from typing import Tuple, List, Dict, Union
+from typing import Tuple, List, Union
 
 MAX_CYCLE = 100
 NATORB_THRES = 1.e-12

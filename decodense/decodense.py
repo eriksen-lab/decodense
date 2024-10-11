@@ -16,7 +16,7 @@ from pyscf import gto, scf, dft
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from typing import Dict, Tuple, List, Union, Optional, Any
+from typing import Union
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import loc_orbs, assign_rdm1s

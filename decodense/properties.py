@@ -11,13 +11,10 @@ __email__ = 'janus@kemi.dtu.dk'
 __status__ = 'Development'
 
 import copy
-import warnings
 import numpy as np
 from itertools import starmap
 from pyscf import gto, scf, dft, df, lo, lib, solvent
-from pyscf import tools as pyscf_tools
 from pyscf.dft import numint
-from pyscf.pbc import df as pbc_df
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
@@ -95,7 +92,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             else:
                 prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
-            prop_nuc_rep = _dip_nuc(pmol, charge_atom, gauge_origin)
+            prop_nuc_rep = _dip_nuc(pmol, gauge_origin)
 
         # core hamiltonian
         kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
@@ -105,15 +102,9 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             if hasattr(mf, 'vk'):
                 vk = copy.copy(mf.vk)
             else:
-                if restrict:
-                    _, vk = mf.get_jk(mol=mol, with_j=False, with_k=not dft_calc)
-                else:
-                    _, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_j=False, with_k=not dft_calc)
+                _, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1_eff, axis=0) if restrict else rdm1_eff, with_j=False, with_k=not dft_calc)
         else:
-            if restrict:
-                vj, vk = mf.get_jk(mol=mol, with_k=not dft_calc)
-            else:
-                vj, vk = mf.get_jk(mol=mol, dm=rdm1_eff, with_k=not dft_calc)
+            vj, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1_eff, axis=0) if restrict else rdm1_eff, with_k=not dft_calc)
 
         # calculate xc energy density
         if dft_calc:
@@ -123,7 +114,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, mf.xc, rdm1_eff, vk, vj)
+            vk = _vk_dft(mol, mf, mf.xc, np.sum(rdm1_eff, axis=0) if restrict else rdm1_eff, vk, vj)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
@@ -131,7 +122,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             # compute all intermediates
             c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_eff, xc_type)
             # evaluate xc energy density
-            eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else -1)[0]
+            eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else 1)[0]
             # nlc (vv10)
             if isinstance(mol, pbc_gto.Cell):
                 eps_xc_nlc = None
@@ -274,8 +265,12 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 rdm1_orb = make_rdm1(orb, mo_occ[spin_idx][orb_idx])
                 # total energy or dipole moment associated with given spin-orbital
                 if prop_type == 'energy':
-                    res[CompKeys.coul] = _trace(np.sum(vj, axis=0), rdm1_orb, scaling = .5)
-                    res[CompKeys.exch] = -_trace(vk[spin_idx], rdm1_orb, scaling = .5)
+                    if restrict:
+                        res[CompKeys.coul] = _trace(vj, rdm1_orb, scaling = .5)
+                        res[CompKeys.exch] = -_trace(vk, rdm1_orb, scaling = .25)
+                    else:
+                        res[CompKeys.coul] = _trace(np.sum(vj, axis=0), rdm1_orb, scaling = .5)
+                        res[CompKeys.exch] = -_trace(vk[spin_idx], rdm1_orb, scaling = .5)
                     res[CompKeys.kin] = _trace(kin, rdm1_orb)
                     res[CompKeys.nuc_att] = _trace(nuc, rdm1_orb)
                     if mm_pot is not None:
@@ -573,11 +568,11 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
         # if hybrid func: compute vk    
         if abs(ks_hyb) > 1e-10: 
             if not hasattr(mf, 'vk'):
-                _, vk = mf.get_jk(mol=mol, dm=rdm1, with_j=False)
+                vk = mf.get_k(mol=mol, dm=rdm1)
             # scale amount of exact exchange
             vk *= ks_hyb
         else:
-            vk = np.zeros(np.shape(vj), dtype=vj.dtype)
+            vk = np.zeros_like(vj)
         # range separated coulomb operator
         if abs(ks_omega) > 1e-10:
             vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)
@@ -585,7 +580,6 @@ def _vk_dft(mol: gto.Mole, mf: dft.rks.KohnShamDFT, \
             if not hasattr(mf, 'vk'):
                 vk += vk_lr
             else:
-                print('vklr shape', np.shape(vk_lr))
                 vk += np.sum(vk_lr, axis=0)
         return vk
 
