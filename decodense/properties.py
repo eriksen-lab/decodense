@@ -361,15 +361,14 @@ def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:
         return e_nuc
 
 
-def _dip_nuc(mol: gto.Mole, atom_charges: np.ndarray, gauge_origin: np.ndarray) -> np.ndarray:
+def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
         """
         this function returns the nuclear contribution to the molecular dipole moment
         """
         # coordinates and formal/actual charges of nuclei
         coords = mol.atom_coords()
         form_charges = mol.atom_charges()
-        act_charges = form_charges - atom_charges
-        return contract('i,ix->ix', form_charges, coords) - contract('i,x->ix', act_charges, gauge_origin)
+        return contract('i,ix->ix', form_charges, coords - gauge_origin)
 
 
 def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
