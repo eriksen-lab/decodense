@@ -19,7 +19,7 @@ from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto  
 from pyscf.pbc import scf as pbc_scf 
 from pyscf.pbc.dft import numint as pbc_numint
-from typing import List, Tuple, Dict, Union, Any
+from typing import List, Tuple, Dict, Union, Any, Optional
 
 from .pbctools import _ewald_e_nuc, _get_nuc_pbc
 from .tools import dim, make_rdm1, orbsym, contract
@@ -31,7 +31,7 @@ BLKSIZE = 200
 def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
              pbc_scf.hf.RHF, pbc_scf.uhf.UHF, pbc_dft.rks.RKS, pbc_dft.uks.UKS], \
              mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], \
-             rdm1_eff: np.ndarray, minao: str, pop_method: str, prop_type: str, part: str, ndo: bool, \
+             rdm1: Optional[np.ndarray], minao: str, pop_method: str, prop_type: str, part: str, ndo: bool, \
              gauge_origin: np.ndarray, weights: List[np.ndarray]) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
         """
         this function returns atom-decomposed mean-field properties
@@ -58,10 +58,10 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             ao_dip = None
 
         # compute total 1-RDMs (AO basis)
-        if rdm1_eff is None:
-            rdm1_eff = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
-        if rdm1_eff.ndim == 2:
-            rdm1_eff = np.array([rdm1_eff, rdm1_eff]) * .5
+        if rdm1 is None:
+            rdm1 = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
+        if rdm1.ndim == 2:
+            rdm1 = np.array([rdm1, rdm1]) * .5
         rdm1_tot = np.array([make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])])
 
         # mol object projected into minao basis
@@ -81,7 +81,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
 
         # possible cosmo/pcm solvent model
         if getattr(mf, 'with_solvent', None):
-            e_solvent = _solvent(mol, np.sum(rdm1_eff, axis=0), mf.with_solvent)
+            e_solvent = _solvent(mol, np.sum(rdm1, axis=0), mf.with_solvent)
         else:
             e_solvent = None
 
@@ -102,9 +102,9 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             if hasattr(mf, 'vk'):
                 vk = copy.copy(mf.vk)
             else:
-                _, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1_eff, axis=0) if restrict else rdm1_eff, with_j=False, with_k=not dft_calc)
+                _, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1, axis=0) if restrict else rdm1, with_j=False, with_k=not dft_calc)
         else:
-            vj, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1_eff, axis=0) if restrict else rdm1_eff, with_k=not dft_calc)
+            vj, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1, axis=0) if restrict else rdm1, with_k=not dft_calc)
 
         # calculate xc energy density
         if dft_calc:
@@ -114,13 +114,13 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             # xc-type and ao_deriv
             xc_type, ao_deriv = _xc_ao_deriv(mf.xc)
             # update exchange operator wrt range-separated parameter and exact exchange components
-            vk = _vk_dft(mol, mf, mf.xc, np.sum(rdm1_eff, axis=0) if restrict else rdm1_eff, vk, vj)
+            vk = _vk_dft(mol, mf, mf.xc, np.sum(rdm1, axis=0) if restrict else rdm1, vk, vj)
             # ao function values on given grid
             ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
             grid_weights = mf.grids.weights
             # compute all intermediates
-            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1_eff, xc_type)
+            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1, xc_type)
             # evaluate xc energy density
             eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else 1)[0]
             # nlc (vv10)
@@ -131,7 +131,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                     nlc_pars = dft.libxc.nlc_coeff(mf.xc)[0][0]
                     ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                     grid_weights_nlc = mf.nlcgrids.weights
-                    c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_eff, axis=0), 'GGA')
+                    c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1, axis=0), 'GGA')
                     eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
                                                  grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
                 else:

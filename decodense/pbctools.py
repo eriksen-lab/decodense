@@ -6,7 +6,6 @@ __maintainer__ = 'Luna Zamok'
 __email__ = 'luza@kemi.dtu.dk'
 __status__ = 'Development'
 
-import copy
 import ctypes
 import numpy as np
 from pyscf import __config__

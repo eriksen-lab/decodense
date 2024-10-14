@@ -15,93 +15,15 @@ from pyscf import gto, scf, dft, lo
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from typing import List, Tuple, Union, Any
+from typing import List, Union
 
 from .tools import dim, contract
-
-LOC_CONV = 1.e-10
-
-
-def loc_orbs(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
-             pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
-             mo_coeff_in: np.ndarray, mo_occ: np.ndarray, \
-             minao: str, mo_basis: str, pop_method: str, mo_init: str, loc_exp: int, \
-             ndo: bool, verbose: int) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        this function returns a set of localized MOs of a specific variant
-        """
-        # rhf reference
-        if mo_occ[0].size == mo_occ[1].size:
-            rhf = np.allclose(mo_coeff_in[0], mo_coeff_in[1]) and np.allclose(mo_occ[0], mo_occ[1])
-        else:
-            rhf = False
-
-        # ndo assertion
-        if ndo:
-            raise NotImplementedError('localization of NDOs is not implemented')
-
-        # overlap matrix
-        if isinstance(mol, pbc_gto.Cell):
-            s = mol.pbc_intor('int1e_ovlp_sph') 
-        else:
-            s = mol.intor_symmetric('int1e_ovlp')
-
-        # molecular dimensions
-        alpha, beta = dim(mo_occ)
-
-        # init mo_coeff_out
-        mo_coeff_out = (np.zeros_like(mo_coeff_in[0]), np.zeros_like(mo_coeff_in[1]))
-
-        # loop over spins
-        for i, spin_mo in enumerate((alpha, beta)):
-
-            # construct start guess
-            if mo_init == 'can':
-                # canonical MOs as start guess
-                mo_coeff_init = mo_coeff_in[i][:, spin_mo]
-            elif mo_init == 'cholesky':
-                # start guess via non-iterative cholesky factorization
-                mo_coeff_init = lo.cholesky.cholesky_mos(mo_coeff_in[i][:, spin_mo])
-            else:
-                # IBOs as start guess
-                mo_coeff_init = lo.ibo.ibo(mol, mo_coeff_in[i][:, spin_mo], exponent=loc_exp, \
-                                           minao=minao, verbose=0)
-
-            # localize orbitals
-            if mo_basis == 'fb':
-                # foster-boys MOs
-                loc = lo.Boys(mol)
-                loc.conv_tol = LOC_CONV
-                if 0 < verbose: loc.verbose = 4
-                mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
-            else:
-                # pipek-mezey procedure with given pop_method, create mock object to 
-                # circumvent pyscf issue #1896
-                if pop_method == "iao":
-                    mock_mf = mf.copy()
-                    mock_mf.mo_coeff = mf.mo_coeff[i]
-                    mock_mf.mo_occ = mf.mo_occ[i]
-                    loc = lo.PM(mol, mf=mock_mf)
-                else:
-                    loc = lo.PM(mol, mf=mf)
-                loc.conv_tol = LOC_CONV
-                loc.pop_method = pop_method
-                loc.exponent = loc_exp
-                if 0 < verbose: loc.verbose = 4
-                mo_coeff_out[i][:, spin_mo] = loc.kernel(mo_coeff_init)
-
-            # closed-shell reference
-            if rhf:
-                mo_coeff_out[i+1][:, spin_mo] = mo_coeff_out[i][:, spin_mo]
-                break
-
-        return mo_coeff_out
 
 
 def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
                  pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
                  mo_coeff: np.ndarray, mo_occ: np.ndarray, minao: str, pop_method: str, part: str, ndo: bool, \
-                 verbose: int, **kwargs: Any) -> List[np.ndarray]:
+                 verbose: int) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
         """

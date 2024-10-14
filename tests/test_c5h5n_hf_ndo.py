@@ -3,7 +3,7 @@
 
 import unittest
 import numpy as np
-from pyscf import gto, scf, dft
+from pyscf import gto, scf
 
 import decodense
 
@@ -52,6 +52,22 @@ rdm1_ex = mf_ex.make_rdm1()
 rdm1_sum = rdm1_ex + rdm1_gs
 rdm1_delta = rdm1_ex - rdm1_gs
 
+# overlap matrix
+s = mol.intor_symmetric('int1e_ovlp')
+
+# ao to mo transformation of dm difference
+rdm1_mo = np.einsum('xpi,pq,xqr,rs,xsj->xij', mf_ex.mo_coeff, s, rdm1_delta, s, mf_ex.mo_coeff, optimize=True)
+
+# diagonalize dm difference to get natural difference orbitals
+occ_no, u = np.linalg.eigh(rdm1_mo)
+
+# transform to ndo basis
+mo_no = np.einsum('xip,xpj->xij', mf_ex.mo_coeff, u)
+
+# retain only significant ndos
+mo_coeff = (mo_no[0][:, np.where(np.abs(occ_no[0]) >= 1.e-12)[0]], mo_no[1][:, np.where(np.abs(occ_no[1]) >= 1.e-12)[0]])     
+mo_occ = (occ_no[0][np.where(np.abs(occ_no[0]) >= 1.e-12)], occ_no[1][np.where(np.abs(occ_no[1]) >= 1.e-12)])
+
 def tearDownModule():
     global mol, mf_gs, mf_ex
     mol.stdout.close()
@@ -63,7 +79,7 @@ class KnownValues(unittest.TestCase):
         for part in PART:
             with self.subTest(part=part):
                 decomp = decodense.DecompCls(part=part, ndo=True)
-                res = decodense.main(mol, decomp, mf_ex, rdm1_orb=rdm1_delta, rdm1_eff=rdm1_sum)
+                res = decodense.main(mol, decomp, mf_ex, mo_coeff=mo_coeff, mo_occ=mo_occ, rdm1=rdm1_sum)
                 e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
                 self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
