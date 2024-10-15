@@ -48,7 +48,7 @@ mf_ex.kernel(dm)
 alpha, beta = np.where(mf_ex.mo_occ[0] > 0.)[0], np.where(mf_ex.mo_occ[1] > 0.)[0]
 
 # init mo coefficients
-mo_coeff = (np.zeros_like(mf_ex.mo_coeff[0]), np.zeros_like(mf_ex.mo_coeff[1]))
+mo_coeff = []
 
 # loop over spins
 for i, spin_mo in enumerate((alpha, beta)):
@@ -60,17 +60,17 @@ for i, spin_mo in enumerate((alpha, beta)):
     loc = lo.PM(mol, mf=mock_mf)
     loc.pop_method = "iao"
     loc.conv_tol = 1e-10
-    mo_coeff[i][:, spin_mo] = loc.kernel(mf_ex.mo_coeff[i][:, spin_mo])
+    mo_coeff.append(loc.kernel(mf_ex.mo_coeff[i][:, spin_mo]))
 
     # jacobi sweep to ensure optimum is found
-    isstable, mo_coeff[i][:, spin_mo] = loc.stability_jacobi()
+    isstable, mo_coeff[-1] = loc.stability_jacobi()
     while not isstable:
-        mo_coeff[i][:, spin_mo] = loc.kernel(mo_coeff[i][:, spin_mo])
-        isstable, mo_coeff[i][:, spin_mo] = loc.stability_jacobi()
+        mo_coeff[-1] = loc.kernel(mo_coeff[-1])
+        isstable, mo_coeff[-1] = loc.stability_jacobi()
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms")
-res = decodense.main(mol, decomp, mf_ex, mo_coeff)
+res = decodense.main(mol, decomp, mf_ex, tuple(mo_coeff))
 
 print(res)
     

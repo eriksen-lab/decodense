@@ -21,7 +21,7 @@ from pyscf.pbc.df.aft import _IntPPBuilder as pyscf_IntPPBuilder
 from pyscf.pbc.df.rsdf_builder import _RSGDFBuilder, estimate_rcut, estimate_ke_cutoff_for_omega, estimate_omega_for_ke_cutoff, estimate_ft_rcut 
 from pyscf.pbc.df.rsdf_builder import _guess_omega, _ExtendedMoleFT
 from scipy.special import erfc
-from typing import List, Union
+from typing import List, Union, Optional, Callable
 
 libpbc = lib.load_library('libpbc')
 
@@ -30,7 +30,7 @@ KE_SCALING = getattr(__config__, 'pbc_df_aft_ke_cutoff_scaling', 0.75)
 RCUT_THRESHOLD = getattr(__config__, 'pbc_scf_rsjk_rcut_threshold', 2.0)
 
 
-def _get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF]) -> np.ndarray:
+def get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF]) -> np.ndarray:
         """
         Nuc.-el. 
         """
@@ -49,7 +49,7 @@ def _get_nuc_pbc(cell: pbc_gto.Cell, mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF
 
 
 def _get_all_e_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
-                          kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
+                          kpts: Optional[np.ndarray] = None) -> np.ndarray:
         """ 
         Nuc.-el. attraction for all electron calculation
         /The periodic nuc-el AO matrix, with G=0 removed.
@@ -67,7 +67,7 @@ def _get_all_e_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
 
 
 def _get_pp_atomic_df(mydf: Union[pbc_df.df.GDF, pbc_df.fft.FFTDF],  \
-                     kpts: Union[List[float], np.ndarray] = None) -> np.ndarray:
+                     kpts: Optional[np.ndarray] = None) -> np.ndarray:
         """ 
         Nuc.-el. attraction for calculation using pseudopotentials
         /The periodic nuc-el AO matrix, with G=0 removed.
@@ -161,7 +161,7 @@ class _RSNucBuilder(_RSGDFBuilder):
             return self
 
         def _int_nuc_vloc(self, fakenuc:  pbc_gto.Cell, intor: str = 'int3c2e', \
-                          aosym: str = 's2', comp: int = None) -> np.ndarray:
+                          aosym: str = 's2', comp: Optional[int] = None) -> np.ndarray:
             """
             Real-space integrals for SR-Vnuc
             """
@@ -414,7 +414,7 @@ class _IntPPBuilder(Int3cBuilder):
             return np.asarray(vpp_loc2_at)
 
 
-def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) \
+def _get_pp_nl(cell: pbc_gto.Cell, kpts: Optional[np.ndarray] = None) \
                   -> np.ndarray:
         """
         Vnl pseudopotential part.
@@ -451,7 +451,7 @@ def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) 
                 atm_id_hl = fakecell.bas_atom(ib)
                 nd = 2 * l + 1
                 hl_dim = hl.shape[0]
-                ilp = np.ndarray((hl_dim,nd,nao), dtype=np.complex128, buffer=buf)
+                ilp: np.ndarray = np.ndarray((hl_dim,nd,nao), dtype=np.complex128, buffer=buf)
                 for i in range(hl_dim):
                     # make sure that the right m,l sph.harm are taken in projectors
                     p0 = offset[i]
@@ -463,7 +463,7 @@ def _get_pp_nl(cell: pbc_gto.Cell, kpts: Union[List[float], np.ndarray] = None) 
 
 
 def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
-                         intor: str = 'int3c2e', comp: int = None) -> np.ndarray:
+                         intor: str = 'int3c2e') -> np.ndarray:
         """
         The block of smooth AO basis in i and j of (ij|L) with full Coulomb kernel
         (adpated from: pbc/df/rsdf_builder.py:_int_dd_block(dfbuilder, fakenuc, intor='int3c2e', comp=None) in PySCF)
@@ -513,7 +513,7 @@ def _int_dd_block_at(dfbuilder: _RSNucBuilder, fakenuc: pbc_gto.Cell, \
         return j3c
 
 
-def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') -> np.ndarray:
+def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') -> Callable[[np.ndarray, np.ndarray, Optional[np.ndarray]], np.ndarray]:
         """
         For AO pairs that are evaluated in blocks with using the basis
         partitioning rscell.compact_basis_cell() and rscell.smooth_basis_cell(),
@@ -532,7 +532,7 @@ def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') ->
         naod = smooth_ao_idx.size
         natm = rscell.ref_cell.natm
 
-        def merge(j3c, j3c_dd, shls_slice=None):
+        def merge(j3c: np.ndarray, j3c_dd: np.ndarray, shls_slice: Optional[np.ndarray] = None) -> np.ndarray:
 
             if j3c_dd.size == 0:
                     return j3c
@@ -566,7 +566,7 @@ def _merge_dd_at(rscell: pbc_df.ft_ao._RangeSeparatedCell, aosym: str = 's1') ->
             return j3c
         return merge
 
-def _ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
+def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         """
         This function (PySCF 2.1) returns the nuc-nuc repulsion energy for a cell
         by performing real (R) and reciprocal (G) space Ewald sum, 
@@ -574,8 +574,8 @@ def _ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         (Formulation of Martin, App. F2.).
         (adapted from: pbc/gto/cell.py:ewald(cell) from PySCF v2.1)
         """ 
-        def cut_mesh_for_ewald(cell: pbc_gto.Cell, mesh: List[int]) -> List[int]:
-            mesh = np.copy(mesh)
+        def cut_mesh_for_ewald(cell: pbc_gto.Cell, mesh_lst: List[int]) -> List[int]:
+            mesh = np.array(mesh_lst, dtype=np.int64)
             mesh_max = np.asarray(np.linalg.norm(cell.lattice_vectors(), axis=1) * 2,
                                   dtype=int)  # roughly 2 grids per bohr
             if (cell.dimension < 2 or
@@ -584,10 +584,10 @@ def _ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
 
             mesh_max[mesh_max<80] = 80
             mesh[mesh>mesh_max] = mesh_max[mesh>mesh_max]
-            return mesh
+            return mesh.tolist()
 
         if cell.natm == 0:
-            return 0
+            return np.array([], dtype=np.float64)
 
         ew_eta, ew_cut = cell.get_ewald_params()[0], cell.get_ewald_params()[1]
         chargs, coords = cell.atom_charges(), cell.atom_coords()

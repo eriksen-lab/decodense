@@ -34,13 +34,13 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         main decodense program
         """
         # sanity check
-        sanity_check(mol, mf, decomp)
+        sanity_check(mol, mf, decomp, mo_coeff, mo_occ)
 
         # ensure mo coefficients are in the correct shape
         if isinstance(mo_coeff, np.ndarray):
             if mo_coeff.ndim == 2:
                 mo_coeff = 2 * (mo_coeff, )
-            elif mo_coeff.ndim == 3:
+            else:
                 mo_coeff = tuple(mo_coeff)
 
         # assume occupation if not provided
@@ -49,11 +49,11 @@ def main(mol: Union[gto.Mole, pbc_gto.Cell], decomp: DecompCls, \
         elif isinstance(mo_occ, np.ndarray):
             if mo_occ.ndim == 1:
                 mo_occ = 2 * (mo_occ / 2, )
-            elif mo_occ.ndim == 2:
+            else:
                 mo_occ = tuple(mo_occ)
 
         # compute population weights
-        weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.minao, decomp.pop_method, decomp.part, \
+        weights = assign_rdm1s(mol, mf, mo_coeff, mo_occ, decomp.minao, decomp.pop_method, \
                                decomp.ndo, decomp.verbose)
 
         # compute decomposed results

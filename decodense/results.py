@@ -13,7 +13,7 @@ __status__ = 'Development'
 import numpy as np
 import pandas as pd
 from pyscf import gto
-from typing import Dict, Tuple, Union, Any
+from typing import Dict, Tuple, Any, Optional
 
 from .decomp import CompKeys, DecompCls
 from .tools import git_version, dim
@@ -28,7 +28,7 @@ AU_TO_KJ_MOL = 2625.4996394799
 AU_TO_DEBYE = 2.54174623
 
 
-def info(decomp: DecompCls, mol: Union[None, gto.Mole] = None, **kwargs: float) -> str:
+def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
         """
         this function prints basic info
         """

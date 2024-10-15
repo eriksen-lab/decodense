@@ -80,14 +80,11 @@ def git_version() -> str:
 
         return GIT_REVISION
 
-def dim(mo_occ: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
         """
         determine molecular dimensions
         """
-        if isinstance(mo_occ, np.ndarray) and mo_occ.ndim == 1:
-            return np.where(np.abs(mo_occ) > 0.)[0], np.where(np.abs(mo_occ) > 1.)[0]
-        else:
-            return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
+        return np.where(np.abs(mo_occ[0]) > 0.)[0], np.where(np.abs(mo_occ[1]) > 0.)[0]
 
 
 def mf_info(mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]) -> Tuple[Tuple[np.ndarray, np.ndarray], \
@@ -172,7 +169,7 @@ def make_natorb(mol: Union[gto.Mole, pbc_gto.Cell], mo_coeff: np.ndarray, \
 
 
 def write_rdm1(mol: gto.Mole, part: str, \
-               mo_coeff: np.ndarray, mo_occ: np.ndarray, fmt: str, \
+               mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], fmt: str, \
                weights: List[np.ndarray], \
                suffix: str = '') -> None:
         """

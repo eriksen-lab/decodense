@@ -21,7 +21,7 @@ from pyscf.pbc import scf as pbc_scf
 from pyscf.pbc.dft import numint as pbc_numint
 from typing import List, Tuple, Dict, Union, Any, Optional
 
-from .pbctools import _ewald_e_nuc, _get_nuc_pbc
+from .pbctools import ewald_e_nuc, get_nuc_pbc
 from .tools import dim, make_rdm1, orbsym, contract
 from .decomp import CompKeys
 
@@ -72,7 +72,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
 
         # effective atomic charges
         if part in ['atoms', 'eda']:
-            charge_atom = -np.sum(weights[0] + weights[1], axis=0) + pmol.atom_charges()
+            charge_atom = -(np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0)) + pmol.atom_charges()
         else:
             charge_atom = 0.
 
@@ -88,7 +88,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         # nuclear repulsion property
         if prop_type == 'energy':
             if isinstance(mol, pbc_gto.Cell):
-                prop_nuc_rep = _ewald_e_nuc(mol)
+                prop_nuc_rep = ewald_e_nuc(mol)
             else:
                 prop_nuc_rep = _e_nuc(pmol, mm_mol)
         elif prop_type == 'dipole':
@@ -106,8 +106,24 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
         else:
             vj, vk = mf.get_jk(mol=mol, dm=np.sum(rdm1, axis=0) if restrict else rdm1, with_k=not dft_calc)
 
+        # class for xc parameters
+        class XCParams:
+            grid_weights: np.ndarray
+            grid_weights_nlc: np.ndarray
+            ao_value: np.ndarray
+            ao_value_nlc: np.ndarray
+            eps_xc: np.ndarray
+            eps_xc_nlc: Optional[np.ndarray]
+            c0_tot: np.ndarray
+            c1_tot: Optional[np.ndarray]
+            c0_vv10: np.ndarray
+            c1_vv10: Optional[np.ndarray]
+        xc_params: Optional[XCParams] = None
+
         # calculate xc energy density
         if dft_calc:
+            # inititialize class for xc paramters
+            xc_params = XCParams()
             # ndo assertion
             if ndo:
                 raise NotImplementedError('NDOs for KS-DFT do not yield a lossless decomposition')
@@ -116,33 +132,26 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
             # update exchange operator wrt range-separated parameter and exact exchange components
             vk = _vk_dft(mol, mf, mf.xc, np.sum(rdm1, axis=0) if restrict else rdm1, vk, vj)
             # ao function values on given grid
-            ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
+            xc_params.ao_value = _ao_val(mol, mf.grids.coords, ao_deriv)
             # grid weights
-            grid_weights = mf.grids.weights
+            xc_params.grid_weights = mf.grids.weights
             # compute all intermediates
-            c0_tot, c1_tot, rho_tot = _make_rho(ao_value, rdm1, xc_type)
+            xc_params.c0_tot, xc_params.c1_tot, rho_tot = _make_rho(xc_params.ao_value, rdm1, xc_type)
             # evaluate xc energy density
-            eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if isinstance(rho_tot, np.ndarray) else 1)[0]
+            xc_params.eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if rho_tot.ndim == 2 else 1)[0]
             # nlc (vv10)
             if isinstance(mol, pbc_gto.Cell):
-                eps_xc_nlc = None
+                xc_params.eps_xc_nlc = None
             else:
                 if mf.nlc.upper() == 'VV10':
                     nlc_pars = dft.libxc.nlc_coeff(mf.xc)[0][0]
-                    ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
-                    grid_weights_nlc = mf.nlcgrids.weights
-                    c0_vv10, c1_vv10, rho_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1, axis=0), 'GGA')
-                    eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
-                                                 grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
+                    xc_params.ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
+                    xc_params.grid_weights_nlc = mf.nlcgrids.weights
+                    xc_params.c0_vv10, xc_params.c1_vv10, rho_vv10 = _make_rho(xc_params.ao_value_nlc, np.sum(rdm1, axis=0), 'GGA')
+                    xc_params.eps_xc_nlc = numint._vv10nlc(rho_vv10, mf.nlcgrids.coords, rho_vv10, \
+                                                 xc_params.grid_weights_nlc, mf.nlcgrids.coords, nlc_pars)[0]
                 else:
-                    eps_xc_nlc = None
-        else:
-            xc_type = ''
-            grid_weights = grid_weights_nlc = None
-            ao_value = ao_value_nlc = None
-            eps_xc = eps_xc_nlc = None
-            c0_tot = c1_tot = None
-            c0_vv10 = c1_vv10 = None
+                    xc_params.eps_xc_nlc = None
 
         # molecular dimensions
         alpha, beta = dim(mo_occ)
@@ -156,7 +165,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 this function returns atom-wise energy/dipole contributions
                 """
                 # init results
-                res = {}
+                res: Dict[str, Union[float, np.ndarray]] = {}
                 # atom-specific rdm1
                 rdm1_atom = np.zeros_like(rdm1_tot)
                 # loop over spins
@@ -189,15 +198,15 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                     if e_solvent is not None:
                         res[CompKeys.solvent] = e_solvent[atom_idx]
                     # additional xc energy contribution
-                    if dft_calc:
+                    if dft_calc and xc_params is not None:
                         # atom-specific rho
-                        _, _, rho_atom = _make_rho(ao_value, np.sum(rdm1_atom, axis=0), xc_type)
+                        _, _, rho_atom = _make_rho(xc_params.ao_value, np.sum(rdm1_atom, axis=0), xc_type)
                         # energy from individual atoms
-                        res[CompKeys.xc] = _e_xc(eps_xc, grid_weights, rho_atom)
+                        res[CompKeys.xc] = _e_xc(xc_params.eps_xc, xc_params.grid_weights, rho_atom)
                         # nlc (vv10)
-                        if eps_xc_nlc is not None:
-                            _, _, rho_atom_vv10 = _make_rho(ao_value_nlc, np.sum(rdm1_atom, axis=0), 'GGA')
-                            res[CompKeys.xc] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
+                        if xc_params.eps_xc_nlc is not None:
+                            _, _, rho_atom_vv10 = _make_rho(xc_params.ao_value_nlc, np.sum(rdm1_atom, axis=0), 'GGA')
+                            res[CompKeys.xc] += _e_xc(xc_params.eps_xc_nlc, xc_params.grid_weights_nlc, rho_atom_vv10)
                 elif prop_type == 'dipole':
                     res[CompKeys.el] = -_trace(ao_dip, np.sum(rdm1_atom, axis=0))
                 # sum up electronic contributions
@@ -233,19 +242,19 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                     if e_solvent is not None:
                         res[CompKeys.solvent] = e_solvent[atom_idx]
                     # additional xc energy contribution
-                    if dft_calc:
+                    if dft_calc and xc_params is not None:
                         # atom-specific rho
-                        rho_atom = _make_rho_interm2(c0_tot[:, select], \
-                                                     c1_tot if c1_tot is None else c1_tot[:, :, select], \
-                                                     ao_value[:, :, select], xc_type)
+                        rho_atom = _make_rho_interm2(xc_params.c0_tot[:, select], \
+                                                     xc_params.c1_tot[:, :, select] if xc_params.c1_tot is not None else xc_params.c1_tot, \
+                                                     xc_params.ao_value[:, :, select], xc_type)
                         # energy from individual atoms
-                        res[CompKeys.xc] = _e_xc(eps_xc, grid_weights, rho_atom)
+                        res[CompKeys.xc] = _e_xc(xc_params.eps_xc, xc_params.grid_weights, rho_atom)
                         # nlc (vv10)
-                        if eps_xc_nlc is not None:
-                            rho_atom_vv10 = _make_rho_interm2(c0_vv10[:, select], \
-                                                              c1_vv10 if c1_vv10 is None else c1_vv10[:, :, select], \
-                                                              ao_value_nlc[:, :, select], 'GGA')
-                            res[CompKeys.xc] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_atom_vv10)
+                        if xc_params.eps_xc_nlc is not None:
+                            rho_atom_vv10 = _make_rho_interm2(xc_params.c0_vv10[:, select], \
+                                                              xc_params.c1_vv10[:, :, select] if xc_params.c1_vv10 is not None else xc_params.c1_vv10, \
+                                                              xc_params.ao_value_nlc[:, :, select], 'GGA')
+                            res[CompKeys.xc] += _e_xc(xc_params.eps_xc_nlc, xc_params.grid_weights_nlc, rho_atom_vv10)
                 elif prop_type == 'dipole':
                     res[CompKeys.el] = -_trace(ao_dip[:, select], np.sum(rdm1_tot, axis=0)[select])
                 # sum up electronic contributions
@@ -276,15 +285,15 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                     if mm_pot is not None:
                         res[CompKeys.solvent] = _trace(mm_pot, rdm1_orb)
                     # additional xc energy contribution
-                    if dft_calc:
+                    if dft_calc and xc_params is not None:
                         # orbital-specific rho
-                        _, _, rho_orb = _make_rho(ao_value, rdm1_orb, xc_type)
+                        _, _, rho_orb = _make_rho(xc_params.ao_value, rdm1_orb, xc_type)
                         # xc energy from individual orbitals
-                        res[CompKeys.xc] = _e_xc(eps_xc, grid_weights, rho_orb)
+                        res[CompKeys.xc] = _e_xc(xc_params.eps_xc, xc_params.grid_weights, rho_orb)
                         # nlc (vv10)
-                        if eps_xc_nlc is not None:
-                            _, _, rho_orb_vv10 = _make_rho(ao_value_nlc, rdm1_orb, 'GGA')
-                            res[CompKeys.xc] += _e_xc(eps_xc_nlc, grid_weights_nlc, rho_orb_vv10)
+                        if xc_params.eps_xc_nlc is not None:
+                            _, _, rho_orb_vv10 = _make_rho(xc_params.ao_value_nlc, rdm1_orb, 'GGA')
+                            res[CompKeys.xc] += _e_xc(xc_params.eps_xc_nlc, xc_params.grid_weights_nlc, rho_orb_vv10)
                 elif prop_type == 'dipole':
                     res[CompKeys.el] = -_trace(ao_dip, rdm1_orb)
                 # sum up electronic contributions
@@ -293,6 +302,7 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 return res
 
         # perform decomposition
+        prop: Dict[str, Union[np.ndarray, List[np.ndarray]]]
         if part in ['atoms', 'eda']:
             # domain
             domain = np.arange(pmol.natm)
@@ -331,10 +341,10 @@ def prop_tot(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.K
                 prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
             else:
                 prop[CompKeys.struct] = prop_nuc_rep
-            return {**prop, CompKeys.mo_occ: mo_occ, CompKeys.orbsym: orbsym(mol, mo_coeff)}
+            return {**prop, CompKeys.mo_occ: list(mo_occ), CompKeys.orbsym: orbsym(mol, mo_coeff)}
 
 
-def _e_nuc(mol: gto.Mole, mm_mol: Union[None, gto.Mole]) -> np.ndarray:
+def _e_nuc(mol: gto.Mole, mm_mol: Optional[gto.Mole]) -> np.ndarray:
         """
         this function returns the nuclear repulsion energy
         """
@@ -366,9 +376,9 @@ def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
         return contract('i,ix->ix', form_charges, coords - gauge_origin)
 
 
-def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
+def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Optional[gto.Mole], \
             mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF]) -> \
-            Tuple[np.ndarray, np.ndarray, np.ndarray, Union[None, np.ndarray]]:
+            Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]:
         """
         this function returns the components of the core hamiltonian
         """
@@ -377,7 +387,7 @@ def _h_core(mol: Union[gto.Mole, pbc_gto.Cell], mm_mol: Union[None, gto.Mole], \
             kin = mol.pbc_intor('int1e_kin')
             mydf = mf.with_df
             # individual atomic potentials
-            sub_nuc = _get_nuc_pbc(mol, mydf)
+            sub_nuc = get_nuc_pbc(mol, mydf)
         else:
             # kinetic integrals
             kin = mol.intor_symmetric('int1e_kin')
@@ -422,7 +432,8 @@ def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:
         cintopt = gto.moleintor.make_cintopt(mol._atm, mol._bas,
                                              mol._env, intor)
         # compute interaction potential
-        mm_pot = 0
+        nao = mol.nao_nr()
+        mm_pot = np.zeros(nao * (nao + 1) // 2, dtype=np.float64)
         for i0, i1 in lib.prange(0, charges.size, blksize):
             fakemol = gto.fakemol_for_charges(coords[i0:i1])
             j3c = df.incore.aux_e2(mol, fakemol, intor=intor,
@@ -470,7 +481,7 @@ def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:
 
 
 def _make_rho_interm1(ao_value: np.ndarray, \
-                      rdm1: np.ndarray, xc_type: str) -> Tuple[np.ndarray, Union[None, np.ndarray]]:
+                      rdm1: np.ndarray, xc_type: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
         this function returns the rho intermediates (c0, c1) needed in _make_rho()
         (adpated from: dft/numint.py:eval_rho() in PySCF)
@@ -496,7 +507,7 @@ def _make_rho_interm1(ao_value: np.ndarray, \
         return c0, c1
 
 
-def _make_rho_interm2(c0: np.ndarray, c1: np.ndarray, \
+def _make_rho_interm2(c0: np.ndarray, c1: Optional[np.ndarray], \
                       ao_value: np.ndarray, xc_type: str) -> np.ndarray:
         """
         this function returns rho from intermediates (c0, c1)
@@ -517,6 +528,7 @@ def _make_rho_interm2(c0: np.ndarray, c1: np.ndarray, \
             for i in range(1, 4):
                 rho[i] = contract('pi,pi->p', c0, ao_value[i]) * 2.
         else: # meta-GGA
+            assert c1 is not None
             rho = np.empty((6, ngrids), dtype=np.float64)
             rho[0] = contract('pi,pi->p', ao_value[0], c0)
             rho[5] = 0.
@@ -533,7 +545,7 @@ def _make_rho_interm2(c0: np.ndarray, c1: np.ndarray, \
 
 
 def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
-              xc_type: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+              xc_type: str) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
         """
         this function returns important dft intermediates, e.g., energy density, grid weights, etc.
         """
@@ -546,13 +558,13 @@ def _make_rho(ao_value: np.ndarray, rdm1: np.ndarray, \
                 c0, c1 = _make_rho_interm1(ao_value, rdm1[0] * 2., xc_type)
                 rho = _make_rho_interm2(c0, c1, ao_value, xc_type)
             else:
-                c0, c1 = zip(_make_rho_interm1(ao_value, rdm1[0], xc_type), \
-                             _make_rho_interm1(ao_value, rdm1[1], xc_type))
-                rho = (_make_rho_interm2(c0[0], c1[0], ao_value, xc_type), \
-                       _make_rho_interm2(c0[1], c1[1], ao_value, xc_type))
-                c0 = np.sum(c0, axis=0)
-                if c1[0] is not None:
-                    c1 = np.sum(c1, axis=0)
+                c0_a, c1_a = _make_rho_interm1(ao_value, rdm1[0], xc_type)
+                c0_b, c1_b = _make_rho_interm1(ao_value, rdm1[1], xc_type)
+                rho = np.stack((_make_rho_interm2(c0_a, c1_a, ao_value, xc_type), \
+                       _make_rho_interm2(c0_b, c1_b, ao_value, xc_type)))
+                c0 = c0_a + c0_b
+                if c1_a is not None and c1_b is not None:
+                    c1 = c1_a + c1_b
                 else:
                     c1 = None
         return c0, c1, rho

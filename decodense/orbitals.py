@@ -15,14 +15,14 @@ from pyscf import gto, scf, dft, lo
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from typing import List, Union
+from typing import List, Union, Tuple
 
 from .tools import dim, contract
 
 
 def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, \
                  pbc_scf.hf.RHF, pbc_dft.rks.RKS], \
-                 mo_coeff: np.ndarray, mo_occ: np.ndarray, minao: str, pop_method: str, part: str, ndo: bool, \
+                 mo_coeff: Tuple[np.ndarray, np.ndarray], mo_occ: Tuple[np.ndarray, np.ndarray], minao: str, pop_method: str, ndo: bool, \
                  verbose: int) -> List[np.ndarray]:
         """
         this function returns a list of population weights of each spin-orbital on the individual atoms
@@ -82,7 +82,7 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
                 return _population_mul(natm, ao_labels, ovlp, rdm1_orb)
 
         # init population weights array
-        weights = [np.zeros([n_spin, pmol.natm], dtype=np.float64), np.zeros([n_spin, pmol.natm], dtype=np.float64)]
+        weights = []
 
         # loop over spin
         for i, spin_mo in enumerate((alpha, beta)):
@@ -116,12 +116,12 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
                 mo = mo_coeff[i][:, spin_mo]
             mocc = mo_occ[i][spin_mo]
 
-            # execute kernel
-            weights[i] = list(get_weights(mo, mocc))
+            # get weights
+            weights.append(get_weights(mo, mocc))
 
             # closed-shell reference
             if rhf:
-                weights[i+1] = weights[i]
+                weights.append(weights[0])
                 break
 
         # verbose print
@@ -139,7 +139,7 @@ def assign_rdm1s(mol: Union[gto.Mole, pbc_gto.Cell], mf: Union[scf.hf.SCF, dft.r
         return weights
 
 
-def _population_mul(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> List[np.ndarray]:
+def _population_mul(natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray) -> np.ndarray:
         """
         this function returns the mulliken populations on the individual atoms
         """
