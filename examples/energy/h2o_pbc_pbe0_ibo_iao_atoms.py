@@ -17,9 +17,9 @@ cell = gto.Cell(
     """,
     verbose=0,
     output=None,
-    basis='gth-szv-molopt-sr',
-    pseudo='gth-pbe',
-    a=4*np.eye(3),
+    basis="gth-szv-molopt-sr",
+    pseudo="gth-pbe",
+    a=4 * np.eye(3),
     exp_to_discard=0.1,
 )
 cell.build()
@@ -31,23 +31,28 @@ kpts = cell.make_kpts(kmesh)
 
 # run k-point calculation
 kmf = dft.KRKS(cell, kpts).density_fit(auxbasis="weigend")
-kmf.xc = 'pbe,pbe'
+kmf.xc = "pbe,pbe"
 edft = kmf.kernel()
 
 # transform the k-point mf object to mf object for a supercell at gamma-point
 mf_scf = k2gamma(kmf)
-supcell, mo_coeff, mo_occ, e_mo = mf_scf.mol, mf_scf.mo_coeff, mf_scf.mo_occ, mf_scf.mo_energy
+supcell, mo_coeff, mo_occ, e_mo = (
+    mf_scf.mol,
+    mf_scf.mo_coeff,
+    mf_scf.mo_occ,
+    mf_scf.mo_energy,
+)
 j_int = to_supercell_ao_integrals(cell, kpts, kmf.get_j())
 mf = dft.RKS(supcell).density_fit().apply(scf.addons.remove_linear_dep_)
 mf.xc = "pbe,pbe"
 mf.with_df = df.df.DF(supcell)
 mf.with_df.auxbasis = "weigend"
 mf.mo_coeff, mf.mo_occ, mf.mo_energy = mo_coeff, mo_occ, e_mo
-mf.initialize_grids(supcell, mf.make_rdm1(), supcell.make_kpts([1,1,1]))
+mf.initialize_grids(supcell, mf.make_rdm1(), supcell.make_kpts([1, 1, 1]))
 mf.vj = j_int
 
 # occupied orbitals
-occ_mo = np.where(mf.mo_occ == 2.)[0]
+occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # pipek-mezey procedure
 loc = lo.PM(supcell, mf=mf)

@@ -11,30 +11,32 @@ import decodense
 TOL = 9
 
 # settings
-POP_METHOD = ('mulliken', 'lowdin', 'meta_lowdin', 'becke', 'iao')
-PART = ('orbitals', 'eda', 'atoms')
+POP_METHOD = ("mulliken", "lowdin", "meta_lowdin", "becke", "iao")
+PART = ("orbitals", "eda", "atoms")
 
 # init molecule
-mol = gto.M(verbose = 0, output = None, basis = 'pcseg1', symmetry = True, atom = 'geom/h2o.xyz')
+mol = gto.M(verbose=0, output=None, basis="pcseg1", symmetry=True, atom="geom/h2o.xyz")
 
 # mf calc
 mf = dft.RKS(mol)
-mf.xc = 'wb97m_v'
-mf.nlc = 'vv10'
+mf.xc = "wb97m_v"
+mf.nlc = "vv10"
 mf.nlcgrids.atom_grid = (50, 194)
 mf.nlcgrids.prune = dft.gen_grid.sg1_prune
 mf.kernel()
 
 # occupied orbitals
-occ_mo = np.where(mf.mo_occ == 2.)[0]
+occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # mo coefficients
-mo_coeff = 2 * (mf.mo_coeff[:, occ_mo], )
+mo_coeff = 2 * (mf.mo_coeff[:, occ_mo],)
+
 
 def tearDownModule():
     global mol, mf
     mol.stdout.close()
     del mol, mf
+
 
 class KnownValues(unittest.TestCase):
     def test(self):
@@ -47,7 +49,7 @@ class KnownValues(unittest.TestCase):
                     e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
                     self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
-if __name__ == '__main__':
-    print('test: test_h2o_wb97m_v_energy_gs')
-    unittest.main()
 
+if __name__ == "__main__":
+    print("test: test_h2o_wb97m_v_energy_gs")
+    unittest.main()
