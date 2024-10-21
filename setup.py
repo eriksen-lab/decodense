@@ -16,14 +16,12 @@ except:
 
 
 setup(
-    name= 'decodense',
-    author = 'Dr. Janus Juul Eriksen',
-    author_email = 'janus.eriksen@bristol.ac.uk',
-    description = short_description[0],
-    long_description = long_description,
-    long_description_content_type = "text/markdown",
-    license = 'MIT',
-
+    name="decodense",
+    author="Dr. Janus Juul Eriksen",
+    author_email="janus.eriksen@bristol.ac.uk",
+    description=short_description[0],
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    license="MIT",
     packages=find_packages(),
-
 )
