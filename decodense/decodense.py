@@ -21,7 +21,7 @@ from typing import Union, Optional, Tuple
 from .decomp import DecompCls, sanity_check
 from .orbitals import assign_rdm1s
 from .properties import prop_tot
-from .tools import write_rdm1
+from .tools import write_rdm1, logger_config
 from .results import fmt
 
 
@@ -36,6 +36,9 @@ def main(
     """
     main decodense program
     """
+    # setup logger
+    logger_config(decomp.verbose)
+
     # sanity check
     sanity_check(mol, mf, decomp, mo_coeff, mo_occ)
 
@@ -85,6 +88,8 @@ def main(
 
     # write rdm1s
     if decomp.write != "":
-        write_rdm1(mol, decomp.part, mo_coeff, mo_occ, decomp.write, weights)
+        write_rdm1(
+            mol, decomp.part, mo_coeff, mo_occ, decomp.write, decomp.writename, weights
+        )
 
     return fmt(mol, decomp.res, decomp.unit, decomp.ndo)

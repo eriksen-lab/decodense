@@ -16,6 +16,7 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
 from pyscf.pbc.lib.kpts_helper import gamma_point
 from typing import List, Dict, Union, Optional, Tuple
+from .tools import logger
 
 
 # component keys
@@ -24,10 +25,12 @@ class CompKeys:
     exch = "Exch."
     kin = "Kin."
     solvent = "Solv."
+    solvent_vdw = "Solv. (vdW)"
     nuc_att_glob = "E_ne (1)"
     nuc_att_loc = "E_ne (2)"
     nuc_att = "E_ne"
     xc = "XC"
+    xc_nlc = "XC (nlc)"
     struct = "Struct."
     el = "Elect."
     tot = "Total"
@@ -54,6 +57,7 @@ class DecompCls(object):
         "gauge_origin",
         "prop",
         "write",
+        "writename",
         "verbose",
         "unit",
         "res",
@@ -75,6 +79,7 @@ class DecompCls(object):
         gauge_origin: np.ndarray = np.zeros(3, dtype=np.float64),
         prop: str = "energy",
         write: str = "",
+        writename: str = "",
         verbose: int = 0,
         unit: str = "au",
     ) -> None:
@@ -92,6 +97,7 @@ class DecompCls(object):
         self.gauge_origin = gauge_origin
         self.prop = prop
         self.write = write
+        self.writename = writename
         self.verbose = verbose
         self.unit = unit
         # set internal defaults
@@ -151,6 +157,11 @@ def sanity_check(
         "eda",
         "orbitals",
     ], "invalid partitioning. valid choices: `atoms` (default), `eda`, or `orbitals`"
+    if decomp.part == "orbitals":
+        logger.warning(
+            "Warning: This partitioning only computes electronic energy and does not "
+            "include solvent van der Waals contributions."
+        )
     # NDO decomposition
     assert isinstance(decomp.ndo, bool), "invalid NDO argument. must be a bool"
     # gauge origin
@@ -164,6 +175,9 @@ def sanity_check(
     ], "invalid property. valid choices: `energy` (default) and `dipole`"
     # write
     assert isinstance(decomp.write, str), "invalid write format argument. must be a str"
+    assert isinstance(
+        decomp.writename, str
+    ), "invalid write name argument. must be a str"
     assert decomp.write in [
         "",
         "cube",

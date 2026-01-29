@@ -11,6 +11,7 @@ __email__ = "janus@kemi.dtu.dk"
 __status__ = "Development"
 
 import sys
+import logging
 import os
 import numpy as np
 from subprocess import Popen, PIPE
@@ -30,32 +31,48 @@ MAX_CYCLE = 100
 NATORB_THRES = 1.0e-12
 
 
-class Logger(object):
+class DecodenseLogger(logging.Logger):
+    def info2(self, msg: str, *args, **kwargs) -> None:
+        if self.isEnabledFor(logging.INFO - 1):
+            self._log(logging.INFO - 1, msg, args, **kwargs)
+
+    def info3(self, msg: str, *args, **kwargs) -> None:
+        if self.isEnabledFor(logging.INFO - 2):
+            self._log(logging.INFO - 2, msg, args, **kwargs)
+
+
+# get logger
+logger = DecodenseLogger("decodense_logger")
+
+# remove handlers from possible previous initialization
+if logger.hasHandlers():
+    logger.handlers.clear()
+
+# add new handler to log to stdout
+handler = logging.StreamHandler(sys.stdout)
+
+# create new formatter
+formatter = logging.Formatter("%(message)s")
+
+# add formatter to handler
+handler.setFormatter(formatter)
+
+# add handler to logger if it does not already exist
+logger.addHandler(handler)
+
+# prevent logger from propagating handlers from parent loggers
+logger.propagate = False
+
+
+def logger_config(verbose: int) -> None:
     """
-    this class pipes all write statements to both stdout and output_file
+    this function configures the decodense logger
     """
+    # corresponding logging level
+    verbose_level = {0: 30, 1: 20, 2: 19, 3: 18, 4: 10, 5: 5}
 
-    def __init__(self, output_file, both=True) -> None:
-        """
-        init Logger
-        """
-        self.terminal = sys.stdout
-        self.log = open(output_file, "a")
-        self.both = both
-
-    def write(self, message) -> None:
-        """
-        define write
-        """
-        self.log.write(message)
-        if self.both:
-            self.terminal.write(message)
-
-    def flush(self) -> None:
-        """
-        define flush
-        """
-        pass
+    # set level for logger
+    logger.setLevel(verbose_level[verbose])
 
 
 def git_version() -> str:
@@ -95,7 +112,7 @@ def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def mf_info(
-    mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT]
+    mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT],
 ) -> Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
     """
     retrieve mf information (mo coefficients & occupations)
@@ -205,8 +222,8 @@ def write_rdm1(
     mo_coeff: Tuple[np.ndarray, np.ndarray],
     mo_occ: Tuple[np.ndarray, np.ndarray],
     fmt: str,
+    writename: str,
     weights: List[np.ndarray],
-    suffix: str = "",
 ) -> None:
     """
     this function writes a 1-RDM as a numpy or cube (default) file
@@ -223,6 +240,7 @@ def write_rdm1(
         [make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])]
     )
     # loop over atoms
+    rdm1_atom_dict = {}
     for a in range(mol.natm):
         # atom-specific rdm1
         rdm1_atom = np.zeros_like(rdm1_tot)
@@ -240,15 +258,19 @@ def write_rdm1(
             # write rdm1_atom as cube file
             pyscf_tools.cubegen.density(
                 mol,
-                f"atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{suffix:}.cube",
+                f"{writename}{'_' if writename else ''}atom_"
+                f"{mol.atom_symbol(a).upper():s}{a:d}_rdm1.cube",
                 np.sum(rdm1_atom, axis=0),
             )
         else:
-            # write rdm1_atom as numpy file
-            np.save(
-                f"atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1{suffix:}.npy",
-                np.sum(rdm1_atom, axis=0),
-            )
+            # save rdm1_atom to dictionary
+            rdm1_atom_dict[f"atom_{mol.atom_symbol(a).upper():s}{a:d}_rdm1"] = rdm1_atom
+    # write rdm1_atom dictionary to npz file
+    if fmt == "numpy":
+        if writename:
+            np.savez(f"{writename}.npz", **rdm1_atom_dict)
+        else:
+            np.savez(f"rdm1_atom_dict.npz", **rdm1_atom_dict)
 
 
 def res_add(res_a, res_b):
