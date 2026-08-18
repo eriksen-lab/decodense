@@ -113,28 +113,23 @@ def prop_tot(
     else:
         charge_atom = 0.0
 
-    # possible mm region
-    mm_mol = getattr(mf, "mm_mol", None)
-
-    # possible cosmo/pcm solvent model
-    if getattr(mf, "with_solvent", None):
-        e_solvent = _solvent(mol, np.sum(rdm1, axis=0), mf.with_solvent)
-    else:
-        e_solvent = None
-
     # nuclear repulsion property
     if prop_type == "energy":
         if isinstance(mol, pbc_gto.Cell):
             prop_nuc_rep = ewald_e_nuc(mol)
         else:
-            prop_nuc_rep = _e_nuc(pmol, mm_mol)
+            prop_nuc_rep = _e_nuc(pmol)
     elif prop_type == "dipole":
         prop_nuc_rep = _dip_nuc(pmol, gauge_origin)
     if part == "orbitals":
         prop_nuc_rep = np.sum(prop_nuc_rep, axis=0)
 
     # core hamiltonian
-    kin, nuc, sub_nuc, mm_pot = _h_core(mol, mm_mol, mf)
+    kin, nuc, sub_nuc = _h_core(mol, mf)
+
+    # get possible solvent contributions
+    pot_solv, nuc_solv, vdW_solv = _solvent(mol, mf, np.sum(rdm1, axis=0))
+
     # fock potential
     if hasattr(mf, "vj"):
         vj = copy.copy(mf.vj)
@@ -307,10 +302,12 @@ def prop_tot(
             res[CompKeys.nuc_att_glob] = _trace(
                 sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling=0.5, ad=AD
             )
-            if mm_pot is not None:
-                res[CompKeys.solvent] = _trace(mm_pot, np.sum(rdm1_atom, axis=0))
-            if e_solvent is not None:
-                res[CompKeys.solvent] = e_solvent[atom_idx]
+            if pot_solv is not None:
+                res[CompKeys.solvent] = _trace(pot_solv, np.sum(rdm1_atom, axis=0))
+            if nuc_solv is not None:
+                res[CompKeys.solvent] += nuc_solv[atom_idx]
+            if vdW_solv is not None:
+                res[CompKeys.solvent_vdw] = vdW_solv[atom_idx]
             # additional xc energy contribution
             if dft_calc and xc_params is not None:
                 # atom-specific rho
@@ -326,7 +323,7 @@ def prop_tot(
                     _, _, rho_atom_vv10 = _make_rho(
                         xc_params.ao_value_nlc, np.sum(rdm1_atom, axis=0), "GGA"
                     )
-                    res[CompKeys.xc] += _e_xc(
+                    res[CompKeys.xc_nlc] = _e_xc(
                         xc_params.eps_xc_nlc, xc_params.grid_weights_nlc, rho_atom_vv10
                     )
             if ext_el is not None:
@@ -375,12 +372,14 @@ def prop_tot(
             res[CompKeys.nuc_att_glob] = _trace(
                 sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling=0.5, ad=AD
             )
-            if mm_pot is not None:
+            if pot_solv is not None:
                 res[CompKeys.solvent] = _trace(
-                    mm_pot[select], np.sum(rdm1_tot, axis=0)[select]
+                    pot_solv[select], np.sum(rdm1_tot, axis=0)[select]
                 )
-            if e_solvent is not None:
-                res[CompKeys.solvent] = e_solvent[atom_idx]
+            if nuc_solv is not None:
+                res[CompKeys.solvent] += nuc_solv[atom_idx]
+            if vdW_solv is not None:
+                res[CompKeys.solvent_vdw] = vdW_solv[atom_idx]
             # additional xc energy contribution
             if dft_calc and xc_params is not None:
                 # atom-specific rho
@@ -410,7 +409,7 @@ def prop_tot(
                         xc_params.ao_value_nlc[:, :, select],
                         "GGA",
                     )
-                    res[CompKeys.xc] += _e_xc(
+                    res[CompKeys.xc_nlc] = _e_xc(
                         xc_params.eps_xc_nlc, xc_params.grid_weights_nlc, rho_atom_vv10
                     )
             if ext_el is not None:
@@ -446,8 +445,8 @@ def prop_tot(
                 res[CompKeys.exch] = -_trace(vk[spin_idx], rdm1_orb, scaling=0.5)
             res[CompKeys.kin] = _trace(kin, rdm1_orb, ad=AD)
             res[CompKeys.nuc_att] = _trace(nuc, rdm1_orb, ad=AD)
-            if mm_pot is not None:
-                res[CompKeys.solvent] = _trace(mm_pot, rdm1_orb)
+            if pot_solv is not None:
+                res[CompKeys.solvent] = _trace(pot_solv, rdm1_orb)
             # additional xc energy contribution
             if dft_calc and xc_params is not None:
                 # orbital-specific rho
@@ -461,7 +460,7 @@ def prop_tot(
                     _, _, rho_orb_vv10 = _make_rho(
                         xc_params.ao_value_nlc, rdm1_orb, "GGA"
                     )
-                    res[CompKeys.xc] += _e_xc(
+                    res[CompKeys.xc_nlc] = _e_xc(
                         xc_params.eps_xc_nlc, xc_params.grid_weights_nlc, rho_orb_vv10
                     )
             if ext_el is not None:
@@ -538,26 +537,16 @@ def prop_tot(
         }
 
 
-def _e_nuc(mol: gto.Mole, mm_mol: Optional[gto.Mole]) -> np.ndarray:
+def _e_nuc(mol: gto.Mole) -> np.ndarray:
     """
     this function returns the nuclear repulsion energy
     """
     # coordinates and charges of nuclei
-    coords = mol.atom_coords()
     charges = mol.atom_charges()
     # internuclear distances (with self-repulsion removed)
     dist = gto.inter_distance(mol)
     dist[np.diag_indices_from(dist)] = 1e200
-    e_nuc = contract("i,ij,j->i", charges, 1.0 / dist, charges) * 0.5
-    # possible interaction with mm sites
-    if mm_mol is not None:
-        mm_coords = mm_mol.atom_coords()
-        mm_charges = mm_mol.atom_charges()
-        for j in range(mol.natm):
-            q2, r2 = charges[j], coords[j]
-            r = lib.norm(r2 - mm_coords, axis=1)
-            e_nuc[j] += q2 * np.sum(mm_charges / r)
-    return e_nuc
+    return contract("i,ij,j->i", charges, 1.0 / dist, charges) * 0.5
 
 
 def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
@@ -572,7 +561,6 @@ def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
 
 def _h_core(
     mol: Union[gto.Mole, pbc_gto.Cell],
-    mm_mol: Optional[gto.Mole],
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF],
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
@@ -593,12 +581,7 @@ def _h_core(
         sub_nuc = _get_nuc(mol)
     # total nuclear potential
     nuc = np.sum(sub_nuc, axis=0)
-    # possible mm potential
-    if mm_mol is not None:
-        mm_pot = _mm_pot(mol, mm_mol)
-    else:
-        mm_pot = None
-    return kin, nuc, sub_nuc, mm_pot
+    return kin, nuc, sub_nuc
 
 
 def _get_nuc(mol: gto.Mole) -> np.ndarray:
@@ -616,10 +599,57 @@ def _get_nuc(mol: gto.Mole) -> np.ndarray:
     return sub_nuc
 
 
-def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:
+def _solvent(
+    mol: Union[gto.Mole, pbc_gto.Cell],
+    mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF],
+    rdm1: np.ndarray,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+    # initialize
+    pot_solv, nuc_solv, vdW_solv = None, None, None
+
+    # point charges
+    if hasattr(mf, "mm_mol"):
+        mm_mol = getattr(mf, "mm_mol", None)
+        pot_solv, nuc_solv = _point_charges(mol, mm_mol)
+    # pcm
+    elif hasattr(mf, "with_solvent"):
+        pot_solv, nuc_solv = _pcm(mol, rdm1, mf.with_solvent)
+    # OpenMM polarizable embedding
+    elif hasattr(mf, "h1e_mmpol"):
+        # static contribution to one-electron Hamiltonian
+        pot_solv = getattr(mf, "h1e_mmpol").copy()
+
+        # static nuclear contribution
+        nuc_solv = np.array(
+            [
+                mf.V_mm_at_nucl[i] * mol.atom_charges()[i]
+                for i in range(len(mol.atom_charges()))
+            ]
+        )
+
+        # QM-MM vdW potential
+        vdW_solv = mf.ommp_qm_helper.vdw_energy_by_atom(mf.ommp_obj)
+
+        # polarization contributions
+        if hasattr(mf, "v_mmpol_d"):
+            # IPD contribution to the Fock Matrix
+            pot_solv += 0.5 * getattr(mf, "v_mmpol_d")
+
+            # polarization contribution from the potential of the IPDs at the nuclei
+            nuc_solv += 0.5 * np.array(
+                [
+                    mf.V_pol_at_nucl[i] * mol.atom_charges()[i]
+                    for i in range(len(mol.atom_charges()))
+                ]
+            )
+
+    return pot_solv, nuc_solv, vdW_solv
+
+
+def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray]:
     """
-    this function returns the full mm potential
-    (adapted from: qmmm/itrf.py:get_hcore() in PySCF)
+    this function returns the full mm potential and the nuclei interaction with the
+    point charges (adapted from: qmmm/itrf.py:get_hcore() in PySCF)
     """
     # settings
     coords = mm_mol.atom_coords()
@@ -636,33 +666,51 @@ def _mm_pot(mol: gto.Mole, mm_mol: gto.Mole) -> np.ndarray:
         j3c = df.incore.aux_e2(mol, fakemol, intor=intor, aosym="s2ij", cintopt=cintopt)
         mm_pot += np.einsum("xk,k->x", j3c, -charges[i0:i1])
     mm_pot = lib.unpack_tril(mm_pot)
-    return mm_pot
+    # nuclei interaction with point charges
+    atom_charges = mol.atom_charges()
+    atom_coords = mol.atom_coords()
+    nuc_solv = np.zeros(len(mol.atom))
+    mm_atom_charges = mm_mol.atom_charges()
+    mm_atom_coords = mm_mol.atom_coords()
+    for j in range(mol.natm):
+        q2, r2 = atom_charges[j], atom_coords[j]
+        r = lib.norm(r2 - mm_atom_coords, axis=1)
+        nuc_solv[j] = q2 * np.sum(mm_atom_charges / r)
+    return mm_pot, nuc_solv
 
 
-def _solvent(
-    mol: gto.Mole, rdm1: np.ndarray, solvent_model: solvent.ddcosmo.DDCOSMO
-) -> np.ndarray:
+def _pcm(
+    mol: gto.Mole, rdm1: np.ndarray, solvent_model: solvent.PCM
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    this function return atom-specific PCM/COSMO contributions
-    (adapted from: solvent/ddcosmo.py:_get_vind() in PySCF)
+    this function returns the pcm potential matrix and the nuclei interaction with the
+    solvent (adapted from: solvent/pcm.py:_get_vind() in PySCF)
     """
-    # settings
-    r_vdw = solvent_model._intermediates["r_vdw"]
-    ylm_1sph = solvent_model._intermediates["ylm_1sph"]
-    ui = solvent_model._intermediates["ui"]
-    Lmat = solvent_model._intermediates["Lmat"]
-    cached_pol = solvent_model._intermediates["cached_pol"]
-    dielectric = solvent_model.eps
-    f_epsilon = (dielectric - 1.0) / dielectric if dielectric > 0.0 else 1.0
-    # electrostatic potential
-    phi = solvent.ddcosmo.make_phi(solvent_model, rdm1, r_vdw, ui, ylm_1sph)
-    # X and psi
-    # (cf. https://github.com/filippolipparini/ddPCM/blob/master/reference.pdf)
-    Xvec = np.linalg.solve(Lmat, phi.ravel()).reshape(mol.natm, -1)
-    psi = solvent.ddcosmo.make_psi_vmat(
-        solvent_model, rdm1, r_vdw, ui, ylm_1sph, cached_pol, Xvec, Lmat
-    )[0]
-    return 0.5 * f_epsilon * np.einsum("jx,jx->j", psi, Xvec)
+    surface = solvent_model.surface
+    nao = mol.nao_nr()
+    rdm1 = rdm1.reshape(-1, nao, nao)
+    if rdm1.shape[0] == 2:
+        rdm1 = (rdm1[0] + rdm1[1]).reshape(-1, nao, nao)
+    # get the electronic part of the potential
+    vmat_e = 0.5 * solvent_model._get_vind(np.sum(rdm1, axis=0))[1]
+    # calculate the cavity surface charges
+    K = solvent_model._intermediates["K"]
+    R = solvent_model._intermediates["R"]
+    v_grids_e = solvent_model._get_v(rdm1)
+    v_grids_n = solvent_model.v_grids_n
+    v_grids = v_grids_n - v_grids_e
+    b = np.dot(R, v_grids.T)
+    q = np.linalg.solve(K, b).T
+    vK_1 = np.linalg.solve(K.T, v_grids.T)
+    qt = np.dot(R.T, vK_1).T
+    q_sym = (q + qt) / 2.0
+    # get the nuclear part of the potential
+    nuc_solv_pcm = np.zeros(mol.natm)
+    for j in range(mol.natm):
+        q2, r2 = mol.atom_charges()[j], mol.atom_coords()[j]
+        r = lib.norm(r2 - surface["grid_coords"], axis=1)
+        nuc_solv_pcm[j] = 0.5 * q2 * np.sum(q_sym / r)
+    return vmat_e, nuc_solv_pcm
 
 
 def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:

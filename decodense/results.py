@@ -206,6 +206,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             for comp_key in res.keys()
             if comp_key not in (CompKeys.struct, CompKeys.charge_atom)
         }
+        prop[CompKeys.tot] = prop[CompKeys.el]
     else:
         prop = {
             CompKeys.el
@@ -215,6 +216,10 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             * scaling
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
         }
+        for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
+            prop[CompKeys.tot + axis] = (
+                prop[CompKeys.el + axis]
+            )
     # add mo occupations, orbital symmetries, and structural contributions to dict
     prop[CompKeys.mo_occ] = mo_occ[mo_idx]
     prop[CompKeys.orbsym] = orbsym[mo_idx]
