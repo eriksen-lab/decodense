@@ -34,20 +34,16 @@ mo_coeff = []
 # loop over spins
 for i, spin_mo in enumerate((alpha, beta)):
     # pipek-mezey procedure
-    # create mock object to circumvent pyscf issue #1896
-    mock_mf = mf.copy()
-    mock_mf.mo_coeff = mf.mo_coeff[i]
-    mock_mf.mo_occ = mf.mo_occ[i]
-    loc = lo.PM(mol, mf=mock_mf)
+    loc = lo.PM(mol, mf.mo_coeff[i][:, spin_mo])
     loc.pop_method = "iao"
     loc.conv_tol = 1e-10
     mo_coeff.append(loc.kernel(mf.mo_coeff[i][:, spin_mo]))
 
     # jacobi sweep to ensure optimum is found
-    isstable, mo_coeff[-1] = loc.stability_jacobi()
+    mo_coeff[-1], isstable = loc.stability_jacobi(return_status=True)
     while not isstable:
         mo_coeff[-1] = loc.kernel(mo_coeff[-1])
-        isstable, mo_coeff[-1] = loc.stability_jacobi()
+        mo_coeff[-1], isstable = loc.stability_jacobi(return_status=True)
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms", prop="dipole")
