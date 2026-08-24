@@ -189,7 +189,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
         prop = {
             comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx]
             for comp_key in res.keys()
-            if comp_key not in (CompKeys.struct, CompKeys.charge_atom)
+            if comp_key not in (CompKeys.struct, CompKeys.charge_atom, CompKeys.orbsym)
         }
         prop[CompKeys.tot] = prop[CompKeys.el]
     else:
