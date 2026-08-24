@@ -36,16 +36,16 @@ mf.kernel()
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # pipek-mezey procedure
-loc = lo.PM(mol, mf=mf)
+loc = lo.PM(mol, mf.mo_coeff[:, occ_mo])
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
 mo_coeff = loc.kernel(mf.mo_coeff[:, occ_mo])
 
 # jacobi sweep to ensure optimum is found
-isstable, mo_coeff = loc.stability_jacobi()
+mo_coeff, isstable = loc.stability_jacobi(return_status=True)
 while not isstable:
     mo_coeff = loc.kernel(mo_coeff)
-    isstable, mo_coeff = loc.stability_jacobi()
+    mo_coeff, isstable = loc.stability_jacobi(return_status=True)
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms")
