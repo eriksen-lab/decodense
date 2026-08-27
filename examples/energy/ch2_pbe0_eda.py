@@ -3,6 +3,7 @@
 
 import numpy as np
 from pyscf import gto, scf
+from pyscf.opentrustregion import mf_to_otr
 
 import decodense
 
@@ -20,10 +21,12 @@ mol = gto.M(
 )
 
 # mf calc
-mf = scf.UKS(mol)
-mf.xc = "pbe0"
+mf = mf_to_otr(scf.UKS(mol, xc="pbe0"))
 mf.conv_tol = 1.0e-10
 mf.kernel()
+
+# verify SCF solution is a true minimum
+stable, direction = mf.stability_check()
 
 # occupied orbitals
 alpha = np.where(mf.mo_occ[0] > 0.0)[0]

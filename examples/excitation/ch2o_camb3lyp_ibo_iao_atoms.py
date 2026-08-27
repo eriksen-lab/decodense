@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf, lo
+from pyscf import gto, scf
+from pyscf.opentrustregion import PipekMezeyOTR
 
 import decodense
 
@@ -52,17 +53,14 @@ mo_coeff = []
 
 # loop over spins
 for i, spin_mo in enumerate((alpha, beta)):
-    # pipek-mezey procedure
-    loc = lo.PM(mol, mf_ex.mo_coeff[i][:, spin_mo])
+    # pipek-mezey procedure with OTR
+    loc = PipekMezeyOTR(mol, mf_ex.mo_coeff[i][:, spin_mo])
     loc.pop_method = "iao"
     loc.conv_tol = 1e-10
-    mo_coeff.append(loc.kernel(mf_ex.mo_coeff[i][:, spin_mo]))
+    mo_coeff.append(loc.kernel())
 
-    # jacobi sweep to ensure optimum is found
-    mo_coeff[-1], isstable = loc.stability_jacobi(return_status=True)
-    while not isstable:
-        mo_coeff[-1] = loc.kernel(mo_coeff[-1])
-        mo_coeff[-1], isstable = loc.stability_jacobi(return_status=True)
+    # verify optimum is a true minimum
+    stable, direction = loc.stability_check()
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms")
