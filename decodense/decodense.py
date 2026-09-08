@@ -22,7 +22,7 @@ from .decomp import DecompCls, sanity_check
 from .orbitals import assign_rdm1s
 from .properties import prop_tot
 from .tools import write_rdm1, logger_config
-from .results import fmt
+from .results import ResultsCls
 
 
 def main(
@@ -92,4 +92,4 @@ def main(
             mol, decomp.part, mo_coeff, mo_occ, decomp.write, decomp.writename, weights
         )
 
-    return fmt(mol, decomp.res, decomp.unit, decomp.ndo)
+    return ResultsCls(mol, decomp.res, decomp.unit, decomp.ndo)

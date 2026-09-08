@@ -46,7 +46,10 @@ class KnownValues(unittest.TestCase):
                 with self.subTest(pop_method=pop_method, part=part):
                     decomp = decodense.DecompCls(pop_method=pop_method, part=part)
                     res = decodense.main(mol, decomp, mf, mo_coeff)
-                    e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                    if part == "orbitals":
+                        e_tot = np.sum(res.el[0]) + np.sum(res.el[1])
+                    else:
+                        e_tot = np.sum(res.tot)
                     self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 

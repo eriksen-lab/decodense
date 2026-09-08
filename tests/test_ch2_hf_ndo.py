@@ -105,7 +105,10 @@ class KnownValues(unittest.TestCase):
                 res = decodense.main(
                     mol, decomp, mf_ex, mo_coeff=mo_coeff, mo_occ=mo_occ, rdm1=rdm1_sum
                 )
-                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                if part == "orbitals":
+                    e_tot = np.sum(res.el[0]) + np.sum(res.el[1])
+                else:
+                    e_tot = np.sum(res.tot)
                 self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 

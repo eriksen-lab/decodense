@@ -41,6 +41,28 @@ class CompKeys:
     orbsym = "Symm."
 
 
+comp_key_dict = {
+    "Coul.": "coul",
+    "Exch.": "exch",
+    "Kin.": "kin",
+    "Solv.": "solvent",
+    "Solv. (vdW)": "solvent_vdw",
+    "E_ne (1)": "nuc_att_glob",
+    "E_ne (2)": "nuc_att_loc",
+    "E_ne": "nuc_att",
+    "XC": "xc",
+    "XC (nlc)": "xc_nlc",
+    "Struct.": "struct",
+    "Elect.": "el",
+    "Total": "tot",
+    "Charge": "charge_atom",
+    "Atom": "atoms",
+    "Orbital": "orbitals",
+    "Occup.": "occup",
+    "Symm.": "symm",
+}
+
+
 class DecompCls(object):
     """
     this class contains all decomp attributes

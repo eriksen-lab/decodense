@@ -37,7 +37,6 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
     def test(self):
-        dipmom_tot = np.zeros(3)
         mf_dipmom_tot = mf.dip_moment(unit="au", verbose=0)
         for pop_method in POP_METHOD:
             for part in PART:
@@ -46,10 +45,12 @@ class KnownValues(unittest.TestCase):
                         pop_method=pop_method, part=part, prop="dipole"
                     )
                     res = decodense.main(mol, decomp, mf, mo_coeff)
-                    for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
-                        dipmom_tot[ax_idx] = np.sum(
-                            res[decodense.decomp.CompKeys.tot + axis]
+                    if part == "orbitals":
+                        dipmom_tot = np.sum(res.el[0], axis=0) + np.sum(
+                            res.el[1], axis=0
                         )
+                    else:
+                        dipmom_tot = np.sum(res.tot, axis=0)
                     self.assertAlmostEqual(
                         np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL
                     )
