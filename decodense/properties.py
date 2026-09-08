@@ -464,6 +464,7 @@ def prop_tot(
             prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
         else:
             prop[CompKeys.struct] = prop_nuc_rep
+        prop[CompKeys.tot] = prop[CompKeys.el]
         return {
             **prop,
             CompKeys.mo_occ: list(mo_occ),

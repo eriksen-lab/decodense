@@ -46,8 +46,8 @@ class KnownValues(unittest.TestCase):
                     )
                     res = decodense.main(mol, decomp, mf, mo_coeff)
                     if part == "orbitals":
-                        dipmom_tot = np.sum(res.el[0], axis=0) + np.sum(
-                            res.el[1], axis=0
+                        dipmom_tot = np.sum(res.tot[0], axis=0) + np.sum(
+                            res.tot[1], axis=0
                         )
                     else:
                         dipmom_tot = np.sum(res.tot, axis=0)
