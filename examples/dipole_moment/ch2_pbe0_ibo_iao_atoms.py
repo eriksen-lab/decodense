@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf, lo
+from pyscf import gto, scf
+from pyscf.opentrustregion import PipekMezeyOTR, mf_to_otr
 
 import decodense
 
@@ -20,10 +21,12 @@ mol = gto.M(
 )
 
 # mf calc
-mf = scf.UKS(mol)
-mf.xc = "pbe0"
+mf = mf_to_otr(scf.UKS(mol, xc="pbe0"))
 mf.conv_tol = 1.0e-10
 mf.kernel()
+
+# verify SCF solution is a true minimum
+stable, direction = mf.stability_check()
 
 # occupied orbitals
 alpha, beta = np.where(mf.mo_occ[0] > 0.0)[0], np.where(mf.mo_occ[1] > 0.0)[0]
@@ -33,17 +36,14 @@ mo_coeff = []
 
 # loop over spins
 for i, spin_mo in enumerate((alpha, beta)):
-    # pipek-mezey procedure
-    loc = lo.PM(mol, mf.mo_coeff[i][:, spin_mo])
+    # pipek-mezey procedure with OTR
+    loc = PipekMezeyOTR(mol, mf.mo_coeff[i][:, spin_mo])
     loc.pop_method = "iao"
     loc.conv_tol = 1e-10
-    mo_coeff.append(loc.kernel(mf.mo_coeff[i][:, spin_mo]))
+    mo_coeff.append(loc.kernel())
 
-    # jacobi sweep to ensure optimum is found
-    mo_coeff[-1], isstable = loc.stability_jacobi(return_status=True)
-    while not isstable:
-        mo_coeff[-1] = loc.kernel(mo_coeff[-1])
-        mo_coeff[-1], isstable = loc.stability_jacobi(return_status=True)
+    # verify optimum is a true minimum
+    stable, direction = loc.stability_check()
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms", prop="dipole")

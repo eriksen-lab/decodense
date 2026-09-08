@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import scf, lo
+from pyscf import scf
 from pyscf.pbc import df, dft, gto
 from pyscf.pbc.tools.k2gamma import k2gamma, to_supercell_ao_integrals
+from pyscf.opentrustregion import PipekMezeyOTR
 
 import decodense
 
@@ -54,17 +55,14 @@ mf.vj = j_int
 # occupied orbitals
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
-# pipek-mezey procedure
-loc = lo.PM(supcell, mf.mo_coeff[:, occ_mo])
+# pipek-mezey procedure with OTR
+loc = PipekMezeyOTR(supcell, mf.mo_coeff[:, occ_mo])
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
-mo_coeff = loc.kernel(mf.mo_coeff[:, occ_mo])
+mo_coeff = loc.kernel()
 
-# jacobi sweep to ensure optimum is found
-mo_coeff, isstable = loc.stability_jacobi(return_status=True)
-while not isstable:
-    mo_coeff = loc.kernel(mo_coeff)
-    mo_coeff, isstable = loc.stability_jacobi(return_status=True)
+# verify optimum is a true minimum
+stable, direction = loc.stability_check()
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms")

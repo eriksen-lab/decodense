@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf, lo, qmmm
+from pyscf import gto, scf, qmmm
+from pyscf.opentrustregion import PipekMezeyOTR, mf_to_otr
 
 import decodense
 
@@ -23,29 +24,29 @@ mf = scf.RKS(mol)
 mf.xc = "pbe0"
 mf.conv_tol = 1.0e-10
 
-# randomly add point charges
+# randomly add point charges,then apply mf_to_otr
 np.random.seed(1)
 coords = np.random.random((5, 3)) * 10
 charges = (np.arange(5) + 1.0) * -0.1
-mf = qmmm.mm_charge(mf, coords, charges)
+mf = mf_to_otr(qmmm.mm_charge(mf, coords, charges))
 
 # run mf
 mf.kernel()
 
+# verify SCF solution is a true minimum
+stable, direction = mf.stability_check()
+
 # occupied orbitals
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
-# pipek-mezey procedure
-loc = lo.PM(mol, mf.mo_coeff[:, occ_mo])
+# pipek-mezey procedure with OTR
+loc = PipekMezeyOTR(mol, mf.mo_coeff[:, occ_mo])
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
-mo_coeff = loc.kernel(mf.mo_coeff[:, occ_mo])
+mo_coeff = loc.kernel()
 
-# jacobi sweep to ensure optimum is found
-mo_coeff, isstable = loc.stability_jacobi(return_status=True)
-while not isstable:
-    mo_coeff = loc.kernel(mo_coeff)
-    mo_coeff, isstable = loc.stability_jacobi(return_status=True)
+# verify optimum is a true minimum
+stable, direction = loc.stability_check()
 
 # decomposition
 decomp = decodense.DecompCls(pop_method="iao", part="atoms")
