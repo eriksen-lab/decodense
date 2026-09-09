@@ -78,7 +78,7 @@ class KnownValues(unittest.TestCase):
                     mo_basis="pm", pop_method="iao", mo_init="ibo", loc_exp=4, part=part
                 )
                 res = decodense.main(supcell, decomp, mf, mo_coeff)
-                e_tot = np.sum(res[decodense.decomp.CompKeys.tot])
+                e_tot = np.sum(res.tot)
                 self.assertAlmostEqual(kmf_e_tot, e_tot, TOL)
                 self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
