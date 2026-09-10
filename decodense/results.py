@@ -38,6 +38,7 @@ class ResultsCls:
         self.res_dict = res
         self.print_unit = print_unit
         self.ndo = ndo
+
         for key, value in self.res_dict.items():
             setattr(self, comp_key_dict[key], value)
 
@@ -52,6 +53,7 @@ class ResultsCls:
         build a pandas dataframe from the results
         """
         return fmt(self.mol, self.res_dict, self.print_unit, self.ndo)
+
 
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
@@ -209,7 +211,13 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
         prop = {
             comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx]
             for comp_key in res.keys()
-            if comp_key not in (CompKeys.struct, CompKeys.charge_atom, CompKeys.mo_occ, CompKeys.orbsym)
+            if comp_key
+            not in (
+                CompKeys.struct,
+                CompKeys.charge_atom,
+                CompKeys.mo_occ,
+                CompKeys.orbsym,
+            )
         }
         prop[CompKeys.tot] = prop[CompKeys.el]
     else:
@@ -221,9 +229,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
         }
         for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
-            prop[CompKeys.tot + axis] = (
-                prop[CompKeys.el + axis]
-            )
+            prop[CompKeys.tot + axis] = prop[CompKeys.el + axis]
     # add mo occupations, orbital symmetries, and structural contributions to dict
     prop[CompKeys.mo_occ] = mo_occ[mo_idx]
     prop[CompKeys.orbsym] = orbsym[mo_idx]

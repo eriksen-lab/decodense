@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decodense"
+version = "0.0.0"
+description = "A Python package for decomposing hf and dft mean-field theory"
+readme = "README.md"
+authors = [{ name = "Dr. Janus Juul Eriksen", email = "Janus@kemi.dtu.dk" }]
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyscf",
+    "scipy",
+]
+
+[tool.black]
+line-length = 88
