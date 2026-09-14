@@ -502,10 +502,7 @@ def _h_core(
     this function returns the components of the core hamiltonian
     """
     if not isinstance(mol, pbc_gto.Cell) and mol.has_ecp():
-        raise NotImplementedError(
-            "decodense does not yet support effective core potentials; the "
-            "one-electron ECP term is missing from the decomposition"
-        )
+        raise NotImplementedError("Decodense does not support ECP")
     if isinstance(mol, pbc_gto.Cell) and isinstance(
         mf, (pbc_scf.hf.RHF, pbc_scf.uhf.UHF)
     ):
