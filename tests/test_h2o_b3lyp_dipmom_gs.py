@@ -59,10 +59,13 @@ class KnownValues(unittest.TestCase):
                         dipmom_tot = np.sum(res.tot[0], axis=0) + np.sum(
                             res.tot[1], axis=0
                         )
+                        nuc_dip = mol.atom_charges() @ mol.atom_coords()
+                        ref_dipmom_tot = mf_dipmom_tot - nuc_dip
                     else:
                         dipmom_tot = np.sum(res.tot, axis=0)
+                        ref_dipmom_tot = mf_dipmom_tot
                     self.assertAlmostEqual(
-                        np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL
+                        np.linalg.norm(ref_dipmom_tot), np.linalg.norm(dipmom_tot), TOL
                     )
 
 

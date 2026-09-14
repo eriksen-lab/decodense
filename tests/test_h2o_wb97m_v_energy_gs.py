@@ -58,9 +58,11 @@ class KnownValues(unittest.TestCase):
                     res = decodense.main(mol, decomp, mf, mo_coeff)
                     if part == "orbitals":
                         e_tot = np.sum(res.tot[0]) + np.sum(res.tot[1])
+                        ref = mf_e_tot - mol.energy_nuc()
                     else:
                         e_tot = np.sum(res.tot)
-                    self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
+                        ref = mf_e_tot
+                    self.assertAlmostEqual(ref, e_tot, TOL)
 
 
 if __name__ == "__main__":
