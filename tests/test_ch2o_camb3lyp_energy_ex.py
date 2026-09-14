@@ -90,12 +90,9 @@ class KnownValues(unittest.TestCase):
                     res = decodense.main(mol, decomp, mf_ex, mo_coeff)
                     if part == "orbitals":
                         e_tot = np.sum(res.tot[0]) + np.sum(res.tot[1])
-                        # note: orbital-based partitioning excludes nuclear repulsion
-                        ref = mf_e_tot - mol.energy_nuc()
                     else:
                         e_tot = np.sum(res.tot)
-                        ref = mf_e_tot
-                    self.assertAlmostEqual(ref, e_tot, TOL)
+                    self.assertAlmostEqual(mf_e_tot, e_tot, TOL)
 
 
 if __name__ == "__main__":

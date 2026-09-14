@@ -59,15 +59,10 @@ class KnownValues(unittest.TestCase):
                         dipmom_tot = np.sum(res.tot[0], axis=0) + np.sum(
                             res.tot[1], axis=0
                         )
-                        # note: orbital-based partitioning excludes nuclear dipole
-                        ref = mf_dipmom_tot - (
-                            mol.atom_charges()[:, None] * mol.atom_coords()
-                        ).sum(axis=0)
                     else:
                         dipmom_tot = np.sum(res.tot, axis=0)
-                        ref = mf_dipmom_tot
                     self.assertAlmostEqual(
-                        np.linalg.norm(ref), np.linalg.norm(dipmom_tot), TOL
+                        np.linalg.norm(mf_dipmom_tot), np.linalg.norm(dipmom_tot), TOL
                     )
 
 
