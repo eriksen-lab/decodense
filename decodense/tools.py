@@ -14,7 +14,7 @@ import sys
 import logging
 import os
 import numpy as np
-from subprocess import Popen, PIPE
+import subprocess
 from pyscf import gto, scf, dft, symm
 from pyscf import tools as pyscf_tools
 from pyscf.pbc import gto as pbc_gto
@@ -27,7 +27,6 @@ try:
 except ImportError:
     OE_AVAILABLE = False
 
-MAX_CYCLE = 100
 NATORB_THRES = 1.0e-12
 
 
@@ -79,29 +78,30 @@ def git_version() -> str:
     """
     this function returns the git revision as a string
     """
-
-    def _minimal_ext_cmd(cmd):
-        env = {}
-        for k in ["SYSTEMROOT", "PATH", "HOME"]:
-            v = os.environ.get(k)
-            if v is not None:
-                env[k] = v
-        # LANGUAGE is used on win32
-        env["LANGUAGE"] = "C"
-        env["LANG"] = "C"
-        env["LC_ALL"] = "C"
-        out = Popen(
-            cmd, stdout=PIPE, env=env, cwd=os.path.dirname(__file__)
-        ).communicate()[0]
-        return out
+    env = {}
+    for k in ["SYSTEMROOT", "PATH", "HOME"]:
+        v = os.environ.get(k)
+        if v is not None:
+            env[k] = v
+    # LANGUAGE is used on win32
+    env["LANGUAGE"] = "C"
+    env["LANG"] = "C"
+    env["LC_ALL"] = "C"
 
     try:
-        out = _minimal_ext_cmd(["git", "rev-parse", "HEAD"])
-        GIT_REVISION = out.strip().decode("ascii")
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            env=env,
+            cwd=os.path.dirname(__file__),
+        )
     except OSError:
-        GIT_REVISION = "Unknown"
+        return "Unknown"
 
-    return GIT_REVISION
+    if result.returncode != 0:
+        return "Unknown"
+
+    return result.stdout.strip().decode("ascii")
 
 
 def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
@@ -141,7 +141,7 @@ def orbsym(mol, mo_coeff):
                     symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff),
                     dtype=object,
                 )
-            except:
+            except Exception:
                 orbsymm = np.array(["A"] * mo_coeff.shape[1], dtype=object)
         else:
             try:
@@ -152,7 +152,7 @@ def orbsym(mol, mo_coeff):
                     ],
                     dtype=object,
                 )
-            except:
+            except Exception:
                 orbsymm = np.array([["A"] * c.shape[1] for c in mo_coeff], dtype=object)
     else:
         try:
@@ -163,7 +163,7 @@ def orbsym(mol, mo_coeff):
                 ],
                 dtype=object,
             )
-        except:
+        except Exception:
             orbsymm = np.array([["A"] * c.shape[1] for c in mo_coeff], dtype=object)
 
     return orbsymm
@@ -207,12 +207,14 @@ def make_natorb(
     # transform to no basis
     mo_no = contract("xip,xpj->xij", c, u)
     # retain only significant nos
+    mask_alpha = np.where(np.abs(occ_no[0]) >= thres)[0]
+    mask_beta = np.where(np.abs(occ_no[1]) >= thres)[0]
     return (
-        mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)[0]],
-        mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)[0]],
+        mo_no[0][:, mask_alpha],
+        mo_no[1][:, mask_beta],
     ), (
-        occ_no[0][np.where(np.abs(occ_no[0]) >= thres)],
-        occ_no[1][np.where(np.abs(occ_no[1]) >= thres)],
+        occ_no[0][mask_alpha],
+        occ_no[1][mask_beta],
     )
 
 
@@ -270,21 +272,37 @@ def write_rdm1(
         if writename:
             np.savez(f"{writename}.npz", **rdm1_atom_dict)
         else:
-            np.savez(f"rdm1_atom_dict.npz", **rdm1_atom_dict)
+            np.savez("rdm1_atom_dict.npz", **rdm1_atom_dict)
 
 
 def res_add(res_a, res_b):
     """
     this function adds two result dictionaries
     """
-    return {key: res_a[key] + res_b[key] for key in res_a.keys()}
+    if res_a.keys() != res_b.keys():
+        raise ValueError("res_a and res_b must have the same set of keys")
+    result = {}
+    for key in res_a.keys():
+        if key == "Symm.":
+            result[key] = (list(res_a[key]), list(res_b[key]))
+        else:
+            result[key] = res_a[key] + res_b[key]
+    return result
 
 
 def res_sub(res_a, res_b):
     """
     this function subtracts two result dictionaries
     """
-    return {key: res_a[key] - res_b[key] for key in res_a.keys()}
+    if res_a.keys() != res_b.keys():
+        raise ValueError("res_a and res_b must have the same set of keys")
+    result = {}
+    for key in res_a.keys():
+        if key == "Symm.":
+            result[key] = (list(res_a[key]), list(res_b[key]))
+        else:
+            result[key] = res_a[key] - res_b[key]
+    return result
 
 
 def contract(eqn, *tensors):
