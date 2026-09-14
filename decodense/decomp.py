@@ -98,7 +98,7 @@ class DecompCls(object):
         loc_exp: int = 2,
         part="atoms",
         ndo: bool = False,
-        gauge_origin: np.ndarray = np.zeros(3, dtype=np.float64),
+        gauge_origin: Optional[np.ndarray] = None,
         prop: str = "energy",
         write: str = "",
         writename: str = "",
@@ -116,7 +116,9 @@ class DecompCls(object):
         self.loc_exp = loc_exp
         self.part = part
         self.ndo = ndo
-        self.gauge_origin = gauge_origin
+        self.gauge_origin = (
+            np.zeros(3, dtype=np.float64) if gauge_origin is None else gauge_origin
+        )
         self.prop = prop
         self.write = write
         self.writename = writename

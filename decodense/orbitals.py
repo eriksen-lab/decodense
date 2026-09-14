@@ -139,6 +139,11 @@ def assign_rdm1s(
                 aow = np.einsum("pi,p->pi", ao, grid_weights[j])
                 charge_matrix[j] = contract("ki,kj->ij", aow, ao)
             mo = mo_coeff[i][:, spin_mo]
+        else:
+            raise ValueError(
+                f"invalid pop_method: {pop_method}. valid choices: `mulliken`, "
+                "`lowdin`, `meta_lowdin`, `iao`, or `becke`"
+            )
         mocc = mo_occ[i][spin_mo]
 
         # get weights
@@ -157,13 +162,13 @@ def assign_rdm1s(
             " spin  " + "MO       " + "      ".join(["{:}".format(i) for i in symbols])
         )
         for i, spin_mo in enumerate((alpha, beta)):
-            for j in spin_mo:
+            for m, j in enumerate(spin_mo):
                 with np.printoptions(
                     suppress=True, linewidth=200, formatter={"float": "{:6.3f}".format}
                 ):
                     print(
                         "  {:s}    {:>2d}   {:}".format(
-                            "a" if i == 0 else "b", j, weights[i][j]
+                            "a" if i == 0 else "b", j, weights[i][m]
                         )
                     )
         with np.printoptions(

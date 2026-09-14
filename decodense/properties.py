@@ -172,9 +172,9 @@ def prop_tot(
             xc_params.ao_value, rdm1, xc_type
         )
         # evaluate xc energy density
-        xc_params.eps_xc = dft.libxc.eval_xc(
-            mf.xc, rho_tot, spin=0 if rho_tot.ndim == 2 else 1
-        )[0]
+        xc_params.eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if restrict else 1)[
+            0
+        ]
         # nlc (vv10)
         if isinstance(mol, pbc_gto.Cell):
             xc_params.eps_xc_nlc = None
@@ -331,7 +331,7 @@ def prop_tot(
                         if xc_params.c1_tot is not None
                         else xc_params.c1_tot
                     ),
-                    xc_params.ao_value[:, :, select],
+                    xc_params.ao_value[..., select],
                     xc_type,
                 )
                 # energy from individual atoms
@@ -501,6 +501,11 @@ def _h_core(
     """
     this function returns the components of the core hamiltonian
     """
+    if not isinstance(mol, pbc_gto.Cell) and mol.has_ecp():
+        raise NotImplementedError(
+            "decodense does not yet support effective core potentials; the "
+            "one-electron ECP term is missing from the decomposition"
+        )
     if isinstance(mol, pbc_gto.Cell) and isinstance(
         mf, (pbc_scf.hf.RHF, pbc_scf.uhf.UHF)
     ):
@@ -654,7 +659,7 @@ def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:
     needed
     """
     xc_type = dft.libxc.xc_type(xc_func)
-    if xc_type == "LDA":
+    if xc_type in ("LDA", "HF"):
         ao_deriv = 0
     elif xc_type in ["GGA", "NLC"]:
         ao_deriv = 1

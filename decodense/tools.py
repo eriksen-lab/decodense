@@ -118,7 +118,10 @@ def mf_info(
     retrieve mf information (mo coefficients & occupations)
     """
     # dimensions
-    alpha, beta = dim(mf.mo_occ)
+    if np.asarray(mf.mo_occ).ndim == 1:
+        alpha, beta = dim((mf.mo_occ, mf.mo_occ))
+    else:
+        alpha, beta = dim(mf.mo_occ)
     # mo occupations
     mo_occ = (np.ones_like(alpha), np.ones_like(beta))
     # mo coefficients
