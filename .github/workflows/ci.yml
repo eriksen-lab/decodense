@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.14"
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout decodense
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install decodense
+        run: pip install .
+
+      - name: Run test suite
+        run: python -m unittest discover -s tests -p "test_*.py"
+
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - installed
+          - editable
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout decodense
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install decodense (regular)
+        if: matrix.scenario == 'installed'
+        run: pip install .
+
+      - name: Install decodense (editable)
+        if: matrix.scenario == 'editable'
+        run: pip install -e .
+
+      - name: Smoke test import
+        run: python -c "import decodense"

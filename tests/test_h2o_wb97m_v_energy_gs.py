@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
+from pathlib import Path
 import unittest
 import numpy as np
 from pyscf import gto, dft
@@ -14,8 +15,17 @@ TOL = 9
 POP_METHOD = ("mulliken", "lowdin", "meta_lowdin", "becke", "iao")
 PART = ("orbitals", "eda", "atoms")
 
+# geometry directory
+GEOM_DIR = Path(__file__).parent / "geom"
+
 # init molecule
-mol = gto.M(verbose=0, output=None, basis="pcseg1", symmetry=True, atom="geom/h2o.xyz")
+mol = gto.M(
+    verbose=0,
+    output="/dev/null",
+    basis="pcseg1",
+    symmetry=True,
+    atom=str(GEOM_DIR / "h2o.xyz"),
+)
 
 # mf calc
 mf = dft.RKS(mol)
