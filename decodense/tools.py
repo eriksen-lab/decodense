@@ -228,11 +228,13 @@ def write_rdm1(
     """
     this function writes a 1-RDM as a numpy or cube (default) file
     """
-    # assertion
-    assert (
-        part == "atoms"
-    ), "`write_rdm1` function only implemented for `atoms` partitioning"
-    assert fmt in ["cube", "numpy"], "fmt arg to `write_rdm1` must be `cube` or `numpy`"
+    # sanity checks
+    if part != "atoms":
+        raise ValueError(
+            "`write_rdm1` function only implemented for `atoms` partitioning"
+        )
+    if fmt not in ("cube", "numpy"):
+        raise ValueError("fmt arg to `write_rdm1` must be `cube` or `numpy`")
     # molecular dimensions
     alpha, beta = dim(mo_occ)
     # compute total 1-RDM (AO basis)
