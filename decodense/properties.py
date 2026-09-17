@@ -78,14 +78,15 @@ def prop_tot(
 
     # compute total 1-RDMs (AO basis)
     if rdm1 is None:
-        rdm1 = np.array(
+        rdm1 = rdm1_tot = np.array(
+            [make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])]
+        )
+    else:
+        rdm1_tot = np.array(
             [make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])]
         )
     if rdm1.ndim == 2:
         rdm1 = np.array([rdm1, rdm1]) * 0.5
-    rdm1_tot = np.array(
-        [make_rdm1(mo_coeff[0], mo_occ[0]), make_rdm1(mo_coeff[1], mo_occ[1])]
-    )
 
     # mol object projected into minao basis
     if pop_method == "iao":
@@ -235,20 +236,17 @@ def prop_tot(
                 res[CompKeys.exch] -= _trace(vk[i], rdm1_atom[i], scaling=0.5)
         # common energy contributions associated with given atom
         if prop_type == "energy":
+            rdm1_atom_sum = np.sum(rdm1_atom, axis=0)
             if restrict:
-                res[CompKeys.coul] = _trace(vj, np.sum(rdm1_atom, axis=0), scaling=0.5)
-                res[CompKeys.exch] = -_trace(
-                    vk, np.sum(rdm1_atom, axis=0), scaling=0.25
-                )
-            res[CompKeys.kin] = _trace(kin, np.sum(rdm1_atom, axis=0))
-            res[CompKeys.nuc_att_loc] = _trace(
-                nuc, np.sum(rdm1_atom, axis=0), scaling=0.5
-            )
+                res[CompKeys.coul] = _trace(vj, rdm1_atom_sum, scaling=0.5)
+                res[CompKeys.exch] = -_trace(vk, rdm1_atom_sum, scaling=0.25)
+            res[CompKeys.kin] = _trace(kin, rdm1_atom_sum)
+            res[CompKeys.nuc_att_loc] = _trace(nuc, rdm1_atom_sum, scaling=0.5)
             res[CompKeys.nuc_att_glob] = _trace(
                 sub_nuc[atom_idx], np.sum(rdm1_tot, axis=0), scaling=0.5
             )
             if pot_solv is not None:
-                res[CompKeys.solvent] = _trace(pot_solv, np.sum(rdm1_atom, axis=0))
+                res[CompKeys.solvent] = _trace(pot_solv, rdm1_atom_sum)
             if nuc_solv is not None:
                 res[CompKeys.solvent] += nuc_solv[atom_idx]
             if vdW_solv is not None:
@@ -591,14 +589,13 @@ def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> Tuple[np.ndarray, np.ndar
     # settings
     coords = mm_mol.atom_coords()
     charges = mm_mol.atom_charges()
-    blksize = BLKSIZE
     # integrals
     intor = "int3c2e_cart" if mol.cart else "int3c2e_sph"
     cintopt = gto.moleintor.make_cintopt(mol._atm, mol._bas, mol._env, intor)
     # compute interaction potential
     nao = mol.nao_nr()
     mm_pot = np.zeros(nao * (nao + 1) // 2, dtype=np.float64)
-    for i0, i1 in lib.prange(0, charges.size, blksize):
+    for i0, i1 in lib.prange(0, charges.size, BLKSIZE):
         fakemol = gto.fakemol_for_charges(coords[i0:i1])
         j3c = df.incore.aux_e2(mol, fakemol, intor=intor, aosym="s2ij", cintopt=cintopt)
         mm_pot += np.einsum("xk,k->x", j3c, -charges[i0:i1])
@@ -672,13 +669,8 @@ def _make_rho_interm1(
     this function returns the rho intermediates (c0, c1) needed in _make_rho()
     (adpated from: dft/numint.py:eval_rho() in PySCF)
     """
-    # determine dimensions based on xctype
-    xctype = xc_type.upper()
-    if xctype == "LDA" or xctype == "HF":
-        ngrids, nao = ao_value.shape
-    else:
-        ngrids, nao = ao_value[0].shape
     # compute rho intermediate based on xctype
+    xctype = xc_type.upper()
     if xctype == "LDA" or xctype == "HF":
         c0 = contract("ik,kj->ij", ao_value, rdm1)
         c1 = None
@@ -686,10 +678,11 @@ def _make_rho_interm1(
         c0 = contract("ik,kj->ij", ao_value[0], rdm1)
         c1 = None
     else:  # meta-GGA
+        ngrids, nao = ao_value[0].shape
         c0 = contract("ik,kj->ij", ao_value[0], rdm1)
         c1 = np.empty((3, ngrids, nao), dtype=np.float64)
         for i in range(1, 4):
-            c1[i - 1] = contract("ik,jk->ij", ao_value[i], rdm1)
+            c1[i - 1] = contract("ik,kj->ij", ao_value[i], rdm1)
     return c0, c1
 
 

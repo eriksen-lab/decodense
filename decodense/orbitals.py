@@ -17,7 +17,7 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
 from typing import List, Union, Tuple
 
-from .tools import dim, contract
+from .tools import dim, contract, logger
 
 
 def assign_rdm1s(
@@ -53,9 +53,6 @@ def assign_rdm1s(
     # molecular dimensions
     alpha, beta = dim(mo_occ)
 
-    # max number of occupied spin-orbs
-    n_spin = max(alpha.size, beta.size)
-
     # mol object projected into minao basis
     if pop_method == "iao":
         # ndo assertion
@@ -87,13 +84,31 @@ def assign_rdm1s(
             # population weights of orb
             return _population_becke(charge_matrix, mo)
         else:
-            # orbital-specific rdm1s
-            rdm1_orb = contract("p,ip,jp->ijp", mocc, mo, mo)
-            # population weights of rdm1_orb
-            return _population_mul(natm, ao_labels, ovlp, rdm1_orb)
+            # mulliken population of each orbital, per basis function
+            overlap_mo = contract("ji,jp->ip", ovlp, mo)
+            pop = mocc[None, :] * mo * overlap_mo
+            # population weights of pop
+            return _population_mul(natm, ao_labels, pop)
 
     # init population weights array
     weights = []
+
+    # becke charge matrix, same for both spins
+    if pop_method == "becke":
+        if getattr(pmol, "pbc_intor", None):
+            raise NotImplementedError("PM becke scheme for PBC systems")
+        if dft_calc:
+            grid_coords, grid_weights = mf.grids.get_partition(mol, concat=False)
+            ni = mf._numint
+        else:
+            mf_becke = mol.RKS()
+            grid_coords, grid_weights = mf_becke.grids.get_partition(mol, concat=False)
+            ni = mf_becke._numint
+        charge_matrix = np.zeros([natm, pmol.nao_nr(), pmol.nao_nr()], dtype=np.float64)
+        for j in range(natm):
+            ao = ni.eval_ao(mol, grid_coords[j], deriv=0)
+            aow = np.einsum("pi,p->pi", ao, grid_weights[j])
+            charge_matrix[j] = contract("ki,kj->ij", aow, ao)
 
     # loop over spin
     for i, spin_mo in enumerate((alpha, beta)):
@@ -120,24 +135,6 @@ def assign_rdm1s(
             iao = lo.vec_lowdin(iao, s)
             mo = contract("ki,kl,lj->ij", iao, s, mo_coeff[i][:, spin_mo])
         elif pop_method == "becke":
-            if getattr(pmol, "pbc_intor", None):
-                raise NotImplementedError("PM becke scheme for PBC systems")
-            if dft_calc:
-                grid_coords, grid_weights = mf.grids.get_partition(mol, concat=False)
-                ni = mf._numint
-            else:
-                mf_becke = mol.RKS()
-                grid_coords, grid_weights = mf_becke.grids.get_partition(
-                    mol, concat=False
-                )
-                ni = mf_becke._numint
-            charge_matrix = np.zeros(
-                [natm, pmol.nao_nr(), pmol.nao_nr()], dtype=np.float64
-            )
-            for j in range(natm):
-                ao = ni.eval_ao(mol, grid_coords[j], deriv=0)
-                aow = np.einsum("pi,p->pi", ao, grid_weights[j])
-                charge_matrix[j] = contract("ki,kj->ij", aow, ao)
             mo = mo_coeff[i][:, spin_mo]
         else:
             raise ValueError(
@@ -151,14 +148,14 @@ def assign_rdm1s(
 
         # closed-shell reference
         if rhf:
-            weights.append(weights[0])
+            weights.append(weights[0].copy())
             break
 
     # verbose print
     if 0 < verbose:
         symbols = tuple(pmol.atom_pure_symbol(i) for i in range(pmol.natm))
-        print("\n *** partial population weights: ***")
-        print(
+        logger.info("\n *** partial population weights: ***")
+        logger.info(
             " spin  " + "MO       " + "      ".join(["{:}".format(i) for i in symbols])
         )
         for i, spin_mo in enumerate((alpha, beta)):
@@ -166,7 +163,7 @@ def assign_rdm1s(
                 with np.printoptions(
                     suppress=True, linewidth=200, formatter={"float": "{:6.3f}".format}
                 ):
-                    print(
+                    logger.info(
                         "  {:s}    {:>2d}   {:}".format(
                             "a" if i == 0 else "b", j, weights[i][m]
                         )
@@ -174,7 +171,7 @@ def assign_rdm1s(
         with np.printoptions(
             suppress=True, linewidth=200, formatter={"float": "{:6.3f}".format}
         ):
-            print(
+            logger.info(
                 "   total    {:}".format(
                     np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0)
                 )
@@ -184,16 +181,13 @@ def assign_rdm1s(
 
 
 def _population_mul(
-    natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray
+    natm: int, ao_labels: List[Tuple[int, str, str, str]], pop: np.ndarray
 ) -> np.ndarray:
     """
     this function returns the mulliken populations on the individual atoms
     """
     # init populations
-    populations = np.zeros((rdm1.shape[2], natm), dtype=np.float64)
-
-    # mulliken population array
-    pop = contract("ijp,ji->ip", rdm1, ovlp)
+    populations = np.zeros((pop.shape[1], natm), dtype=np.float64)
 
     # loop over AOs
     for ao_pop, k in zip(pop, ao_labels):
