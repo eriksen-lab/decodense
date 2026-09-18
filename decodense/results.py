@@ -58,61 +58,45 @@ def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> 
     """
     this function prints basic info
     """
-    # init string & form
-    string: str = ""
-    form: tuple[Any, ...] = ()
+    # init string
+    string = ""
 
     # print geometry
     if mol is not None:
         string += "\n\n   ------------------------------------\n"
-        string += "{:^43}\n"
+        string += f"{'geometry':^43}\n"
         string += "   ------------------------------------\n"
-        form += ("geometry",)
         molecule = gto.tostring(mol).split("\n")
         for i in range(len(molecule)):
             atom = molecule[i].split()
             for j in range(1, 4):
                 atom[j] = float(atom[j])
-            string += "   {:<3s} {:>10.5f} {:>10.5f} {:>10.5f}\n"
-            form += (*atom,)
+            string += (
+                f"   {atom[0]:<3s} {atom[1]:>10.5f} {atom[2]:>10.5f} {atom[3]:>10.5f}\n"
+            )
         string += "   ------------------------------------\n"
 
     # system info
     string += "\n\n system info:\n"
     string += " ------------\n"
-    string += " property           =  {:}\n"
-    string += " partitioning       =  {:}\n"
-    string += " MO basis           =  {:}\n"
-    string += " population scheme  =  {:}\n"
-    string += " MO start guess     =  {:}\n"
-    form += (
-        decomp.prop,
-        decomp.part,
-        decomp.mo_basis,
-        decomp.pop_method,
-        decomp.mo_init,
-    )
+    string += f" property           =  {decomp.prop}\n"
+    string += f" partitioning       =  {decomp.part}\n"
+    string += f" MO basis           =  {decomp.mo_basis}\n"
+    string += f" population scheme  =  {decomp.pop_method}\n"
+    string += f" MO start guess     =  {decomp.mo_init}\n"
     if mol is not None:
-        string += "\n point group        =  {:}\n"
-        string += " electrons          =  {:d}\n"
-        string += " basis functions    =  {:d}\n"
-        form += (
-            mol.groupname,
-            mol.nelectron,
-            mol.nao_nr(),
-        )
+        string += f"\n point group        =  {mol.groupname}\n"
+        string += f" electrons          =  {mol.nelectron:d}\n"
+        string += f" basis functions    =  {mol.nao_nr():d}\n"
         if "ss" in kwargs:
-            string += " spin: <S^2>        =  {:.3f}\n"
-            form += (kwargs["ss"] + 1.0e-6,)
+            string += f" spin: <S^2>        =  {kwargs['ss'] + 1.0e-6:.3f}\n"
         if "s" in kwargs:
-            string += " spin: 2*S + 1      =  {:.3f}\n"
-            form += (kwargs["s"] + 1.0e-6,)
+            string += f" spin: 2*S + 1      =  {kwargs['s'] + 1.0e-6:.3f}\n"
 
     # git version
-    string += "\n git version: {:}\n\n"
-    form += (git_version(),)
+    string += f"\n git version: {git_version()}\n\n"
 
-    return string.format(*form)
+    return string
 
 
 def fmt(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
