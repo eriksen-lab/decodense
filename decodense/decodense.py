@@ -11,7 +11,6 @@ __email__ = "janus@kemi.dtu.dk"
 __status__ = "Development"
 
 import numpy as np
-import pandas as pd
 from pyscf import gto, scf, dft
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
@@ -32,7 +31,7 @@ def main(
     mo_coeff: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
     mo_occ: Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]] = None,
     rdm1: Optional[np.ndarray] = None,
-) -> pd.DataFrame:
+) -> ResultsCls:
     """
     main decodense program
     """
