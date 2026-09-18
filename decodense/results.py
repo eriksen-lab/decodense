@@ -13,7 +13,7 @@ __status__ = "Development"
 import numpy as np
 import pandas as pd
 from pyscf import gto
-from typing import Dict, Tuple, Any, Optional
+from typing import Any, Optional
 
 from .decomp import comp_key_dict, CompKeys, DecompCls
 from .tools import git_version, dim
@@ -33,7 +33,7 @@ class ResultsCls:
     class that holds decodense results
     """
 
-    def __init__(self, mol: gto.Mole, res: Dict[str, Any], print_unit: str, ndo: bool):
+    def __init__(self, mol: gto.Mole, res: dict[str, Any], print_unit: str, ndo: bool):
         self.mol = mol
         self.res_dict = res
         self.print_unit = print_unit
@@ -53,13 +53,14 @@ class ResultsCls:
         """
         return fmt(self.mol, self.res_dict, self.print_unit, self.ndo)
 
+
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
     this function prints basic info
     """
     # init string & form
     string: str = ""
-    form: Tuple[Any, ...] = ()
+    form: tuple[Any, ...] = ()
 
     # print geometry
     if mol is not None:
@@ -114,7 +115,7 @@ def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> 
     return string.format(*form)
 
 
-def fmt(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
+def fmt(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
     """
     this function prints the results based on either an atom- or bond-based partitioning
     """
@@ -124,7 +125,7 @@ def fmt(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFram
         return orbs(mol, res, unit, ndo)
 
 
-def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+def atoms(mol: gto.Mole, res: dict[str, Any], unit: str) -> pd.DataFrame:
     """
     atom-based partitioning
     """
@@ -168,7 +169,7 @@ def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
     return pd.DataFrame.from_dict(prop).set_index(CompKeys.atoms)
 
 
-def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
+def orbs(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
     """
     orbital-based partitioning
     """
@@ -209,7 +210,13 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
         prop = {
             comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx]
             for comp_key in res.keys()
-            if comp_key not in (CompKeys.struct, CompKeys.charge_atom, CompKeys.mo_occ, CompKeys.orbsym)
+            if comp_key
+            not in (
+                CompKeys.struct,
+                CompKeys.charge_atom,
+                CompKeys.mo_occ,
+                CompKeys.orbsym,
+            )
         }
         prop[CompKeys.tot] = prop[CompKeys.el]
     else:
@@ -221,9 +228,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
         }
         for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
-            prop[CompKeys.tot + axis] = (
-                prop[CompKeys.el + axis]
-            )
+            prop[CompKeys.tot + axis] = prop[CompKeys.el + axis]
     # add mo occupations, orbital symmetries, and structural contributions to dict
     prop[CompKeys.mo_occ] = mo_occ[mo_idx]
     prop[CompKeys.orbsym] = orbsym[mo_idx]
