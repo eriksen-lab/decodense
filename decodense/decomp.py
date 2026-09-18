@@ -58,8 +58,8 @@ comp_key_dict = {
     "Charge": "charge_atom",
     "Atom": "atoms",
     "Orbital": "orbitals",
-    "Occup.": "occup",
-    "Symm.": "symm",
+    "Occup.": "mo_occ",
+    "Symm.": "orbsym",
 }
 
 
