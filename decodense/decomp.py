@@ -15,7 +15,7 @@ from pyscf import gto, scf, dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
 from pyscf.pbc.lib.kpts_helper import gamma_point
-from typing import List, Dict, Union, Optional, Tuple
+from typing import Union, Optional
 from .tools import logger
 
 
@@ -63,7 +63,7 @@ comp_key_dict = {
 }
 
 
-class DecompCls(object):
+class DecompCls:
     """
     this class contains all decomp attributes
     """
@@ -83,10 +83,6 @@ class DecompCls(object):
         "verbose",
         "unit",
         "res",
-        "charge_atom",
-        "dist",
-        "weights",
-        "centres",
     )
 
     def __init__(
@@ -96,7 +92,7 @@ class DecompCls(object):
         pop_method: str = "mulliken",
         mo_init: str = "can",
         loc_exp: int = 2,
-        part="atoms",
+        part: str = "atoms",
         ndo: bool = False,
         gauge_origin: Optional[np.ndarray] = None,
         prop: str = "energy",
@@ -125,19 +121,15 @@ class DecompCls(object):
         self.verbose = verbose
         self.unit = unit
         # set internal defaults
-        self.res: Dict[str, Union[np.ndarray, List[np.ndarray]]] = {}
-        self.charge_atom: Optional[np.ndarray] = None
-        self.dist: Optional[np.ndarray] = None
-        self.weights: Optional[np.ndarray] = None
-        self.centres: Optional[np.ndarray] = None
+        self.res: dict[str, Union[np.ndarray, list[np.ndarray]]] = {}
 
 
 def sanity_check(
     mol: Union[gto.Mole, pbc_gto.Cell],
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF],
     decomp: DecompCls,
-    mo_coeff: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
-    mo_occ: Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]],
+    mo_coeff: Union[np.ndarray, tuple[np.ndarray, np.ndarray]],
+    mo_occ: Optional[Union[np.ndarray, tuple[np.ndarray, np.ndarray]]],
 ):
     """
     this function performs sanity checks of decomp attributes

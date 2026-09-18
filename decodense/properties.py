@@ -19,7 +19,7 @@ from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
 from pyscf.pbc.dft import numint as pbc_numint
-from typing import List, Tuple, Dict, Union, Any, Optional
+from typing import Union, Any, Optional
 
 from .pbctools import ewald_e_nuc, get_nuc_pbc
 from .tools import dim, make_rdm1, orbsym, contract
@@ -39,8 +39,8 @@ def prop_tot(
         pbc_dft.rks.RKS,
         pbc_dft.uks.UKS,
     ],
-    mo_coeff: Tuple[np.ndarray, np.ndarray],
-    mo_occ: Tuple[np.ndarray, np.ndarray],
+    mo_coeff: tuple[np.ndarray, np.ndarray],
+    mo_occ: tuple[np.ndarray, np.ndarray],
     rdm1: Optional[np.ndarray],
     minao: str,
     pop_method: str,
@@ -48,8 +48,8 @@ def prop_tot(
     part: str,
     ndo: bool,
     gauge_origin: np.ndarray,
-    weights: List[np.ndarray],
-) -> Dict[str, Union[np.ndarray, List[np.ndarray]]]:
+    weights: list[np.ndarray],
+) -> dict[str, Union[np.ndarray, list[np.ndarray]]]:
     """
     this function returns atom-decomposed mean-field properties
     """
@@ -204,12 +204,12 @@ def prop_tot(
     if part == "eda":
         ao_labels = mol.ao_labels(fmt=None)
 
-    def prop_atom(atom_idx: int) -> Dict[str, Any]:
+    def prop_atom(atom_idx: int) -> dict[str, Any]:
         """
         this function returns atom-wise energy/dipole contributions
         """
         # init results
-        res: Dict[str, Union[float, np.ndarray]] = {}
+        res: dict[str, Union[float, np.ndarray]] = {}
         # atom-specific rdm1
         rdm1_atom = np.zeros_like(rdm1_tot)
         # loop over spins
@@ -278,7 +278,7 @@ def prop_tot(
             res[CompKeys.el] = sum(res.values())
         return res
 
-    def prop_eda(atom_idx: int) -> Dict[str, Any]:
+    def prop_eda(atom_idx: int) -> dict[str, Any]:
         """
         this function returns EDA energy/dipole contributions
         """
@@ -362,7 +362,7 @@ def prop_tot(
             res[CompKeys.el] = sum(res.values())
         return res
 
-    def prop_orb(spin_idx: int, orb_idx: int) -> Dict[str, Any]:
+    def prop_orb(spin_idx: int, orb_idx: int) -> dict[str, Any]:
         """
         this function returns bond-wise energy/dipole contributions
         """
@@ -408,7 +408,7 @@ def prop_tot(
         return res
 
     # perform decomposition
-    prop: Dict[str, Union[np.ndarray, List[np.ndarray]]]
+    prop: dict[str, Union[np.ndarray, list[np.ndarray]]]
     if part in ["atoms", "eda"]:
         # domain
         domain = np.arange(pmol.natm)
@@ -497,7 +497,7 @@ def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
 def _h_core(
     mol: Union[gto.Mole, pbc_gto.Cell],
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF],
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     this function returns the components of the core hamiltonian
     """
@@ -540,7 +540,7 @@ def _solvent(
     mol: Union[gto.Mole, pbc_gto.Cell],
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF],
     rdm1: np.ndarray,
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+) -> tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     # initialize
     pot_solv, nuc_solv, vdW_solv = None, None, None
 
@@ -583,7 +583,7 @@ def _solvent(
     return pot_solv, nuc_solv, vdW_solv
 
 
-def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> Tuple[np.ndarray, np.ndarray]:
+def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> tuple[np.ndarray, np.ndarray]:
     """
     this function returns the full mm potential and the nuclei interaction with the
     point charges (adapted from: qmmm/itrf.py:get_hcore() in PySCF)
@@ -618,7 +618,7 @@ def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> Tuple[np.ndarray, np.ndar
 
 def _pcm(
     mol: gto.Mole, rdm1: np.ndarray, solvent_model: solvent.PCM
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     this function returns the pcm potential matrix and the nuclei interaction with the
     solvent (adapted from: solvent/pcm.py:_get_vind() in PySCF)
@@ -650,7 +650,7 @@ def _pcm(
     return vmat_e, nuc_solv_pcm
 
 
-def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:
+def _xc_ao_deriv(xc_func: str) -> tuple[str, int]:
     """
     this function returns the type of xc functional and the level of ao derivatives
     needed
@@ -667,7 +667,7 @@ def _xc_ao_deriv(xc_func: str) -> Tuple[str, int]:
 
 def _make_rho_interm1(
     ao_value: np.ndarray, rdm1: np.ndarray, xc_type: str
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+) -> tuple[np.ndarray, Optional[np.ndarray]]:
     """
     this function returns the rho intermediates (c0, c1) needed in _make_rho()
     (adpated from: dft/numint.py:eval_rho() in PySCF)
@@ -733,7 +733,7 @@ def _make_rho_interm2(
 
 def _make_rho(
     ao_value: np.ndarray, rdm1: np.ndarray, xc_type: str
-) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
+) -> tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
     """
     this function returns important dft intermediates, e.g., energy density, grid
     weights, etc.

@@ -11,12 +11,11 @@ __email__ = "janus@kemi.dtu.dk"
 __status__ = "Development"
 
 import numpy as np
-import pandas as pd
 from pyscf import gto, scf, dft
 from pyscf.pbc import dft as pbc_dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
-from typing import Union, Optional, Tuple
+from typing import Union, Optional
 
 from .decomp import DecompCls, sanity_check
 from .orbitals import assign_rdm1s
@@ -29,10 +28,10 @@ def main(
     mol: Union[gto.Mole, pbc_gto.Cell],
     decomp: DecompCls,
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.hf.RHF, pbc_dft.rks.RKS],
-    mo_coeff: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]],
-    mo_occ: Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]] = None,
+    mo_coeff: Union[np.ndarray, tuple[np.ndarray, np.ndarray]],
+    mo_occ: Optional[Union[np.ndarray, tuple[np.ndarray, np.ndarray]]] = None,
     rdm1: Optional[np.ndarray] = None,
-) -> pd.DataFrame:
+) -> ResultsCls:
     """
     main decodense program
     """
