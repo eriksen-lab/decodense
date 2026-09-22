@@ -45,7 +45,7 @@ def prop_tot(
     minao: str,
     pop_method: str,
     prop_type: str,
-    part: str,
+    part_method: str,
     ndo: bool,
     gauge_origin: np.ndarray,
     weights: List[np.ndarray],
@@ -94,7 +94,7 @@ def prop_tot(
         pmol = mol
 
     # effective atomic charges
-    if part in ["atoms", "eda"]:
+    if part_method in ["eriksen", "eda"]:
         charge_atom = (
             -(np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0))
             + pmol.atom_charges()
@@ -201,7 +201,7 @@ def prop_tot(
     alpha, beta = dim(mo_occ)
 
     # atomic labels
-    if part == "eda":
+    if part_method == "eda":
         ao_labels = mol.ao_labels(fmt=None)
 
     def prop_atom(atom_idx: int) -> Dict[str, Any]:
@@ -409,11 +409,11 @@ def prop_tot(
 
     # perform decomposition
     prop: Dict[str, Union[np.ndarray, List[np.ndarray]]]
-    if part in ["atoms", "eda"]:
+    if part_method in ["eriksen", "eda"]:
         # domain
         domain = np.arange(pmol.natm)
         # execute kernel
-        res = list(map(prop_atom if part == "atoms" else prop_eda, domain))
+        res = list(map(prop_atom if part_method == "eriksen" else prop_eda, domain))
         # init atom-specific energy or dipole arrays
         if prop_type == "energy":
             prop = {

@@ -23,6 +23,7 @@ from .orbitals import assign_rdm1s
 from .properties import prop_tot
 from .tools import write_rdm1, logger_config
 from .results import ResultsCls
+from .schemes import SCHEMES
 
 
 def main(
@@ -58,33 +59,43 @@ def main(
         else:
             mo_occ = tuple(mo_occ)
 
-    # compute population weights
-    weights = assign_rdm1s(
-        mol,
-        mf,
-        mo_coeff,
-        mo_occ,
-        decomp.minao,
-        decomp.pop_method,
-        decomp.ndo,
-        decomp.verbose,
-    )
-
-    # compute decomposed results
-    decomp.res = prop_tot(
+    scheme = SCHEMES[(decomp.part, decomp.part_method)]
+    decomp.res = scheme(
         mol,
         mf,
         mo_coeff,
         mo_occ,
         rdm1,
-        decomp.minao,
-        decomp.pop_method,
-        decomp.prop,
-        decomp.part,
-        decomp.ndo,
-        decomp.gauge_origin,
-        weights,
+        decomp
     )
+
+    # # compute population weights
+    # weights = assign_rdm1s(
+    #     mol,
+    #     mf,
+    #     mo_coeff,
+    #     mo_occ,
+    #     decomp.minao,
+    #     decomp.pop_method,
+    #     decomp.ndo,
+    #     decomp.verbose,
+    # )
+
+    # # compute decomposed results
+    # decomp.res = prop_tot(
+    #     mol,
+    #     mf,
+    #     mo_coeff,
+    #     mo_occ,
+    #     rdm1,
+    #     decomp.minao,
+    #     decomp.pop_method,
+    #     decomp.prop,
+    #     decomp.part,
+    #     decomp.ndo,
+    #     decomp.gauge_origin,
+    #     weights,
+    # )
 
     # write rdm1s
     if decomp.write != "":

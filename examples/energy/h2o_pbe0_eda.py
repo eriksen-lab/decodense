@@ -34,7 +34,7 @@ occ_mo = np.where(mf.mo_occ == 2.0)[0]
 mo_coeff = 2 * (mf.mo_coeff[:, occ_mo],)
 
 # decomposition
-decomp = decodense.DecompCls(part="eda")
+decomp = decodense.DecompCls(part="atoms", part_method="eda")
 res = decodense.main(mol, decomp, mf, mo_coeff)
 
 print(res)
