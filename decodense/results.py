@@ -18,8 +18,6 @@ from typing import Dict, Tuple, Any, Optional
 from .decomp import comp_key_dict, CompKeys, DecompCls
 from .tools import git_version, dim
 
-TOLERANCE = 1.0e-10
-
 # https://en.wikipedia.org/wiki/Hartree
 AU_TO_KCAL_MOL = 627.5094740631
 AU_TO_EV = 27.211386245988
@@ -54,6 +52,7 @@ class ResultsCls:
         build a pandas dataframe from the results
         """
         return fmt(self.mol, self.res_dict, self.print_unit, self.ndo, self.part)
+
 
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
@@ -132,14 +131,10 @@ def fmt(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool, part: str) -> 
         raise ValueError(f"Invalid partitioning in results.py: {part!r}")
 
 
-def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+def _unit_scaling(scalar_prop: bool, unit: str) -> float:
     """
-    atom-based partitioning
+    this function returns the unit-conversion scaling factor
     """
-    # property type
-    scalar_prop = res[CompKeys.el].ndim == 1
-
-    # units
     unit = unit.lower()
     scaling = 1.0
     if scalar_prop:
@@ -152,6 +147,18 @@ def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
     else:
         if unit == "debye":
             scaling = AU_TO_DEBYE
+    return scaling
+
+
+def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+    """
+    atom-based partitioning
+    """
+    # property type
+    scalar_prop = res[CompKeys.el].ndim == 1
+
+    # units
+    scaling = _unit_scaling(scalar_prop, unit)
 
     # property contributions
     if scalar_prop:
@@ -202,25 +209,20 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
         mo_idx = np.arange(alpha.size + beta.size)
 
     # units
-    unit = unit.lower()
-    scaling = 1.0
-    if scalar_prop:
-        if unit == "kcal_mol":
-            scaling = AU_TO_KCAL_MOL
-        elif unit == "ev":
-            scaling = AU_TO_EV
-        elif unit == "kj_mol":
-            scaling = AU_TO_KJ_MOL
-    else:
-        if unit == "debye":
-            scaling = AU_TO_DEBYE
+    scaling = _unit_scaling(scalar_prop, unit)
 
     # property contributions
     if scalar_prop:
         prop = {
             comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx] * scaling
             for comp_key in res.keys()
-            if comp_key not in (CompKeys.struct, CompKeys.charge_atom, CompKeys.mo_occ, CompKeys.orbsym)
+            if comp_key
+            not in (
+                CompKeys.struct,
+                CompKeys.charge_atom,
+                CompKeys.mo_occ,
+                CompKeys.orbsym,
+            )
         }
         prop[CompKeys.tot] = prop[CompKeys.el]
     else:
@@ -233,9 +235,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
         }
         for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
-            prop[CompKeys.tot + axis] = (
-                prop[CompKeys.el + axis]
-            )
+            prop[CompKeys.tot + axis] = prop[CompKeys.el + axis]
     # add mo occupations, orbital symmetries, and structural contributions to dict
     prop[CompKeys.mo_occ] = mo_occ[mo_idx]
     prop[CompKeys.orbsym] = orbsym[mo_idx]

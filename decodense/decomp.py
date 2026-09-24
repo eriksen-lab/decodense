@@ -56,8 +56,8 @@ comp_key_dict = {
     "Total": "tot",
     "Atom": "atoms",
     "Orbital": "orbitals",
-    "Occup.": "occup",
-    "Symm.": "symm",
+    "Occup.": "mo_occ",
+    "Symm.": "orbsym",
 }
 
 
