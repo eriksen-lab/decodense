@@ -18,7 +18,7 @@ import subprocess
 from pyscf import gto, scf, dft, symm
 from pyscf import tools as pyscf_tools
 from pyscf.pbc import gto as pbc_gto
-from typing import Tuple, List, Union
+from typing import Union
 
 try:
     import opt_einsum as oe
@@ -104,7 +104,7 @@ def git_version() -> str:
     return result.stdout.strip().decode("ascii")
 
 
-def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+def dim(mo_occ: tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """
     determine molecular dimensions
     """
@@ -113,7 +113,7 @@ def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
 
 def mf_info(
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT],
-) -> Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+) -> tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]:
     """
     retrieve mf information (mo coefficients & occupations)
     """
@@ -184,7 +184,7 @@ def make_natorb(
     mo_coeff: np.ndarray,
     rdm1: np.ndarray,
     thres: float = NATORB_THRES,
-) -> Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+) -> tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]:
     """
     this function returns no coefficients and occupations corresponding
     to given mo coefficients and rdm1
@@ -224,11 +224,11 @@ def make_natorb(
 def write_rdm1(
     mol: gto.Mole,
     part: str,
-    mo_coeff: Tuple[np.ndarray, np.ndarray],
-    mo_occ: Tuple[np.ndarray, np.ndarray],
+    mo_coeff: tuple[np.ndarray, np.ndarray],
+    mo_occ: tuple[np.ndarray, np.ndarray],
     fmt: str,
     writename: str,
-    weights: List[np.ndarray],
+    weights: list[np.ndarray],
 ) -> None:
     """
     this function writes a 1-RDM as a numpy or cube (default) file
