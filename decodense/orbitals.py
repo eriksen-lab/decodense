@@ -17,7 +17,7 @@ from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
 from typing import List, Union, Tuple
 
-from .tools import dim, contract
+from .tools import dim, contract, logger
 
 
 def assign_rdm1s(
@@ -53,9 +53,6 @@ def assign_rdm1s(
     # molecular dimensions
     alpha, beta = dim(mo_occ)
 
-    # max number of occupied spin-orbs
-    n_spin = max(alpha.size, beta.size)
-
     # mol object projected into minao basis
     if pop_method == "iao":
         # ndo assertion
@@ -87,13 +84,31 @@ def assign_rdm1s(
             # population weights of orb
             return _population_becke(charge_matrix, mo)
         else:
-            # orbital-specific rdm1s
-            rdm1_orb = contract("p,ip,jp->ijp", mocc, mo, mo)
-            # population weights of rdm1_orb
-            return _population_mul(natm, ao_labels, ovlp, rdm1_orb)
+            # mulliken population of each orbital, per basis function
+            overlap_mo = contract("ji,jp->ip", ovlp, mo)
+            pop = mocc[None, :] * mo * overlap_mo
+            # population weights of pop
+            return _population_mul(natm, ao_labels, pop)
 
     # init population weights array
     weights = []
+
+    # becke charge matrix, same for both spins
+    if pop_method == "becke":
+        if getattr(pmol, "pbc_intor", None):
+            raise NotImplementedError("PM becke scheme for PBC systems")
+        if dft_calc:
+            grid_coords, grid_weights = mf.grids.get_partition(mol, concat=False)
+            ni = mf._numint
+        else:
+            mf_becke = mol.RKS()
+            grid_coords, grid_weights = mf_becke.grids.get_partition(mol, concat=False)
+            ni = mf_becke._numint
+        charge_matrix = np.zeros([natm, pmol.nao_nr(), pmol.nao_nr()], dtype=np.float64)
+        for j in range(natm):
+            ao = ni.eval_ao(mol, grid_coords[j], deriv=0)
+            aow = np.einsum("pi,p->pi", ao, grid_weights[j])
+            charge_matrix[j] = contract("ki,kj->ij", aow, ao)
 
     # loop over spin
     for i, spin_mo in enumerate((alpha, beta)):
@@ -120,24 +135,6 @@ def assign_rdm1s(
             iao = lo.vec_lowdin(iao, s)
             mo = contract("ki,kl,lj->ij", iao, s, mo_coeff[i][:, spin_mo])
         elif pop_method == "becke":
-            if getattr(pmol, "pbc_intor", None):
-                raise NotImplementedError("PM becke scheme for PBC systems")
-            if dft_calc:
-                grid_coords, grid_weights = mf.grids.get_partition(mol, concat=False)
-                ni = mf._numint
-            else:
-                mf_becke = mol.RKS()
-                grid_coords, grid_weights = mf_becke.grids.get_partition(
-                    mol, concat=False
-                )
-                ni = mf_becke._numint
-            charge_matrix = np.zeros(
-                [natm, pmol.nao_nr(), pmol.nao_nr()], dtype=np.float64
-            )
-            for j in range(natm):
-                ao = ni.eval_ao(mol, grid_coords[j], deriv=0)
-                aow = np.einsum("pi,p->pi", ao, grid_weights[j])
-                charge_matrix[j] = contract("ki,kj->ij", aow, ao)
             mo = mo_coeff[i][:, spin_mo]
         else:
             raise ValueError(
@@ -151,7 +148,7 @@ def assign_rdm1s(
 
         # closed-shell reference
         if rhf:
-            weights.append(weights[0])
+            weights.append(weights[0].copy())
             break
 
     # verbose print
@@ -160,10 +157,10 @@ def assign_rdm1s(
 
         # atomic populations (sum over both spins, also correct for rhf)
         total = np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0)
-        print("\n *** atomic population ***")
+        logger.info("\n *** atomic population ***")
         for k in range(pmol.natm):
-            print(f"  {labels[k]:>8s}   {total[k]:10.5f}")
-        print(f"  {'sum':>8s}   {np.sum(total):10.5f}")
+            logger.info(f"  {labels[k]:>8s}   {total[k]:10.5f}")
+        logger.info(f"  {'sum':>8s}   {np.sum(total):10.5f}")
 
         # full weight matrix to file (alpha only for rhf, since beta is identical)
         filename = _unique_filename(f"pop_weights_{pop_method}")
@@ -189,10 +186,10 @@ def assign_rdm1s(
                     + " ".join(f"{w:10.5f}" for w in total)
                     + "\n"
                 )
-            print(f"\n full population weight matrix written to {filename}")
+            logger.info(f"\n full population weight matrix written to {filename}")
         except OSError as err:
             # a failed write of this diagnostic file should not abort the decomposition
-            print(
+            logger.info(
                 f"\n WARNING: could not write population weight matrix to {filename} "
                 f"({type(err).__name__}: {err})"
             )
@@ -223,7 +220,7 @@ def _unique_filename(stem: str, ext: str = ".txt") -> str:
         ]
         return f"{stem}_{max(numbers, default=0) + 1}{ext}"
     except Exception as err:
-        print(
+        logger.info(
             f"\n WARNING: could not determine a unique filename "
             f"({type(err).__name__}: {err}); falling back to {filename}, "
             "which may overwrite an existing file"
@@ -231,16 +228,13 @@ def _unique_filename(stem: str, ext: str = ".txt") -> str:
         return filename
 
 def _population_mul(
-    natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray
+    natm: int, ao_labels: List[Tuple[int, str, str, str]], pop: np.ndarray
 ) -> np.ndarray:
     """
     this function returns the mulliken populations on the individual atoms
     """
     # init populations
-    populations = np.zeros((rdm1.shape[2], natm), dtype=np.float64)
-
-    # mulliken population array
-    pop = contract("ijp,ji->ip", rdm1, ovlp)
+    populations = np.zeros((pop.shape[1], natm), dtype=np.float64)
 
     # loop over AOs
     for ao_pop, k in zip(pop, ao_labels):
