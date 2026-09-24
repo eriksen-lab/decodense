@@ -22,6 +22,7 @@ from .orbitals import assign_rdm1s
 from .properties import prop_tot
 from .tools import write_rdm1, logger_config
 from .results import ResultsCls
+from .schemes import SCHEMES
 
 
 def main(
@@ -35,11 +36,12 @@ def main(
     """
     main decodense program
     """
-    # setup logger
-    logger_config(decomp.verbose)
 
     # sanity check
     sanity_check(mol, mf, decomp, mo_coeff, mo_occ)
+
+    # setup logger
+    logger_config(decomp.verbose)
 
     # ensure mo coefficients are in the correct shape
     if isinstance(mo_coeff, np.ndarray):
@@ -53,42 +55,27 @@ def main(
         mo_occ = (np.ones(mo_coeff[0].shape[1]), np.ones(mo_coeff[1].shape[1]))
     elif isinstance(mo_occ, np.ndarray):
         if mo_occ.ndim == 1:
-            mo_occ = 2 * (mo_occ / 2,)
+            occ_int = np.rint(mo_occ)
+            if np.allclose(mo_occ, occ_int) and np.isin(occ_int, (0.0, 1.0, 2.0)).all():
+                # (RO)HF/(RO)KS occupations: singly occupied orbitals hold an alpha electron
+                mo_occ = (
+                    (occ_int > 0.0).astype(np.float64),
+                    (occ_int > 1.0).astype(np.float64),
+                )
+            else:
+                # fractional restricted occupations (e.g. natural orbitals): split evenly
+                mo_occ = 2 * (mo_occ / 2,)
         else:
             mo_occ = tuple(mo_occ)
 
-    # compute population weights
-    weights = assign_rdm1s(
-        mol,
-        mf,
-        mo_coeff,
-        mo_occ,
-        decomp.minao,
-        decomp.pop_method,
-        decomp.ndo,
-        decomp.verbose,
-    )
-
-    # compute decomposed results
-    decomp.res = prop_tot(
+    scheme = SCHEMES[(decomp.part, decomp.part_method)]
+    decomp.res = scheme(
         mol,
         mf,
         mo_coeff,
         mo_occ,
         rdm1,
-        decomp.minao,
-        decomp.pop_method,
-        decomp.prop,
-        decomp.part,
-        decomp.ndo,
-        decomp.gauge_origin,
-        weights,
+        decomp
     )
 
-    # write rdm1s
-    if decomp.write != "":
-        write_rdm1(
-            mol, decomp.part, mo_coeff, mo_occ, decomp.write, decomp.writename, weights
-        )
-
-    return ResultsCls(mol, decomp.res, decomp.unit, decomp.ndo)
+    return ResultsCls(mol, decomp)

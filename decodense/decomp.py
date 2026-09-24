@@ -34,7 +34,6 @@ class CompKeys:
     struct = "Struct."
     el = "Elect."
     tot = "Total"
-    charge_atom = "Charge"
     atoms = "Atom"
     orbitals = "Orbital"
     mo_occ = "Occup."
@@ -55,7 +54,6 @@ comp_key_dict = {
     "Struct.": "struct",
     "Elect.": "el",
     "Total": "tot",
-    "Charge": "charge_atom",
     "Atom": "atoms",
     "Orbital": "orbitals",
     "Occup.": "mo_occ",
@@ -75,6 +73,7 @@ class DecompCls:
         "mo_init",
         "loc_exp",
         "part",
+        "part_method",
         "ndo",
         "gauge_origin",
         "prop",
@@ -93,6 +92,7 @@ class DecompCls:
         mo_init: str = "can",
         loc_exp: int = 2,
         part: str = "atoms",
+        part_method: Optional[str] = None,
         ndo: bool = False,
         gauge_origin: Optional[np.ndarray] = None,
         prop: str = "energy",
@@ -110,7 +110,20 @@ class DecompCls:
         self.pop_method = pop_method
         self.mo_init = mo_init
         self.loc_exp = loc_exp
+
+        if part == "eda":
+            logger.warning(
+                "Warning: part=\"eda\" is deprecated; use part=\"atoms\", part_method=\"ao\" instead"
+            )
+            part, part_method = "atoms","ao"
+        # end if
+        if part_method is None:
+            part_method = {"atoms": "mo"}.get(part)
+            #NOTE: sanity_check will raise an error if part == "bonds" and part_method is None
+        # end if
+
         self.part = part
+        self.part_method = part_method
         self.ndo = ndo
         self.gauge_origin = (
             np.zeros(3, dtype=np.float64) if gauge_origin is None else gauge_origin
@@ -137,40 +150,62 @@ def sanity_check(
     # Reference basis for IAOs
     if decomp.minao not in ("MINAO", "ANO"):
         raise ValueError(
-            "invalid minao basis. valid choices: `MINAO` (default) or `ANO`"
+            "invalid minao basis. valid choices: \"MINAO\" (default) or \"ANO\""
         )
     # MO basis
     if decomp.mo_basis not in ("can", "fb", "pm"):
         raise ValueError(
-            "invalid MO basis. valid choices: `can` (default), `fb`, or `pm`"
+            "invalid MO basis. valid choices: \"can\" (default), \"fb\", or \"pm\""
         )
     # population scheme
     if decomp.pop_method not in ("mulliken", "lowdin", "meta_lowdin", "becke", "iao"):
         raise ValueError(
-            "invalid population scheme. valid choices: `mulliken` (default), `lowdin`, "
-            "`meta_lowdin`, `becke`, or `iao`"
+            "invalid population scheme. valid choices: \"mulliken\" (default), \"lowdin\", "
+            "\"meta_lowdin\", \"becke\", or \"iao\""
         )
     # MO start guess (for localization)
     if decomp.mo_init not in ("can", "cholesky", "ibo"):
         raise ValueError(
-            "invalid MO start guess. valid choices: `can` (default), `cholesky`, or "
-            "`ibo`"
+            "invalid MO start guess. valid choices: \"can\" (default), \"cholesky\", or "
+            "\"ibo\""
         )
     # localization exponent
     if decomp.loc_exp not in (2, 4):
         raise ValueError(
             "invalid localization exponent. valid choices: 2 (default) or 4"
         )
-    # partitioning
-    if decomp.part not in ("atoms", "eda", "orbitals"):
-        raise ValueError(
-            "invalid partitioning. valid choices: `atoms` (default), `eda`, or "
-            "`orbitals`"
-        )
+    # partitioning and partitioning method
+    # if decomp.part not in ("atoms", "orbitals", "bonds"):
+    #     raise ValueError(
+    #         "invalid partitioning. valid choices: \"atoms\" (default), \"orbitals\", or "
+    #         "\"bonds\""
+    #     )
     if decomp.part == "orbitals":
         logger.warning(
             "Warning: This partitioning only computes electronic energy and does not "
             "include solvent van der Waals contributions."
+        )
+        if decomp.part_method is not None:
+            logger.warning(
+                "Warning: This partitioning does not require a value for part_method. "
+                "The requested partitioning method will be ignored."
+            )
+            decomp.part_method = None
+    elif decomp.part == "atoms":
+        if decomp.part_method not in ("ao","mo"):
+            raise ValueError(
+                "invalid partitioning method. valid choices for part=\"atoms\": "
+                "\"mo\" (Eriksen\'s MO-based scheme - default) or \"ao\" (Nakai\'s AO-based energy density analysis scheme)"
+            )
+    elif decomp.part == "bonds":
+        if decomp.part_method not in ("a2b","aap2b"):
+            raise ValueError(
+                "invalid partitioning method. valid choices for part=\"bonds\": "
+                "\"a2b\" (atoms-to-bonds) or \"aap2b\" (atoms-and-atom-pairs-to-bonds)"
+            )
+    else:
+        raise ValueError(
+            "invalid partitioning. valid choices: \"atoms\" (default) or \"orbitals\"" #TODO: add "bonds" here later, once it is implemented
         )
     # NDO decomposition
     if not isinstance(decomp.ndo, bool):
@@ -190,7 +225,7 @@ def sanity_check(
     # property
     if decomp.prop not in ("energy", "dipole"):
         raise ValueError(
-            "invalid property. valid choices: `energy` (default) and `dipole`"
+            "invalid property. valid choices: \"energy\" (default) and \"dipole\""
         )
     # write
     if not isinstance(decomp.write, str):
@@ -198,15 +233,17 @@ def sanity_check(
     if not isinstance(decomp.writename, str):
         raise TypeError("invalid write name argument. must be a str")
     if decomp.write not in ("", "cube", "numpy"):
-        raise ValueError("invalid write format. valid choices: `cube` and `numpy`")
+        raise ValueError("invalid write format. valid choices: \"cube\" and \"numpy\"")
+    if decomp.write != "" and (decomp.part, decomp.part_method) != ("atoms", "mo"):
+        raise ValueError("write is only implemented for part=\"atoms\", part_method=\"mo\"")
     # verbosity
     if not isinstance(decomp.verbose, int):
         raise TypeError(
-            "invalid verbosity. valid choices: 0 <= `verbose` <= 5 (default: 0)"
+            "invalid verbosity. valid choices: 0 <= \"verbose\" <= 5 (default: 0)"
         )
     if decomp.verbose < 0 or decomp.verbose > 5:
         raise ValueError(
-            "invalid verbosity. valid choices: 0 <= `verbose` <= 5 (default: 0)"
+            "invalid verbosity. valid choices: 0 <= \"verbose\" <= 5 (default: 0)"
         )
     # cell object
     if isinstance(mol, pbc_gto.Cell):
@@ -232,13 +269,13 @@ def sanity_check(
     # unit
     if not isinstance(decomp.unit, str):
         raise TypeError(
-            "invalid unit. valid choices: `au` (default), `kcal_mol`, `ev`, "
-            "`kj_mol`, or `debye`"
+            "invalid unit. valid choices: \"au\" (default), \"kcal_mol\", \"ev\", "
+            "\"kj_mol\", or \"debye\""
         )
     if decomp.unit.lower() not in ("au", "kcal_mol", "ev", "kj_mol", "debye"):
         raise ValueError(
-            "invalid unit. valid choices: `au` (default), `kcal_mol`, `ev`, "
-            "`kj_mol`, or `debye`"
+            "invalid unit. valid choices: \"au\" (default), \"kcal_mol\", \"ev\", "
+            "\"kj_mol\", or \"debye\""
         )
     # mo coefficients
     if not isinstance(mo_coeff, np.ndarray) and not isinstance(mo_coeff, tuple):

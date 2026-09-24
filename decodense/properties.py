@@ -45,17 +45,17 @@ def prop_tot(
     minao: str,
     pop_method: str,
     prop_type: str,
-    part: str,
+    part_method: Optional[str],
     ndo: bool,
     gauge_origin: np.ndarray,
-    weights: list[np.ndarray],
+    weights: Optional[list[np.ndarray]],
 ) -> dict[str, Union[np.ndarray, list[np.ndarray]]]:
     """
-    this function returns atom-decomposed mean-field properties
+    this function returns atom-decomposed and orbital-decomposed mean-field properties
     """
     # declare nested kernel functions in global scope
-    global prop_atom
-    global prop_eda
+    global prop_atom_mo
+    global prop_atom_ao
     global prop_orb
 
     # restricted reference
@@ -93,15 +93,6 @@ def prop_tot(
         pmol = lo.iao.reference_mol(mol, minao=minao)
     else:
         pmol = mol
-
-    # effective atomic charges
-    if part in ["atoms", "eda"]:
-        charge_atom = (
-            -(np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0))
-            + pmol.atom_charges()
-        )
-    else:
-        charge_atom = 0.0
 
     # nuclear repulsion property
     if prop_type == "energy":
@@ -173,28 +164,32 @@ def prop_tot(
             xc_params.ao_value, rdm1, xc_type
         )
         # evaluate xc energy density
-        xc_params.eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=0 if restrict else 1)[
-            0
-        ]
+        xc_spin = 0 if np.allclose(rdm1[0], rdm1[1]) else 1
+        xc_params.eps_xc = dft.libxc.eval_xc(mf.xc, rho_tot, spin=xc_spin)[0]
         # nlc (vv10)
         if isinstance(mol, pbc_gto.Cell):
             xc_params.eps_xc_nlc = None
         else:
-            if mf.nlc.upper() == "VV10":
-                nlc_pars = dft.libxc.nlc_coeff(mf.xc)[0][0]
+            if mf.do_nlc():
+                nlc_xc = mf.xc if mf._numint.libxc.is_nlc(mf.xc) else mf.nlc
                 xc_params.ao_value_nlc = _ao_val(mol, mf.nlcgrids.coords, 1)
                 xc_params.grid_weights_nlc = mf.nlcgrids.weights
                 xc_params.c0_vv10, xc_params.c1_vv10, rho_vv10 = _make_rho(
                     xc_params.ao_value_nlc, np.sum(rdm1, axis=0), "GGA"
                 )
-                xc_params.eps_xc_nlc = numint._vv10nlc(
-                    rho_vv10,
-                    mf.nlcgrids.coords,
-                    rho_vv10,
-                    xc_params.grid_weights_nlc,
-                    mf.nlcgrids.coords,
-                    nlc_pars,
-                )[0]
+                xc_params.eps_xc_nlc = sum(
+                    fac
+                    * numint._vv10nlc(
+                        rho_vv10,
+                        mf.nlcgrids.coords,
+                        rho_vv10,
+                        xc_params.grid_weights_nlc,
+                        mf.nlcgrids.coords,
+                        nlc_pars,
+                    )[0]
+                    for nlc_pars, fac in mf._numint.nlc_coeff(nlc_xc)
+                )
+                # above approach copies what PySCF does in rks.get_veff and numint.nr_nlc_vxc
             else:
                 xc_params.eps_xc_nlc = None
 
@@ -202,12 +197,12 @@ def prop_tot(
     alpha, beta = dim(mo_occ)
 
     # atomic labels
-    if part == "eda":
+    if part_method == "ao":
         ao_labels = mol.ao_labels(fmt=None)
 
-    def prop_atom(atom_idx: int) -> dict[str, Any]:
+    def prop_atom_mo(atom_idx: int) -> dict[str, Any]:
         """
-        this function returns atom-wise energy/dipole contributions
+        this function returns MO-based atom-wise energy/dipole contributions
         """
         # init results
         res: dict[str, Union[float, np.ndarray]] = {}
@@ -276,9 +271,10 @@ def prop_tot(
             res[CompKeys.el] = sum(res.values())
         return res
 
-    def prop_eda(atom_idx: int) -> dict[str, Any]:
+    def prop_atom_ao(atom_idx: int) -> dict[str, Any]:
         """
-        this function returns EDA energy/dipole contributions
+        this function returns AO-based atom-wise (EDA - energy density analysis)
+        energy/dipole contributions
         """
         # init results
         res = {}
@@ -362,7 +358,7 @@ def prop_tot(
 
     def prop_orb(spin_idx: int, orb_idx: int) -> dict[str, Any]:
         """
-        this function returns bond-wise energy/dipole contributions
+        this function returns orbital-wise energy/dipole contributions
         """
         # init res
         res = {}
@@ -407,11 +403,11 @@ def prop_tot(
 
     # perform decomposition
     prop: dict[str, Union[np.ndarray, list[np.ndarray]]]
-    if part in ["atoms", "eda"]:
+    if part_method in ["mo", "ao"]:
         # domain
         domain = np.arange(pmol.natm)
         # execute kernel
-        res = list(map(prop_atom if part == "atoms" else prop_eda, domain))
+        res = list(map(prop_atom_mo if part_method == "mo" else prop_atom_ao, domain))
         # init atom-specific energy or dipole arrays
         if prop_type == "energy":
             prop = {
@@ -432,14 +428,19 @@ def prop_tot(
         else:
             prop[CompKeys.struct] = prop_nuc_rep
         prop[CompKeys.tot] = prop[CompKeys.el] + prop[CompKeys.struct]
-        return {**prop, CompKeys.charge_atom: charge_atom}
+        return {**prop}
     else:  # orbs
-        # domain
+        # domain: (spin, mo index in mo_coeff, position within the spin channel)
+        # position is relevant for non-aufbau occupation
         domain = np.array(
-            [(i, j) for i, orbs in enumerate((alpha, beta)) for j in orbs]
+            [
+                (i,j,m)
+                for i, orbs in enumerate((alpha,beta))
+                for m, j in enumerate(orbs)
+            ]
         )
         # execute kernel
-        res = list(starmap(prop_orb, domain))  # type: ignore
+        res = list(starmap(prop_orb, domain[:, :2]))  # type: ignore
         # init orbital-specific energy or dipole array
         if prop_type == "energy":
             prop = {
@@ -457,7 +458,7 @@ def prop_tot(
         # collect results
         for k, r in enumerate(res):
             for key, val in r.items():
-                prop[key][domain[k, 0]][domain[k, 1]] = val
+                prop[key][domain[k, 0]][domain[k, 2]] = val
         if ndo:
             prop[CompKeys.struct] = np.zeros_like(prop_nuc_rep)
         else:
@@ -465,10 +466,9 @@ def prop_tot(
         prop[CompKeys.tot] = prop[CompKeys.el]
         return {
             **prop,
-            CompKeys.mo_occ: list(mo_occ),
-            CompKeys.orbsym: orbsym(mol, mo_coeff),
+            CompKeys.mo_occ: [mo_occ[0][alpha], mo_occ[1][beta]],
+            CompKeys.orbsym: orbsym(mol, (mo_coeff[0][:, alpha], mo_coeff[1][:, beta]))
         }
-
 
 def _e_nuc(mol: gto.Mole) -> np.ndarray:
     """
@@ -548,6 +548,11 @@ def _solvent(
         pot_solv, nuc_solv = _point_charges(mol, mm_mol)
     # pcm
     elif hasattr(mf, "with_solvent"):
+        if not isinstance(mf.with_solvent, solvent.pcm.PCM):
+            raise NotImplementedError(
+                "decodense only supports PCM-type solvent models (C-PCM, IEF-PCM, "
+                f"SS(V)PE, COSMO, SMD), not {type(mf.with_solvent).__name__}"
+            )
         pot_solv, nuc_solv = _pcm(mol, rdm1, mf.with_solvent)
     # OpenMM polarizable embedding
     elif hasattr(mf, "h1e_mmpol"):
@@ -603,7 +608,7 @@ def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> tuple[np.ndarray, np.ndar
     # nuclei interaction with point charges
     atom_charges = mol.atom_charges()
     atom_coords = mol.atom_coords()
-    nuc_solv = np.zeros(len(mol.atom))
+    nuc_solv = np.zeros(len(mol.natm))
     mm_atom_charges = mm_mol.atom_charges()
     mm_atom_coords = mm_mol.atom_coords()
     for j in range(mol.natm):
@@ -772,7 +777,7 @@ def _vk_dft(
     # if hybrid func: compute vk
     if abs(ks_hyb) > 1e-10:
         if not hasattr(mf, "vk"):
-            vk = mf.get_k(mol=mol, dm=rdm1)
+            vk = mf.get_k(mol, rdm1)
         # scale amount of exact exchange
         vk *= ks_hyb
     else:
@@ -781,10 +786,7 @@ def _vk_dft(
     if abs(ks_omega) > 1e-10:
         vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)
         vk_lr *= ks_alpha - ks_hyb
-        if not hasattr(mf, "vk"):
-            vk += vk_lr
-        else:
-            vk += np.sum(vk_lr, axis=0)
+        vk += vk_lr # vk_lr has the same (restricted or unrestricted) layout as vk
     return vk
 
 

@@ -36,7 +36,7 @@ beta = np.where(mf.mo_occ[1] > 0.0)[0]
 mo_coeff = (mf.mo_coeff[0][:, alpha], mf.mo_coeff[1][:, beta])
 
 # decomposition
-decomp = decodense.DecompCls(part="eda")
+decomp = decodense.DecompCls(part="atoms",part_method="ao")
 res = decodense.main(mol, decomp, mf, mo_coeff)
 
 print(res)
