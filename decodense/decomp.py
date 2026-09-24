@@ -34,7 +34,6 @@ class CompKeys:
     struct = "Struct."
     el = "Elect."
     tot = "Total"
-    charge_atom = "Charge"
     atoms = "Atom"
     orbitals = "Orbital"
     mo_occ = "Occup."
@@ -55,7 +54,6 @@ comp_key_dict = {
     "Struct.": "struct",
     "Elect.": "el",
     "Total": "tot",
-    "Charge": "charge_atom",
     "Atom": "atoms",
     "Orbital": "orbitals",
     "Occup.": "occup",
@@ -215,8 +213,7 @@ def sanity_check(
             )
     else:
         raise ValueError(
-            "invalid partitioning. valid choices: \"atoms\" (default), \"orbitals\", or "
-            "\"bonds\""
+            "invalid partitioning. valid choices: \"atoms\" (default) or \"orbitals\"" #TODO: add "bonds" here later, once it is implemented
         )
     # NDO decomposition
     if not isinstance(decomp.ndo, bool):

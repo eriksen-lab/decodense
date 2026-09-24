@@ -48,14 +48,14 @@ def get_nuc_pbc(
             vne = _get_pp_atomic_df(mydf, kpts=np.zeros(3))
         else:
             raise NotImplementedError(
-                "Decodense code for %s object is not implemented yet. ", mydf
+                f"Decodense code for {type(mydf).__name__} objects is not implemented yet."
             )
     else:
         if isinstance(mydf, pbc_df.df.DF):
             vne = _get_all_e_atomic_df(mydf, kpts=np.zeros(3))
         else:
             raise NotImplementedError(
-                "Decodense code for %s object is not implemented yet. ", mydf
+                f"Decodense code for {type(mydf).__name__} objects is not implemented yet."
             )
     return vne
 
@@ -147,8 +147,7 @@ class _RSNucBuilder(_RSGDFBuilder):
             self.omega = estimate_omega_for_ke_cutoff(cell, self.ke_cutoff)
             if cell.dimension == 2 and cell.low_dim_ft_type != "inf_vacuum":
                 raise NotImplementedError(
-                    "No implementation for nuc-el integrals for cell of dimension %s.",
-                    cell.dimension,
+                    f"No implementation for nuc-el integrals for cell of dimension {cell.dimension}."
                 )
             elif cell.dimension < 2:
                 self.mesh[cell.dimension :] = cell.mesh[cell.dimension :]
@@ -257,7 +256,7 @@ class _RSNucBuilder(_RSGDFBuilder):
         vj = self._int_nuc_vloc(fakenuc)
         if cell.dimension == 0:
             raise NotImplementedError(
-                "No Vnuc/Vpp implementation for dimension %s.", cell.dimension
+                f"No Vnuc/Vpp implementation for dimension {cell.dimension}."
             )
 
         # If exclude_dd_block then compute the SR integrals containing compact densities
@@ -290,7 +289,7 @@ class _RSNucBuilder(_RSGDFBuilder):
 
         if cell.dimension == 2 and cell.low_dim_ft_type != "inf_vacuum":
             raise NotImplementedError(
-                "No Vnuc/Vpp implementation for dimension %s.", cell.dimension
+                f"No Vnuc/Vpp implementation for dimension {cell.dimension}."
             )
         else:
             # The Coulomb kernel for all G-vectors, handling G=0
@@ -417,9 +416,8 @@ class _IntPPBuilder(Int3cBuilder):
                 pass
             else:
                 raise ValueError(
-                    "cell.pseudo was specified but its elements %s "
-                    "were not found in the system (pp_part2).",
-                    cell._pseudo.keys(),
+                    f"cell.pseudo was specified but its elements {list(cell._pseudo.keys())} "
+                    "were not found in the system (pp_part2)."
                 )
             vpp_loc2_at = [0] * nkpts
             return vpp_loc2_at
@@ -520,7 +518,7 @@ def _int_dd_block_at(
     (adapted from: pbc/df/rsdf_builder.py:_int_dd_block() in PySCF)
     """
     if intor not in ("int3c2e", "int3c2e_sph", "int3c2e_cart"):
-        raise NotImplementedError("% intor type in _int_dd_block_at", intor)
+        raise NotImplementedError(f"{intor} intor type in _int_dd_block_at")
 
     cell = dfbuilder.cell
     cell_d = dfbuilder.rs_cell.smooth_basis_cell()
@@ -553,7 +551,7 @@ def _int_dd_block_at(
 
     elif cell.dimension == 2 and cell.low_dim_ft_type != "inf_vacuum":
         raise NotImplementedError(
-            "No _int_dd_block_at implementation for dimension %s.", cell.dimension
+            f"No _int_dd_block_at implementation for dimension {cell.dimension}."
         )
 
     vR = pbc_tools.ifft(vG, mesh).real
@@ -706,5 +704,5 @@ def ewald_e_nuc(cell: pbc_gto.Cell) -> np.ndarray:
         )
 
     else:
-        raise NotImplementedError("No Ewald sum for dimension %s.", cell.dimension)
+        raise NotImplementedError(f"No Ewald sum for dimension {cell.dimension}.")
     return ewovrl_atomic + ewself_atomic + ewg_atomic
