@@ -156,32 +156,79 @@ def assign_rdm1s(
 
     # verbose print
     if 0 < verbose:
-        symbols = tuple(pmol.atom_pure_symbol(i) for i in range(pmol.natm))
-        print("\n *** partial population weights: ***")
-        print(
-            " spin  " + "MO       " + "      ".join(["{:}".format(i) for i in symbols])
-        )
-        for i, spin_mo in enumerate((alpha, beta)):
-            for m, j in enumerate(spin_mo):
-                with np.printoptions(
-                    suppress=True, linewidth=200, formatter={"float": "{:6.3f}".format}
-                ):
-                    print(
-                        "  {:s}    {:>2d}   {:}".format(
-                            "a" if i == 0 else "b", j, weights[i][m]
-                        )
-                    )
-        with np.printoptions(
-            suppress=True, linewidth=200, formatter={"float": "{:6.3f}".format}
-        ):
-            print(
-                "   total    {:}".format(
-                    np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0)
+        labels = [f"{pmol.atom_pure_symbol(k)}{k}" for k in range(pmol.natm)]
+
+        # atomic populations (sum over both spins, also correct for rhf)
+        total = np.sum(weights[0], axis=0) + np.sum(weights[1], axis=0)
+        print("\n *** atomic population ***")
+        for k in range(pmol.natm):
+            print(f"  {labels[k]:>8s}   {total[k]:10.5f}")
+        print(f"  {'sum':>8s}   {np.sum(total):10.5f}")
+
+        # full weight matrix to file (alpha only for rhf, since beta is identical)
+        filename = _unique_filename(f"pop_weights_{pop_method}")
+        try:
+            with open(filename, "w") as f:
+                f.write(
+                    "# partial population weights"
+                    + (" (rhf reference: beta weights identical to alpha)\n" if rhf else "\n")
                 )
+                f.write(f"# {'spin':>4s} {'MO':>6s} " + " ".join(f"{l:>10s}" for l in labels) + "\n")
+                for i, spin_mo in enumerate((alpha, beta)):
+                    for m, j in enumerate(spin_mo):
+                        f.write(
+                            f"  {'a' if i == 0 else 'b':>4s} {j:>6d} "
+                            + " ".join(f"{w:10.5f}" for w in weights[i][m])
+                            + "\n"
+                        )
+                    if rhf:
+                        break
+                # atomic population (sum over both spins)
+                f.write(
+                    f"  {'tot':>4s} {'-':>6s} "
+                    + " ".join(f"{w:10.5f}" for w in total)
+                    + "\n"
+                )
+            print(f"\n full population weight matrix written to {filename}")
+        except OSError as err:
+            # a failed write of this diagnostic file should not abort the decomposition
+            print(
+                f"\n WARNING: could not write population weight matrix to {filename} "
+                f"({type(err).__name__}: {err})"
             )
+    # end verbose print
 
     return weights
 
+def _unique_filename(stem: str, ext: str = ".txt") -> str:
+    """
+    this function returns f"{stem}{ext}" if it does not exist, otherwise
+    f"{stem}_{n}{ext}" with n one larger than the highest existing number.
+    on any error, a warning is issued and f"{stem}{ext}" is returned
+    """
+    filename = f"{stem}{ext}"
+    try:
+        import os
+        import re
+        if not os.path.exists(filename):
+            return filename
+        directory = os.path.dirname(stem) or "."
+        pattern = re.compile(
+            rf"^{re.escape(os.path.basename(stem))}_(\d+){re.escape(ext)}$"
+        )
+        numbers = [
+            int(match.group(1))
+            for name in os.listdir(directory)
+            if (match := pattern.match(name))
+        ]
+        return f"{stem}_{max(numbers, default=0) + 1}{ext}"
+    except Exception as err:
+        print(
+            f"\n WARNING: could not determine a unique filename "
+            f"({type(err).__name__}: {err}); falling back to {filename}, "
+            "which may overwrite an existing file"
+        )
+        return filename
 
 def _population_mul(
     natm: int, ao_labels: np.ndarray, ovlp: np.ndarray, rdm1: np.ndarray

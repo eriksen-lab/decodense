@@ -9,8 +9,9 @@ import numpy as np
 
 from .orbitals import assign_rdm1s
 from .properties import prop_tot
+from .tools import write_rdm1
 
-def _scheme_atoms(
+def _scheme_atoms_mo(
     mol,
     mf,
     mo_coeff,
@@ -19,11 +20,10 @@ def _scheme_atoms(
     decomp
 ):
     """
-    This function takes care of atom-wise decompositions:
+    This function takes care of MO-based atom-wise decompositions:
     1. Compute atomic weights
     2. Perform the decomposition
-    The difference between Eriksen's partitioning scheme
-    and Nakai's EDA scheme is encoded by decomp.part_method
+    3. Writes the RDM1s if requested
     """
     # 1. Compute atomic weights
     weights = assign_rdm1s(
@@ -37,7 +37,7 @@ def _scheme_atoms(
         decomp.verbose
     )
     # 2. Perform the decomposition
-    return prop_tot(
+    res = prop_tot(
         mol,
         mf,
         mo_coeff,
@@ -51,9 +51,16 @@ def _scheme_atoms(
         decomp.gauge_origin,
         weights
     )
+    # 3. Writes the RDM1s if requested
+    if decomp.write != "":
+        write_rdm1(
+            mol, decomp.part, mo_coeff, mo_occ, decomp.write, decomp.writename, weights
+        )
+
+    return res
 # end _scheme_atoms
 
-def _scheme_orbitals(
+def _scheme_atoms_ao_orbitals(
     mol,
     mf,
     mo_coeff,
@@ -62,7 +69,9 @@ def _scheme_orbitals(
     decomp
 ):
     """
-    This function takes care of orbital-wise decompositions.
+    This function takes care of AO-based atom-wise decompositions
+    and orbital-wise decompositions.
+    The difference between these two is indicated by decomp.part_method.
     """
     return prop_tot(
         mol,
@@ -73,10 +82,10 @@ def _scheme_orbitals(
         decomp.minao,
         decomp.pop_method,
         decomp.prop,
-        "orbitals", #TODO: this is supposed to be decomp.part_method?
+        decomp.part_method,
         decomp.ndo,
         decomp.gauge_origin,
-        weights = None #TODO: update prop_tot so it can take weights = None
+        weights = None
     )
 # end _scheme_orbitals
 
@@ -96,8 +105,8 @@ def _scheme_bonds_a2b(
     3. Perform the bond-wise decomposition
     """
     raise NotImplementedError("Bond-wise decomposition schemes are not yet implemented!")
-    # 1. Perform an atom-wise decomposition
-    atom_res = _scheme_atoms(
+    # 1. Perform an atom-wise decomposition #TODO: can choose AO or MO here -> how to implement this?
+    atom_res = _scheme_atoms_mo( #NOTE: MO for now -> how to implement choosing AO?
         mol,
         mf,
         mo_coeff,
@@ -108,7 +117,7 @@ def _scheme_bonds_a2b(
     # 2. Compute bond weights
     bond_weights = None #TODO: implement a function that calculates these
     # 3. Perform the bond-wise decomposition
-    return atoms_to_bonds( #TODO: implement a function that redistributed atom to bond
+    return atoms_to_bonds( #TODO: implement a function that redistributes atom to bond
         atom_res,
         bond_weights
     )
@@ -142,9 +151,9 @@ def _scheme_bonds_aap2b(
 # end _scheme_bonds_aap2b
 
 SCHEMES = {
-    ("atoms", "eriksen"):  _scheme_atoms,
-    ("atoms", "eda"):    _scheme_atoms,
-    ("orbitals", None):  _scheme_orbitals,
+    ("atoms", "mo"):  _scheme_atoms_mo,
+    ("atoms", "ao"):    _scheme_atoms_ao_orbitals,
+    ("orbitals", None):  _scheme_atoms_ao_orbitals,
     ("bonds", "a2b"):    _scheme_bonds_a2b,
     ("bonds", "aap2b"):  _scheme_bonds_aap2b
 }

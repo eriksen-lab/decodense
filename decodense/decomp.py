@@ -97,8 +97,8 @@ class DecompCls(object):
         pop_method: str = "mulliken",
         mo_init: str = "can",
         loc_exp: int = 2,
-        part="atoms",
-        part_method=None,
+        part: str = "atoms",
+        part_method: Optional[str] = None,
         ndo: bool = False,
         gauge_origin: Optional[np.ndarray] = None,
         prop: str = "energy",
@@ -119,12 +119,12 @@ class DecompCls(object):
 
         if part == "eda":
             logger.warning(
-                "Warning: part=\"eda\" is deprecated; use part=\"atoms\", part_method=\"eda\" instead"
+                "Warning: part=\"eda\" is deprecated; use part=\"atoms\", part_method=\"ao\" instead"
             )
-            part, part_method = "atoms","eda"
+            part, part_method = "atoms","ao"
         # end if
         if part_method is None:
-            part_method = {"atoms": "eriksen"}.get(part)
+            part_method = {"atoms": "mo"}.get(part)
             #NOTE: sanity_check will raise an error if part == "bonds" and part_method is None
         # end if
 
@@ -202,10 +202,10 @@ def sanity_check(
             )
             decomp.part_method = None
     elif decomp.part == "atoms":
-        if decomp.part_method not in ("eriksen","eda"):
+        if decomp.part_method not in ("ao","mo"):
             raise ValueError(
                 "invalid partitioning method. valid choices for part=\"atoms\": "
-                "\"eriksen\" (default) or \"eda\""
+                "\"mo\" (Eriksen\'s MO-based scheme - default) or \"ao\" (Nakai\'s AO-based energy density analysis scheme)"
             )
     elif decomp.part == "bonds":
         if decomp.part_method not in ("a2b","aap2b"):
@@ -245,6 +245,8 @@ def sanity_check(
         raise TypeError("invalid write name argument. must be a str")
     if decomp.write not in ("", "cube", "numpy"):
         raise ValueError("invalid write format. valid choices: \"cube\" and \"numpy\"")
+    if decomp.write != "" and (decomp.part, decomp.part_method) != ("atoms", "mo"):
+        raise ValueError("write is only implemented for part=\"atoms\", part_method=\"mo\"")
     # verbosity
     if not isinstance(decomp.verbose, int):
         raise TypeError(

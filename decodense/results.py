@@ -33,25 +33,27 @@ class ResultsCls:
     class that holds decodense results
     """
 
-    def __init__(self, mol: gto.Mole, res: Dict[str, Any], print_unit: str, ndo: bool):
+    def __init__(self, mol: gto.Mole, decomp: DecompCls):
+    #def __init__(self, mol: gto.Mole, res: Dict[str, Any], print_unit: str, ndo: bool, part: str):
         self.mol = mol
-        self.res_dict = res
-        self.print_unit = print_unit
-        self.ndo = ndo
+        self.res_dict = decomp.res
+        self.print_unit = decomp.unit
+        self.ndo = decomp.ndo
+        self.part = decomp.part
         for key, value in self.res_dict.items():
             setattr(self, comp_key_dict[key], value)
 
     def __str__(self):
-        if CompKeys.charge_atom in self.res_dict:
-            return str(atoms(self.mol, self.res_dict, self.print_unit))
-        else:
-            return str(orbs(self.mol, self.res_dict, self.print_unit, self.ndo))
+        """
+        build a string from a pandas dataframe built from the results
+        """
+        return str(self.to_dataframe())
 
     def to_dataframe(self) -> pd.DataFrame:
         """
         build a pandas dataframe from the results
         """
-        return fmt(self.mol, self.res_dict, self.print_unit, self.ndo)
+        return fmt(self.mol, self.res_dict, self.print_unit, self.ndo, self.part)
 
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
@@ -79,14 +81,16 @@ def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> 
     # system info
     string += "\n\n system info:\n"
     string += " ------------\n"
-    string += " property           =  {:}\n"
-    string += " partitioning       =  {:}\n"
-    string += " MO basis           =  {:}\n"
-    string += " population scheme  =  {:}\n"
-    string += " MO start guess     =  {:}\n"
+    string += " property            =  {:}\n"
+    string += " partitioning        =  {:}\n"
+    string += " partitioning method =  {:}\n"
+    string += " MO basis            =  {:}\n"
+    string += " population scheme   =  {:}\n"
+    string += " MO start guess      =  {:}\n"
     form += (
         decomp.prop,
         decomp.part,
+        decomp.part_method,
         decomp.mo_basis,
         decomp.pop_method,
         decomp.mo_init,
@@ -114,14 +118,18 @@ def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> 
     return string.format(*form)
 
 
-def fmt(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
+def fmt(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool, part: str) -> pd.DataFrame:
     """
-    this function prints the results based on either an atom- or bond-based partitioning
+    this function prints the results based on either an atom-, orbital- or bond-based partitioning
     """
-    if CompKeys.charge_atom in res:
+    if part == "atoms":
         return atoms(mol, res, unit)
-    else:
+    elif part == "orbitals":
         return orbs(mol, res, unit, ndo)
+    elif part == "bonds":
+        return bonds() #TODO: implement later, leave as placeholder for now
+    else:
+        raise ValueError(f"Invalid partitioning in results.py: {part!r}")
 
 
 def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
@@ -159,8 +167,6 @@ def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
             if comp_key != CompKeys.charge_atom
         }
-    # partial charges
-    prop[CompKeys.charge_atom] = res[CompKeys.charge_atom]
     # atom symbols
     prop[CompKeys.atoms] = [f"{mol.atom_symbol(i)}{i}" for i in range(mol.natm)]
 
@@ -183,10 +189,15 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
     orbsym = np.append(res[CompKeys.orbsym][0], res[CompKeys.orbsym][1])
     # index
     if ndo:
+        # pair the most negative with the most positive occupation, and so on;
+        # with an odd number of NDOs, the unpaired (middle) one is listed last
         sort_idx = np.argsort(mo_occ)
-        mo_idx = np.array(
-            [[sort_idx[i], sort_idx[-(i + 1)]] for i in range(sort_idx.size // 2)]
-        ).ravel()
+        n_pairs = sort_idx.size // 2
+        pairs = np.column_stack((sort_idx[:n_pairs], sort_idx[::-1][:n_pairs])).ravel()
+        mo_idx = np.concatenate(
+            (pairs, sort_idx[n_pairs : sort_idx.size - n_pairs])
+        ).astype(np.int64)
+
     else:
         mo_idx = np.arange(alpha.size + beta.size)
 
@@ -207,7 +218,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
     # property contributions
     if scalar_prop:
         prop = {
-            comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx]
+            comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx] * scaling
             for comp_key in res.keys()
             if comp_key not in (CompKeys.struct, CompKeys.charge_atom, CompKeys.mo_occ, CompKeys.orbsym)
         }
@@ -218,6 +229,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             + axis: np.vstack((res[CompKeys.el][0], res[CompKeys.el][1]))[
                 mo_idx[:, None], ax_idx
             ].ravel()
+            * scaling
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
         }
         for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
@@ -233,3 +245,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
 
     # return as dataframe
     return pd.DataFrame.from_dict(prop).set_index(CompKeys.orbitals)
+
+def bonds():
+    raise NotImplementedError("Bond-wise decomposition schemes are not yet implemented!")
+    return
