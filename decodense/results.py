@@ -18,8 +18,6 @@ from typing import Any, Optional
 from .decomp import comp_key_dict, CompKeys, DecompCls
 from .tools import git_version, dim
 
-TOLERANCE = 1.0e-10
-
 # https://en.wikipedia.org/wiki/Hartree
 AU_TO_KCAL_MOL = 627.5094740631
 AU_TO_EV = 27.211386245988
@@ -109,14 +107,10 @@ def fmt(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFram
         return orbs(mol, res, unit, ndo)
 
 
-def atoms(mol: gto.Mole, res: dict[str, Any], unit: str) -> pd.DataFrame:
+def _unit_scaling(scalar_prop: bool, unit: str) -> float:
     """
-    atom-based partitioning
+    this function returns the unit-conversion scaling factor
     """
-    # property type
-    scalar_prop = res[CompKeys.el].ndim == 1
-
-    # units
     unit = unit.lower()
     scaling = 1.0
     if scalar_prop:
@@ -129,6 +123,18 @@ def atoms(mol: gto.Mole, res: dict[str, Any], unit: str) -> pd.DataFrame:
     else:
         if unit == "debye":
             scaling = AU_TO_DEBYE
+    return scaling
+
+
+def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+    """
+    atom-based partitioning
+    """
+    # property type
+    scalar_prop = res[CompKeys.el].ndim == 1
+
+    # units
+    scaling = _unit_scaling(scalar_prop, unit)
 
     # property contributions
     if scalar_prop:
@@ -172,22 +178,14 @@ def orbs(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
         mo_idx = np.array(
             [[sort_idx[i], sort_idx[-(i + 1)]] for i in range(sort_idx.size // 2)]
         ).ravel()
+        # in case of an odd number of orbitals
+        if sort_idx.size % 2 == 1:
+            mo_idx = np.append(mo_idx, sort_idx[sort_idx.size // 2])
     else:
         mo_idx = np.arange(alpha.size + beta.size)
 
     # units
-    unit = unit.lower()
-    scaling = 1.0
-    if scalar_prop:
-        if unit == "kcal_mol":
-            scaling = AU_TO_KCAL_MOL
-        elif unit == "ev":
-            scaling = AU_TO_EV
-        elif unit == "kj_mol":
-            scaling = AU_TO_KJ_MOL
-    else:
-        if unit == "debye":
-            scaling = AU_TO_DEBYE
+    scaling = _unit_scaling(scalar_prop, unit)
 
     # property contributions
     if scalar_prop:
