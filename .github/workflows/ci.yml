@@ -9,6 +9,25 @@ on:
       - main
 
 jobs:
+  formatting:
+    name: "Formatting • black"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout decodense
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install black
+        run: pip install black
+
+      - name: Check formatting
+        run: black --check --diff decodense tests examples
+
   test:
     strategy:
       fail-fast: false
