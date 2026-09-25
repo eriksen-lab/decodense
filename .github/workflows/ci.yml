@@ -10,7 +10,6 @@ on:
 
 jobs:
   formatting:
-    name: "Formatting • black"
     runs-on: ubuntu-latest
 
     steps:
@@ -82,4 +81,5 @@ jobs:
         run: pip install -e .
 
       - name: Smoke test import
+        working-directory: /tmp
         run: python -c "import decodense"
