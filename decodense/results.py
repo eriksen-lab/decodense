@@ -36,6 +36,7 @@ class ResultsCls:
         self.res_dict = res
         self.print_unit = print_unit
         self.ndo = ndo
+
         for key, value in self.res_dict.items():
             setattr(self, comp_key_dict[key], value)
 

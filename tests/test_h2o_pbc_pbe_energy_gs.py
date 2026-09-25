@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
+from pathlib import Path
 import unittest
 import numpy as np
 from pyscf import scf as mol_scf
@@ -15,13 +16,16 @@ TOL = 5
 # settings
 PART = ("eda", "atoms")
 
+# geometry directory
+GEOM_DIR = Path(__file__).parent / "geom"
+
 # init cell
 cell = gto.Cell(
     verbose=0,
-    output=None,
+    output="/dev/null",
     basis="gth-szv-molopt-sr",
     pseudo="gth-pbe",
-    atom="geom/h2o.xyz",
+    atom=str(GEOM_DIR / "h2o.xyz"),
     a=4 * np.eye(3),
     exp_to_discard=0.1,
 )

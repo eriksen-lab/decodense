@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
+from pathlib import Path
 import unittest
 import numpy as np
 from pyscf import gto, scf
@@ -12,6 +13,9 @@ TOL = 9
 
 # settings
 PART = ("orbitals", "eda", "atoms")
+
+# geometry directory
+GEOM_DIR = Path(__file__).parent / "geom"
 
 OCC_IDX, VIRT_IDX = 18, 22
 
@@ -43,7 +47,11 @@ def ex_calc(mol, mo_coeff, mo_occ):
 
 # init mol
 mol = gto.M(
-    verbose=0, output=None, symmetry=True, basis="pcseg1", atom="geom/c5h5n.xyz"
+    verbose=0,
+    output="/dev/null",
+    symmetry=True,
+    basis="pcseg1",
+    atom=str(GEOM_DIR / "c5h5n.xyz"),
 )
 
 # ground-state mf calc
