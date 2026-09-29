@@ -81,7 +81,7 @@ def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> 
     string += " ------------\n"
     string += f" property            =  {decomp.prop}\n"
     string += f" partitioning        =  {decomp.part}\n"
-    strin  += f" partitioning method =  {decomp.part_method}\n"
+    string += f" partitioning method =  {decomp.part_method}\n"
     string += f" MO basis            =  {decomp.mo_basis}\n"
     string += f" population scheme   =  {decomp.pop_method}\n"
     string += f" MO start guess      =  {decomp.mo_init}\n"
@@ -133,7 +133,7 @@ def _unit_scaling(scalar_prop: bool, unit: str) -> float:
     return scaling
 
 
-def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+def atoms(mol: gto.Mole, res: dict[str, Any], unit: str) -> pd.DataFrame:
     """
     atom-based partitioning
     """
