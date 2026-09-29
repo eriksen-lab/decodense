@@ -13,9 +13,9 @@ TOL = 9
 
 # settings
 PART = (
-    ("orbitals", None), # orbital-wise scheme
-    ("atoms","ao"), # Nakai's AO-based atom-wise scheme (EDA)
-    ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
+    ("orbitals", None),  # orbital-wise scheme
+    ("atoms", "ao"),  # Nakai's AO-based atom-wise scheme (EDA)
+    ("atoms", "mo"),  # Eriksen's MO-based atom-wise scheme
 )
 
 # geometry directory
@@ -113,7 +113,9 @@ class KnownValues(unittest.TestCase):
         for part_pair in PART:
             with self.subTest(part_pair=part_pair):
                 part, part_method = part_pair
-                decomp = decodense.DecompCls(part=part, part_method=part_method, ndo=True)
+                decomp = decodense.DecompCls(
+                    part=part, part_method=part_method, ndo=True
+                )
                 res = decodense.main(
                     mol, decomp, mf_ex, mo_coeff=mo_coeff, mo_occ=mo_occ, rdm1=rdm1_sum
                 )

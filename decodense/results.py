@@ -53,7 +53,6 @@ class ResultsCls:
         return fmt(self.mol, self.res_dict, self.print_unit, self.ndo, self.part)
 
 
-
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
     this function prints basic info
@@ -100,7 +99,9 @@ def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> 
     return string
 
 
-def fmt(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool, part: str) -> pd.DataFrame:
+def fmt(
+    mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool, part: str
+) -> pd.DataFrame:
     """
     this function prints the results based on either an atom-, orbital- or bond-based partitioning
     """
@@ -109,7 +110,7 @@ def fmt(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool, part: str) -> 
     elif part == "orbitals":
         return orbs(mol, res, unit, ndo)
     elif part == "bonds":
-        return bonds() #TODO: implement later, leave as placeholder for now
+        return bonds()  # TODO: implement later, leave as placeholder for now
     else:
         raise ValueError(f"Invalid partitioning in results.py: {part!r}")
 
@@ -145,10 +146,7 @@ def atoms(mol: gto.Mole, res: dict[str, Any], unit: str) -> pd.DataFrame:
 
     # property contributions
     if scalar_prop:
-        prop = {
-            comp_key: res[comp_key] * scaling
-            for comp_key in res.keys()
-        }
+        prop = {comp_key: res[comp_key] * scaling for comp_key in res.keys()}
     else:
         prop = {
             comp_key + axis: res[comp_key][:, ax_idx] * scaling
@@ -226,6 +224,9 @@ def orbs(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
     # return as dataframe
     return pd.DataFrame.from_dict(prop).set_index(CompKeys.orbitals)
 
+
 def bonds():
-    raise NotImplementedError("Bond-wise decomposition schemes are not yet implemented!")
+    raise NotImplementedError(
+        "Bond-wise decomposition schemes are not yet implemented!"
+    )
     return

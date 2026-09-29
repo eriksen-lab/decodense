@@ -46,7 +46,8 @@ for i, spin_mo in enumerate((alpha, beta)):
     stable, direction = loc.stability_check()
 
 # decomposition
-decomp = decodense.DecompCls(pop_method="iao", part="atoms") # default part_method = "mo"
+# default part_method = "mo"
+decomp = decodense.DecompCls(pop_method="iao", part="atoms")
 res = decodense.main(mol, decomp, mf, tuple(mo_coeff))
 
 print(res)

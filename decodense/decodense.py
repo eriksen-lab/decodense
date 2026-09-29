@@ -69,13 +69,6 @@ def main(
             mo_occ = tuple(mo_occ)
 
     scheme = SCHEMES[(decomp.part, decomp.part_method)]
-    decomp.res = scheme(
-        mol,
-        mf,
-        mo_coeff,
-        mo_occ,
-        rdm1,
-        decomp
-    )
+    decomp.res = scheme(mol, mf, mo_coeff, mo_occ, rdm1, decomp)
 
     return ResultsCls(mol, decomp)

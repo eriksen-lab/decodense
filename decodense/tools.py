@@ -320,7 +320,7 @@ def res_sub(res_a, res_b):
     this function subtracts two results
     """
     import operator
-    
+
     return _res_combine(res_a, res_b, operator.sub)
 
 

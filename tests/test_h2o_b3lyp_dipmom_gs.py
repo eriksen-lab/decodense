@@ -14,9 +14,9 @@ TOL = 9
 # settings
 POP_METHOD = ("mulliken", "lowdin", "meta_lowdin", "becke", "iao")
 PART = (
-    ("orbitals", None), # orbital-wise scheme
-    ("atoms","ao"), # Nakai's AO-based atom-wise scheme (EDA)
-    ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
+    ("orbitals", None),  # orbital-wise scheme
+    ("atoms", "ao"),  # Nakai's AO-based atom-wise scheme (EDA)
+    ("atoms", "mo"),  # Eriksen's MO-based atom-wise scheme
 )
 
 # geometry directory
@@ -57,7 +57,10 @@ class KnownValues(unittest.TestCase):
                 with self.subTest(pop_method=pop_method, part_pair=part_pair):
                     part, part_method = part_pair
                     decomp = decodense.DecompCls(
-                        pop_method=pop_method, part=part, part_method = part_method, prop="dipole"
+                        pop_method=pop_method,
+                        part=part,
+                        part_method=part_method,
+                        prop="dipole",
                     )
                     res = decodense.main(mol, decomp, mf, mo_coeff)
                     if part == "orbitals":
