@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
+from pathlib import Path
 import unittest
 import numpy as np
 from pyscf import gto, scf
@@ -18,15 +19,18 @@ PART = (
     ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
 )
 
+# geometry directory
+GEOM_DIR = Path(__file__).parent / "geom"
+
 # init molecule
 mol = gto.M(
     verbose=0,
-    output=None,
+    output="/dev/null",
     symmetry=True,
     basis="pcseg1",
     unit="au",
     spin=2,
-    atom="geom/ch2.xyz",
+    atom=str(GEOM_DIR / "ch2.xyz"),
 )
 
 # mf calc

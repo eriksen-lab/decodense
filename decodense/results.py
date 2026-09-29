@@ -53,6 +53,7 @@ class ResultsCls:
         return fmt(self.mol, self.res_dict, self.print_unit, self.ndo, self.part)
 
 
+
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
     this function prints basic info

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
+from pathlib import Path
 import unittest
 import numpy as np
 from pyscf import gto, scf
@@ -16,6 +17,9 @@ PART = (
     ("atoms","ao"), # Nakai's AO-based atom-wise scheme (EDA)
     ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
 )
+
+# geometry directory
+GEOM_DIR = Path(__file__).parent / "geom"
 
 OCC_IDX, VIRT_IDX = 4, 5
 
@@ -48,12 +52,12 @@ def ex_calc(mol, mo_coeff, mo_occ):
 # init mol
 mol = gto.M(
     verbose=0,
-    output=None,
+    output="/dev/null",
     symmetry=True,
     basis="pcseg1",
     unit="au",
     spin=2,
-    atom="geom/ch2.xyz",
+    atom=str(GEOM_DIR / "ch2.xyz"),
 )
 
 # ground-state mf calc
