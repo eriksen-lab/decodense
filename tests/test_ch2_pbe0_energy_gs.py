@@ -12,7 +12,11 @@ TOL = 9
 
 # settings
 POP_METHOD = ("mulliken", "lowdin", "meta_lowdin", "becke", "iao")
-PART = ("orbitals", "eda", "atoms")
+PART = (
+    ("orbitals", None), # orbital-wise scheme
+    ("atoms","ao"), # Nakai's AO-based atom-wise scheme (EDA)
+    ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
+)
 
 # init molecule
 mol = gto.M(
@@ -48,9 +52,10 @@ class KnownValues(unittest.TestCase):
     def test(self):
         mf_e_tot = mf.e_tot
         for pop_method in POP_METHOD:
-            for part in PART:
-                with self.subTest(pop_method=pop_method, part=part):
-                    decomp = decodense.DecompCls(pop_method=pop_method, part=part)
+            for part_pair in PART:
+                with self.subTest(pop_method=pop_method, part_pair=part_pair):
+                    part, part_method = part_pair
+                    decomp = decodense.DecompCls(pop_method=pop_method, part=part, part_method=part_method)
                     res = decodense.main(mol, decomp, mf, mo_coeff)
                     if part == "orbitals":
                         e_tot = np.sum(res.tot[0]) + np.sum(res.tot[1])

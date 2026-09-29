@@ -14,6 +14,11 @@ TOL = 5
 
 # settings
 PART = ("eda", "atoms")
+PART = (
+    ("orbitals", None), # orbital-wise scheme
+    ("atoms","ao"), # Nakai's AO-based atom-wise scheme (EDA)
+    ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
+)
 
 # init cell
 cell = gto.Cell(
@@ -72,10 +77,16 @@ class KnownValues(unittest.TestCase):
     def test(self):
         kmf_e_tot = (nkpt**3) * edft
         mf_e_tot = mf.energy_tot()
-        for part in PART:
-            with self.subTest(part=part):
+        for part_pair in PART:
+            with self.subTest(part_pair=part_pair):
+                part, part_method = part_pair
                 decomp = decodense.DecompCls(
-                    mo_basis="pm", pop_method="iao", mo_init="ibo", loc_exp=4, part=part
+                    mo_basis="pm",
+                    pop_method="iao",
+                    mo_init="ibo",
+                    loc_exp=4,
+                    part=part,
+                    part_method = part_method
                 )
                 res = decodense.main(supcell, decomp, mf, mo_coeff)
                 e_tot = np.sum(res.tot)

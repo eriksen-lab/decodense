@@ -119,11 +119,13 @@ def mf_info(
     """
     # dimensions
     if np.asarray(mf.mo_occ).ndim == 1:
-        alpha, beta = dim((mf.mo_occ, mf.mo_occ))
+        # restricted (RHF/ROHF): singly occupied orbitals only hold an alpha electron
+        alpha = np.where(mf.mo_occ > 0.0)[0]
+        beta = np.where(mf.mo_occ > 1.0)[0]
     else:
         alpha, beta = dim(mf.mo_occ)
     # mo occupations
-    mo_occ = (np.ones_like(alpha), np.ones_like(beta))
+    mo_occ = (np.ones(alpha.size), np.ones(beta.size))
     # mo coefficients
     if np.asarray(mf.mo_coeff).ndim == 2:
         mo_coeff = (mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta])
@@ -280,34 +282,46 @@ def write_rdm1(
             np.savez("rdm1_atom_dict.npz", **rdm1_atom_dict)
 
 
-def res_add(res_a, res_b):
+def _res_combine(res_a, res_b, op):
     """
-    this function adds two result dictionaries
+    this function combines two results (ResultsCls objects or result dictionaries)
+    key by key with the binary operator op
     """
+    import operator
+
+    res_a = getattr(res_a, "res_dict", res_a)
+    res_b = getattr(res_b, "res_dict", res_b)
     if res_a.keys() != res_b.keys():
         raise ValueError("res_a and res_b must have the same set of keys")
     result = {}
     for key in res_a.keys():
-        if key == "Symm.":
+        if key in ("Symm.", "Occup."):
+            # labels/occupations are not combined, keep both
             result[key] = (list(res_a[key]), list(res_b[key]))
+        elif isinstance(res_a[key], (list, tuple)):
+            # orbital-based results: [alpha, beta]
+            result[key] = [op(a, b) for a, b in zip(res_a[key], res_b[key])]
         else:
-            result[key] = res_a[key] + res_b[key]
+            result[key] = op(res_a[key], res_b[key])
     return result
+
+
+def res_add(res_a, res_b):
+    """
+    this function adds two results
+    """
+    import operator
+
+    return _res_combine(res_a, res_b, operator.add)
 
 
 def res_sub(res_a, res_b):
     """
-    this function subtracts two result dictionaries
+    this function subtracts two results
     """
-    if res_a.keys() != res_b.keys():
-        raise ValueError("res_a and res_b must have the same set of keys")
-    result = {}
-    for key in res_a.keys():
-        if key == "Symm.":
-            result[key] = (list(res_a[key]), list(res_b[key]))
-        else:
-            result[key] = res_a[key] - res_b[key]
-    return result
+    import operator
+    
+    return _res_combine(res_a, res_b, operator.sub)
 
 
 def contract(eqn, *tensors):
