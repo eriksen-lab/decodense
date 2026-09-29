@@ -14,9 +14,7 @@ import decodense
 TOL = 5
 
 # settings
-PART = ("eda", "atoms")
 PART = (
-    ("orbitals", None), # orbital-wise scheme
     ("atoms","ao"), # Nakai's AO-based atom-wise scheme (EDA)
     ("atoms","mo"), # Eriksen's MO-based atom-wise scheme
 )
