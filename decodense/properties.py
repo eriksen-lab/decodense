@@ -608,7 +608,7 @@ def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> tuple[np.ndarray, np.ndar
     # nuclei interaction with point charges
     atom_charges = mol.atom_charges()
     atom_coords = mol.atom_coords()
-    nuc_solv = np.zeros(len(mol.natm))
+    nuc_solv = np.zeros(mol.natm)
     mm_atom_charges = mm_mol.atom_charges()
     mm_atom_coords = mm_mol.atom_coords()
     for j in range(mol.natm):

@@ -147,14 +147,12 @@ def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
         prop = {
             comp_key: res[comp_key] * scaling
             for comp_key in res.keys()
-            if comp_key != CompKeys.charge_atom
         }
     else:
         prop = {
             comp_key + axis: res[comp_key][:, ax_idx] * scaling
             for comp_key in res.keys()
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
-            if comp_key != CompKeys.charge_atom
         }
     # atom symbols
     prop[CompKeys.atoms] = [f"{mol.atom_symbol(i)}{i}" for i in range(mol.natm)]
@@ -201,7 +199,6 @@ def orbs(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             if comp_key
             not in (
                 CompKeys.struct,
-                CompKeys.charge_atom,
                 CompKeys.mo_occ,
                 CompKeys.orbsym,
             )
