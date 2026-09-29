@@ -434,8 +434,8 @@ def prop_tot(
         # position is relevant for non-aufbau occupation
         domain = np.array(
             [
-                (i,j,m)
-                for i, orbs in enumerate((alpha,beta))
+                (i, j, m)
+                for i, orbs in enumerate((alpha, beta))
                 for m, j in enumerate(orbs)
             ]
         )
@@ -467,8 +467,9 @@ def prop_tot(
         return {
             **prop,
             CompKeys.mo_occ: [mo_occ[0][alpha], mo_occ[1][beta]],
-            CompKeys.orbsym: orbsym(mol, (mo_coeff[0][:, alpha], mo_coeff[1][:, beta]))
+            CompKeys.orbsym: orbsym(mol, (mo_coeff[0][:, alpha], mo_coeff[1][:, beta])),
         }
+
 
 def _e_nuc(mol: gto.Mole) -> np.ndarray:
     """
@@ -786,7 +787,7 @@ def _vk_dft(
     if abs(ks_omega) > 1e-10:
         vk_lr = mf.get_k(mol, rdm1, omega=ks_omega)
         vk_lr *= ks_alpha - ks_hyb
-        vk += vk_lr # vk_lr has the same (restricted or unrestricted) layout as vk
+        vk += vk_lr  # vk_lr has the same (restricted or unrestricted) layout as vk
     return vk
 
 

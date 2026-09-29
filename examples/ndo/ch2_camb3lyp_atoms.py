@@ -71,7 +71,8 @@ mo_occ = (
 )
 
 # decomposition
-decomp = decodense.DecompCls(pop_method="mulliken", part="atoms", ndo=True) # default part_method = "mo"
+# default part_method = "mo"
+decomp = decodense.DecompCls(pop_method="mulliken", part="atoms", ndo=True)
 res = decodense.main(mol, decomp, mf_ex, mo_coeff, mo_occ, rdm1=rdm1_sum)
 
 print(res)
