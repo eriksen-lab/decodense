@@ -228,7 +228,7 @@ def _unique_filename(stem: str, ext: str = ".txt") -> str:
         return filename
 
 def _population_mul(
-    natm: int, ao_labels: List[Tuple[int, str, str, str]], pop: np.ndarray
+    natm: int, ao_labels: list[tuple[int, str, str, str]], pop: np.ndarray
 ) -> np.ndarray:
     """
     this function returns the mulliken populations on the individual atoms
