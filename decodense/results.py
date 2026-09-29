@@ -13,12 +13,10 @@ __status__ = "Development"
 import numpy as np
 import pandas as pd
 from pyscf import gto
-from typing import Dict, Tuple, Any, Optional
+from typing import Any, Optional
 
 from .decomp import comp_key_dict, CompKeys, DecompCls
 from .tools import git_version, dim
-
-TOLERANCE = 1.0e-10
 
 # https://en.wikipedia.org/wiki/Hartree
 AU_TO_KCAL_MOL = 627.5094740631
@@ -33,107 +31,93 @@ class ResultsCls:
     class that holds decodense results
     """
 
-    def __init__(self, mol: gto.Mole, res: Dict[str, Any], print_unit: str, ndo: bool):
+    def __init__(self, mol: gto.Mole, decomp: DecompCls):
         self.mol = mol
-        self.res_dict = res
-        self.print_unit = print_unit
-        self.ndo = ndo
-
+        self.res_dict = decomp.res
+        self.print_unit = decomp.unit
+        self.ndo = decomp.ndo
+        self.part = decomp.part
         for key, value in self.res_dict.items():
             setattr(self, comp_key_dict[key], value)
 
     def __str__(self):
-        if CompKeys.charge_atom in self.res_dict:
-            return str(atoms(self.mol, self.res_dict, self.print_unit))
-        else:
-            return str(orbs(self.mol, self.res_dict, self.print_unit, self.ndo))
+        """
+        build a string from a pandas dataframe built from the results
+        """
+        return str(self.to_dataframe())
 
     def to_dataframe(self) -> pd.DataFrame:
         """
         build a pandas dataframe from the results
         """
-        return fmt(self.mol, self.res_dict, self.print_unit, self.ndo)
+        return fmt(self.mol, self.res_dict, self.print_unit, self.ndo, self.part)
+
 
 
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:
     """
     this function prints basic info
     """
-    # init string & form
-    string: str = ""
-    form: Tuple[Any, ...] = ()
+    # init string
+    string = ""
 
     # print geometry
     if mol is not None:
         string += "\n\n   ------------------------------------\n"
-        string += "{:^43}\n"
+        string += f"{'geometry':^43}\n"
         string += "   ------------------------------------\n"
-        form += ("geometry",)
         molecule = gto.tostring(mol).split("\n")
         for i in range(len(molecule)):
             atom = molecule[i].split()
             for j in range(1, 4):
                 atom[j] = float(atom[j])
-            string += "   {:<3s} {:>10.5f} {:>10.5f} {:>10.5f}\n"
-            form += (*atom,)
+            string += (
+                f"   {atom[0]:<3s} {atom[1]:>10.5f} {atom[2]:>10.5f} {atom[3]:>10.5f}\n"
+            )
         string += "   ------------------------------------\n"
 
     # system info
     string += "\n\n system info:\n"
     string += " ------------\n"
-    string += " property           =  {:}\n"
-    string += " partitioning       =  {:}\n"
-    string += " MO basis           =  {:}\n"
-    string += " population scheme  =  {:}\n"
-    string += " MO start guess     =  {:}\n"
-    form += (
-        decomp.prop,
-        decomp.part,
-        decomp.mo_basis,
-        decomp.pop_method,
-        decomp.mo_init,
-    )
+    string += f" property            =  {decomp.prop}\n"
+    string += f" partitioning        =  {decomp.part}\n"
+    strin  += f" partitioning method =  {decomp.part_method}\n"
+    string += f" MO basis            =  {decomp.mo_basis}\n"
+    string += f" population scheme   =  {decomp.pop_method}\n"
+    string += f" MO start guess      =  {decomp.mo_init}\n"
     if mol is not None:
-        string += "\n point group        =  {:}\n"
-        string += " electrons          =  {:d}\n"
-        string += " basis functions    =  {:d}\n"
-        form += (
-            mol.groupname,
-            mol.nelectron,
-            mol.nao_nr(),
-        )
+        string += f"\n point group        =  {mol.groupname}\n"
+        string += f" electrons          =  {mol.nelectron:d}\n"
+        string += f" basis functions    =  {mol.nao_nr():d}\n"
         if "ss" in kwargs:
-            string += " spin: <S^2>        =  {:.3f}\n"
-            form += (kwargs["ss"] + 1.0e-6,)
+            string += f" spin: <S^2>        =  {kwargs['ss'] + 1.0e-6:.3f}\n"
         if "s" in kwargs:
-            string += " spin: 2*S + 1      =  {:.3f}\n"
-            form += (kwargs["s"] + 1.0e-6,)
+            string += f" spin: 2*S + 1      =  {kwargs['s'] + 1.0e-6:.3f}\n"
 
     # git version
-    string += "\n git version: {:}\n\n"
-    form += (git_version(),)
+    string += f"\n git version: {git_version()}\n\n"
 
-    return string.format(*form)
+    return string
 
 
-def fmt(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
+def fmt(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool, part: str) -> pd.DataFrame:
     """
-    this function prints the results based on either an atom- or bond-based partitioning
+    this function prints the results based on either an atom-, orbital- or bond-based partitioning
     """
-    if CompKeys.charge_atom in res:
+    if part == "atoms":
         return atoms(mol, res, unit)
-    else:
+    elif part == "orbitals":
         return orbs(mol, res, unit, ndo)
+    elif part == "bonds":
+        return bonds() #TODO: implement later, leave as placeholder for now
+    else:
+        raise ValueError(f"Invalid partitioning in results.py: {part!r}")
 
 
-def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+def _unit_scaling(scalar_prop: bool, unit: str) -> float:
     """
-    atom-based partitioning
+    this function returns the unit-conversion scaling factor
     """
-    # property type
-    scalar_prop = res[CompKeys.el].ndim == 1
-
-    # units
     unit = unit.lower()
     scaling = 1.0
     if scalar_prop:
@@ -146,23 +130,31 @@ def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
     else:
         if unit == "debye":
             scaling = AU_TO_DEBYE
+    return scaling
+
+
+def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
+    """
+    atom-based partitioning
+    """
+    # property type
+    scalar_prop = res[CompKeys.el].ndim == 1
+
+    # units
+    scaling = _unit_scaling(scalar_prop, unit)
 
     # property contributions
     if scalar_prop:
         prop = {
             comp_key: res[comp_key] * scaling
             for comp_key in res.keys()
-            if comp_key != CompKeys.charge_atom
         }
     else:
         prop = {
             comp_key + axis: res[comp_key][:, ax_idx] * scaling
             for comp_key in res.keys()
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
-            if comp_key != CompKeys.charge_atom
         }
-    # partial charges
-    prop[CompKeys.charge_atom] = res[CompKeys.charge_atom]
     # atom symbols
     prop[CompKeys.atoms] = [f"{mol.atom_symbol(i)}{i}" for i in range(mol.natm)]
 
@@ -170,7 +162,7 @@ def atoms(mol: gto.Mole, res: Dict[str, Any], unit: str) -> pd.DataFrame:
     return pd.DataFrame.from_dict(prop).set_index(CompKeys.atoms)
 
 
-def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
+def orbs(mol: gto.Mole, res: dict[str, Any], unit: str, ndo: bool) -> pd.DataFrame:
     """
     orbital-based partitioning
     """
@@ -185,36 +177,29 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
     orbsym = np.append(res[CompKeys.orbsym][0], res[CompKeys.orbsym][1])
     # index
     if ndo:
+        # pair the most negative with the most positive occupation, and so on;
+        # with an odd number of NDOs, the unpaired (middle) one is listed last
         sort_idx = np.argsort(mo_occ)
-        mo_idx = np.array(
-            [[sort_idx[i], sort_idx[-(i + 1)]] for i in range(sort_idx.size // 2)]
-        ).ravel()
+        n_pairs = sort_idx.size // 2
+        pairs = np.column_stack((sort_idx[:n_pairs], sort_idx[::-1][:n_pairs])).ravel()
+        mo_idx = np.concatenate(
+            (pairs, sort_idx[n_pairs : sort_idx.size - n_pairs])
+        ).astype(np.int64)
+
     else:
         mo_idx = np.arange(alpha.size + beta.size)
 
     # units
-    unit = unit.lower()
-    scaling = 1.0
-    if scalar_prop:
-        if unit == "kcal_mol":
-            scaling = AU_TO_KCAL_MOL
-        elif unit == "ev":
-            scaling = AU_TO_EV
-        elif unit == "kj_mol":
-            scaling = AU_TO_KJ_MOL
-    else:
-        if unit == "debye":
-            scaling = AU_TO_DEBYE
+    scaling = _unit_scaling(scalar_prop, unit)
 
     # property contributions
     if scalar_prop:
         prop = {
-            comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx]
+            comp_key: np.append(res[comp_key][0], res[comp_key][1])[mo_idx] * scaling
             for comp_key in res.keys()
             if comp_key
             not in (
                 CompKeys.struct,
-                CompKeys.charge_atom,
                 CompKeys.mo_occ,
                 CompKeys.orbsym,
             )
@@ -226,6 +211,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
             + axis: np.vstack((res[CompKeys.el][0], res[CompKeys.el][1]))[
                 mo_idx[:, None], ax_idx
             ].ravel()
+            * scaling
             for ax_idx, axis in enumerate((" (x)", " (y)", " (z)"))
         }
         for ax_idx, axis in enumerate((" (x)", " (y)", " (z)")):
@@ -239,3 +225,7 @@ def orbs(mol: gto.Mole, res: Dict[str, Any], unit: str, ndo: bool) -> pd.DataFra
 
     # return as dataframe
     return pd.DataFrame.from_dict(prop).set_index(CompKeys.orbitals)
+
+def bonds():
+    raise NotImplementedError("Bond-wise decomposition schemes are not yet implemented!")
+    return

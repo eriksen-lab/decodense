@@ -14,11 +14,11 @@ import sys
 import logging
 import os
 import numpy as np
-from subprocess import Popen, PIPE
+import subprocess
 from pyscf import gto, scf, dft, symm
 from pyscf import tools as pyscf_tools
 from pyscf.pbc import gto as pbc_gto
-from typing import Tuple, List, Union
+from typing import Union
 
 try:
     import opt_einsum as oe
@@ -27,7 +27,6 @@ try:
 except ImportError:
     OE_AVAILABLE = False
 
-MAX_CYCLE = 100
 NATORB_THRES = 1.0e-12
 
 
@@ -79,32 +78,33 @@ def git_version() -> str:
     """
     this function returns the git revision as a string
     """
-
-    def _minimal_ext_cmd(cmd):
-        env = {}
-        for k in ["SYSTEMROOT", "PATH", "HOME"]:
-            v = os.environ.get(k)
-            if v is not None:
-                env[k] = v
-        # LANGUAGE is used on win32
-        env["LANGUAGE"] = "C"
-        env["LANG"] = "C"
-        env["LC_ALL"] = "C"
-        out = Popen(
-            cmd, stdout=PIPE, env=env, cwd=os.path.dirname(__file__)
-        ).communicate()[0]
-        return out
+    env = {}
+    for k in ["SYSTEMROOT", "PATH", "HOME"]:
+        v = os.environ.get(k)
+        if v is not None:
+            env[k] = v
+    # LANGUAGE is used on win32
+    env["LANGUAGE"] = "C"
+    env["LANG"] = "C"
+    env["LC_ALL"] = "C"
 
     try:
-        out = _minimal_ext_cmd(["git", "rev-parse", "HEAD"])
-        GIT_REVISION = out.strip().decode("ascii")
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            env=env,
+            cwd=os.path.dirname(__file__),
+        )
     except OSError:
-        GIT_REVISION = "Unknown"
+        return "Unknown"
 
-    return GIT_REVISION
+    if result.returncode != 0:
+        return "Unknown"
+
+    return result.stdout.strip().decode("ascii")
 
 
-def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+def dim(mo_occ: tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """
     determine molecular dimensions
     """
@@ -113,14 +113,19 @@ def dim(mo_occ: Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
 
 def mf_info(
     mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT],
-) -> Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+) -> tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]:
     """
     retrieve mf information (mo coefficients & occupations)
     """
     # dimensions
-    alpha, beta = dim(mf.mo_occ)
+    if np.asarray(mf.mo_occ).ndim == 1:
+        # restricted (RHF/ROHF): singly occupied orbitals only hold an alpha electron
+        alpha = np.where(mf.mo_occ > 0.0)[0]
+        beta = np.where(mf.mo_occ > 1.0)[0]
+    else:
+        alpha, beta = dim(mf.mo_occ)
     # mo occupations
-    mo_occ = (np.ones_like(alpha), np.ones_like(beta))
+    mo_occ = (np.ones(alpha.size), np.ones(beta.size))
     # mo coefficients
     if np.asarray(mf.mo_coeff).ndim == 2:
         mo_coeff = (mf.mo_coeff[:, alpha], mf.mo_coeff[:, beta])
@@ -141,7 +146,7 @@ def orbsym(mol, mo_coeff):
                     symm.label_orb_symm(mol, mol.irrep_name, mol.symm_orb, mo_coeff),
                     dtype=object,
                 )
-            except:
+            except Exception:
                 orbsymm = np.array(["A"] * mo_coeff.shape[1], dtype=object)
         else:
             try:
@@ -152,7 +157,7 @@ def orbsym(mol, mo_coeff):
                     ],
                     dtype=object,
                 )
-            except:
+            except Exception:
                 orbsymm = np.array([["A"] * c.shape[1] for c in mo_coeff], dtype=object)
     else:
         try:
@@ -163,7 +168,7 @@ def orbsym(mol, mo_coeff):
                 ],
                 dtype=object,
             )
-        except:
+        except Exception:
             orbsymm = np.array([["A"] * c.shape[1] for c in mo_coeff], dtype=object)
 
     return orbsymm
@@ -181,7 +186,7 @@ def make_natorb(
     mo_coeff: np.ndarray,
     rdm1: np.ndarray,
     thres: float = NATORB_THRES,
-) -> Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]:
+) -> tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]:
     """
     this function returns no coefficients and occupations corresponding
     to given mo coefficients and rdm1
@@ -207,32 +212,36 @@ def make_natorb(
     # transform to no basis
     mo_no = contract("xip,xpj->xij", c, u)
     # retain only significant nos
+    mask_alpha = np.where(np.abs(occ_no[0]) >= thres)[0]
+    mask_beta = np.where(np.abs(occ_no[1]) >= thres)[0]
     return (
-        mo_no[0][:, np.where(np.abs(occ_no[0]) >= thres)[0]],
-        mo_no[1][:, np.where(np.abs(occ_no[1]) >= thres)[0]],
+        mo_no[0][:, mask_alpha],
+        mo_no[1][:, mask_beta],
     ), (
-        occ_no[0][np.where(np.abs(occ_no[0]) >= thres)],
-        occ_no[1][np.where(np.abs(occ_no[1]) >= thres)],
+        occ_no[0][mask_alpha],
+        occ_no[1][mask_beta],
     )
 
 
 def write_rdm1(
     mol: gto.Mole,
     part: str,
-    mo_coeff: Tuple[np.ndarray, np.ndarray],
-    mo_occ: Tuple[np.ndarray, np.ndarray],
+    mo_coeff: tuple[np.ndarray, np.ndarray],
+    mo_occ: tuple[np.ndarray, np.ndarray],
     fmt: str,
     writename: str,
-    weights: List[np.ndarray],
+    weights: list[np.ndarray],
 ) -> None:
     """
     this function writes a 1-RDM as a numpy or cube (default) file
     """
-    # assertion
-    assert (
-        part == "atoms"
-    ), "`write_rdm1` function only implemented for `atoms` partitioning"
-    assert fmt in ["cube", "numpy"], "fmt arg to `write_rdm1` must be `cube` or `numpy`"
+    # sanity checks
+    if part != "atoms":
+        raise ValueError(
+            "`write_rdm1` function only implemented for `atoms` partitioning"
+        )
+    if fmt not in ("cube", "numpy"):
+        raise ValueError("fmt arg to `write_rdm1` must be `cube` or `numpy`")
     # molecular dimensions
     alpha, beta = dim(mo_occ)
     # compute total 1-RDM (AO basis)
@@ -270,21 +279,49 @@ def write_rdm1(
         if writename:
             np.savez(f"{writename}.npz", **rdm1_atom_dict)
         else:
-            np.savez(f"rdm1_atom_dict.npz", **rdm1_atom_dict)
+            np.savez("rdm1_atom_dict.npz", **rdm1_atom_dict)
+
+
+def _res_combine(res_a, res_b, op):
+    """
+    this function combines two results (ResultsCls objects or result dictionaries)
+    key by key with the binary operator op
+    """
+    import operator
+
+    res_a = getattr(res_a, "res_dict", res_a)
+    res_b = getattr(res_b, "res_dict", res_b)
+    if res_a.keys() != res_b.keys():
+        raise ValueError("res_a and res_b must have the same set of keys")
+    result = {}
+    for key in res_a.keys():
+        if key in ("Symm.", "Occup."):
+            # labels/occupations are not combined, keep both
+            result[key] = (list(res_a[key]), list(res_b[key]))
+        elif isinstance(res_a[key], (list, tuple)):
+            # orbital-based results: [alpha, beta]
+            result[key] = [op(a, b) for a, b in zip(res_a[key], res_b[key])]
+        else:
+            result[key] = op(res_a[key], res_b[key])
+    return result
 
 
 def res_add(res_a, res_b):
     """
-    this function adds two result dictionaries
+    this function adds two results
     """
-    return {key: res_a[key] + res_b[key] for key in res_a.keys()}
+    import operator
+
+    return _res_combine(res_a, res_b, operator.add)
 
 
 def res_sub(res_a, res_b):
     """
-    this function subtracts two result dictionaries
+    this function subtracts two results
     """
-    return {key: res_a[key] - res_b[key] for key in res_a.keys()}
+    import operator
+    
+    return _res_combine(res_a, res_b, operator.sub)
 
 
 def contract(eqn, *tensors):
