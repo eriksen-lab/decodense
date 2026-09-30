@@ -51,8 +51,15 @@ jobs:
       - name: Install decodense
         run: pip install .
 
-      - name: Run test suite
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run system tests
         run: python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Run unit tests
+        working-directory: tests
+        run: pytest test_unit.py
 
   install:
     strategy:
