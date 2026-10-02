@@ -5,11 +5,6 @@
 orbitals module
 """
 
-__author__ = "Janus Juul Eriksen, Technical University of Denmark, DK"
-__maintainer__ = "Janus Juul Eriksen"
-__email__ = "janus@kemi.dtu.dk"
-__status__ = "Development"
-
 import numpy as np
 from pyscf import gto, scf, dft, lo
 from pyscf.pbc import dft as pbc_dft

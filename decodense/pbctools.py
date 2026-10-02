@@ -1,11 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
-__author__ = "Luna Zamok, Technical University of Denmark, DK"
-__maintainer__ = "Luna Zamok"
-__email__ = "luza@kemi.dtu.dk"
-__status__ = "Development"
-
 import ctypes
 import numpy as np
 from pyscf import __config__

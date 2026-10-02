@@ -5,11 +5,6 @@
 results module
 """
 
-__author__ = "Janus Juul Eriksen, Technical University of Denmark, DK"
-__maintainer__ = "Janus Juul Eriksen"
-__email__ = "janus@kemi.dtu.dk"
-__status__ = "Development"
-
 import numpy as np
 import pandas as pd
 from pyscf import gto
