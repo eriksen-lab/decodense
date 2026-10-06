@@ -59,7 +59,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: tests
-        run: pytest test_unit.py
+        run: pytest test_decodense.py test_decomp.py test_orbitals.py test_properties.py test_results.py test_tools.py
 
   install:
     strategy:
