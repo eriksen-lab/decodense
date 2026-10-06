@@ -15,13 +15,6 @@ from pyscf import tools as pyscf_tools
 from pyscf.pbc import gto as pbc_gto
 from typing import Union
 
-try:
-    import opt_einsum as oe
-
-    OE_AVAILABLE = True
-except ImportError:
-    OE_AVAILABLE = False
-
 NATORB_THRES = 1.0e-12
 
 
@@ -323,7 +316,4 @@ def contract(eqn, *tensors):
     """
     interface to optimized einsum operation
     """
-    if OE_AVAILABLE:
-        return oe.contract(eqn, *tensors)
-    else:
-        return np.einsum(eqn, *tensors, optimize=True)
+    return np.einsum(eqn, *tensors, optimize=True)
