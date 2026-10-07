@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "decodense"
 version = "1.0.0"
-authors = [{ name = "Dr. Janus Juul Eriksen", email = "Janus@kemi.dtu.dk" }]
+authors = [{ name = "Dr. Janus Juul Eriksen", email = "Janus@dtu.dk" }]
 description = "A Python package for decomposing HF and KS-DFT mean-field theory"
 readme = "README.md"
 requires-python = ">=3.11"
