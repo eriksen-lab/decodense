@@ -12,9 +12,13 @@ using decodense:
 - Eriksen, J. J. *Mean-field density matrix decompositions*. J. Chem. Phys.
   **2020**, 153, 214109. DOI:
   [10.1063/5.0030764](https://doi.org/10.1063/5.0030764).
-- Eriksen, J. J. *Decomposed Mean-Field Simulations of Local Properties in
-  Condensed Phases*. J. Phys. Chem. Lett. **2021**, 12, 6048-6055. DOI:
-  [10.1021/acs.jpclett.1c01375](https://doi.org/10.1021/acs.jpclett.1c01375).
+- Eriksen, J. J. *Electronic excitations through the prism of mean-field
+  decomposition techniques*. J. Chem. Phys. **2022**, 156, 061101. DOI:
+  [10.1063/5.0082938](https://doi.org/10.1063/5.0082938).
+- Zamok, L.; Eriksen, J. J. *Atomic Decompositions of Periodic
+  Electronic-Structure Simulations*. J. Phys. Chem. A **2025**, 129,
+  385–395. DOI:
+  [10.1021/acs.jpca.4c06651](https://doi.org/10.1021/acs.jpca.4c06651).
 
 ## Installation
 
@@ -28,7 +32,6 @@ pip install -e .
 
 ### Prerequisites
 
-- `opt_einsum` (optional)
 - Most examples in **`examples`** use the **`mf_to_otr`** function, which wraps 
   PySCF **`HF`** and **`KS`** objects into their OpenTrustRegion
   counterparts, and the `PipekMezeyOTR` class for localization. Orbital
@@ -43,8 +46,7 @@ pip install -e .
     ```sh
   export PYSCF_EXT_PATH=path/to/pyscf_opentrustregion
   ```
-
-
+  
 ### Settings
 
 Pass these keyword arguments to `DecompCls` to configure the decomposition:
@@ -60,3 +62,4 @@ Pass these keyword arguments to `DecompCls` to configure the decomposition:
 | **`gauge_origin`** | `np.ndarray` | `[0, 0, 0]` | Gauge origin used for dipole-moment decomposition. |
 | **`ndo`** | `bool` | `False` | Natural Difference Orbitals (NDOs) decomposition. |
 | **`unit`** | `str` | `"au"` | Output unit: `"au"`, `"kcal_mol"`, `"ev"`, `"kj_mol"`, or `"debye"`. |
+
