@@ -54,12 +54,9 @@ jobs:
       - name: Install pytest
         run: pip install pytest
 
-      - name: Run system tests
-        run: python -m unittest discover -s tests -p "test_*.py"
-
-      - name: Run unit tests
+      - name: Run tests
         working-directory: tests
-        run: pytest test_decodense.py test_decomp.py test_orbitals.py test_properties.py test_results.py test_tools.py
+        run: pytest
 
   install:
     strategy:
