@@ -126,7 +126,7 @@ def test_assign_rdm1s_oh_iao(mf_oh):
     [
         ("lowdin", 1e-10),
         ("meta_lowdin", 1e-10),
-        ("becke", 1e-6),  
+        ("becke", 1e-6),
     ],
 )
 def test_assign_rdm1s_h2o_pop_methods(mf_h2o_rhf, pop_method, atol):
