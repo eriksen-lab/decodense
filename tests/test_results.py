@@ -6,8 +6,18 @@ from decodense.decomp import CompKeys, DecompCls
 from decodense.results import atoms, orbs, ResultsCls
 
 
+# mock molecule
+class MockMolAtoms:
+    def __init__(self, symbols):
+        self._symbols = symbols
+        self.natm = len(symbols)
+
+    def atom_symbol(self, i):
+        return self._symbols[i]
+
+
 # to_dataframe
-# check that reulst and way its displaed are constistent
+# attribute access and dataframe access must give the same results for atom partitioning
 def test_to_dataframe():
     mol = MockMolAtoms(["X", "Y", "Z"])
     res = {
@@ -21,7 +31,7 @@ def test_to_dataframe():
     assert np.allclose(results.to_dataframe()[CompKeys.tot], results.tot)
 
 
-# orbitals partitioning gives one row per orbital
+# attribute access and dataframe access must give the same results for orbital partitioning
 def test_to_dataframe_orbitals():
     res = {
         CompKeys.el: [np.array([1.3, -0.7]), np.array([2.6])],
@@ -39,17 +49,8 @@ def test_to_dataframe_orbitals():
     assert np.allclose(results.to_dataframe()[CompKeys.el], np.concatenate(results.el))
 
 
-class MockMolAtoms:
-    def __init__(self, symbols):
-        self._symbols = symbols
-        self.natm = len(symbols)
-
-    def atom_symbol(self, i):
-        return self._symbols[i]
-
-
 # atoms
-# check dataframe structure and unit scaling for energy
+# atom dataframe structure and unit scaling must be correct for energy
 def test_atoms():
     mol = MockMolAtoms(["X", "Y"])
     res = {
@@ -65,7 +66,7 @@ def test_atoms():
     assert np.allclose(df_ev[CompKeys.el], np.array([1.0, 4.0]) * 27.211386245988)
 
 
-# check dataframe structure and column naming for dipole
+# atom dataframe structure and column naming must be correct for dipole moment
 def test_atoms_dipole():
     mol = MockMolAtoms(["X", "Y"])
     res = {CompKeys.el: np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])}
@@ -75,7 +76,7 @@ def test_atoms_dipole():
 
 
 # orbs
-# check ndo pairing order and unit scaling
+# natural density orbitals must be paired correctly and unit scaling must be correct
 def test_orbs_ndo():
     res = {
         CompKeys.el: [np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([])],
@@ -94,7 +95,7 @@ def test_orbs_ndo():
     )
 
 
-# check dataframe structure and column naming for dipole
+# orbital dataframe structure and column naming must be correct for dipole moment
 def test_orbs_dipole():
     res = {
         CompKeys.el: [

@@ -10,16 +10,6 @@ from pyscf import gto, scf
 
 
 # mf fixtures
-# rhf water
-@pytest.fixture
-def mf_h2o_rhf():
-    mol = gto.M(
-        verbose=0, output=None, basis="sto-3g", symmetry=True, atom="geom/h2o.xyz"
-    )
-    mf = scf.RHF(mol).run()
-    return mf
-
-
 # rhf water with permuted order of atoms
 @pytest.fixture
 def mf_h2o_permute():
@@ -45,7 +35,7 @@ def mf_li_rohf():
 
 
 # main
-# permutation invariance
+# atomic partitioning must be invariant to permutation of atoms
 @pytest.mark.parametrize("part_method", ["mo", "ao"])
 def test_permute(mf_h2o_rhf, mf_h2o_permute, part_method):
     mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
@@ -66,7 +56,7 @@ def test_permute(mf_h2o_rhf, mf_h2o_permute, part_method):
         assert np.allclose(val[2], val_perm[1], atol=1e-10)
 
 
-# symmetry-equivalent atoms must match for every contribution
+# every contribution must match for symmetry-equivalent atoms
 @pytest.mark.parametrize("part_method", ["mo", "ao"])
 def test_symmetry_equivalent_atoms(mf_h2o_rhf, part_method):
     mol = mf_h2o_rhf.mol
@@ -78,7 +68,7 @@ def test_symmetry_equivalent_atoms(mf_h2o_rhf, part_method):
         assert np.allclose(val[1], val[2], atol=1e-10)
 
 
-# pyscf arrays must give the same result as mf_info's output
+# pyscf arrays and mf_info's output must give the same result
 def test_main_rohf_mo_occ(mf_li_rohf):
     mol = mf_li_rohf.mol
     mo_coeff, mo_occ = mf_info(mf_li_rohf)
@@ -90,7 +80,7 @@ def test_main_rohf_mo_occ(mf_li_rohf):
         assert np.allclose(val, res_raw.res_dict[key], atol=1e-10)
 
 
-# orbitals partitioning (non-aufbau occupation)
+# orbitals partitioning must give the same result for non-Aufbau occupation
 def test_main_orbitals_non_aufbau():
     mol = gto.M(
         verbose=0, output=None, basis="sto-3g", symmetry=True, atom="geom/h2o.xyz"
@@ -113,7 +103,7 @@ def test_main_orbitals_non_aufbau():
     assert np.allclose(res.el[1], res_sliced.el[1], atol=1e-10)
 
 
-# nuc_att_glob and nuc_att_loc sum to the total nuclear attraction energy
+# nuc_att_glob and nuc_att_loc must sum to the total nuclear attraction energy
 @pytest.mark.parametrize("part_method", ["mo", "ao"])
 def test_nuc_att_sum(mf_h2o_rhf, part_method):
     mol = mf_h2o_rhf.mol
@@ -128,7 +118,7 @@ def test_nuc_att_sum(mf_h2o_rhf, part_method):
     )
 
 
-# dipole must be gauge-origin independent for neutral molecule and match pyscf reference
+# dipole moment must be gauge-origin independent for neutral molecule and must match pyscf reference
 @pytest.mark.parametrize("part_method", ["mo", "ao"])
 def test_main_dipole(mf_h2o_rhf, part_method):
     mol = mf_h2o_rhf.mol

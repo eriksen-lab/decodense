@@ -8,16 +8,6 @@ from pyscf import gto, scf
 
 
 # mf fixtures
-# rhf water
-@pytest.fixture
-def mf_h2o_rhf():
-    mol = gto.M(
-        verbose=0, output=None, basis="sto-3g", symmetry=True, atom="geom/h2o.xyz"
-    )
-    mf = scf.RHF(mol).run()
-    return mf
-
-
 # uhf OH
 @pytest.fixture
 def mf_oh():
@@ -48,7 +38,7 @@ class MockMol:
 
 
 # assign_rdm1s
-# mulliken weights against hand-derived values
+# mulliken weights must match hand-derived values
 def test_assign_rdm1s_mulliken():
     ovlp = np.array([[1.0, 0.3, 0.1], [0.3, 1.0, 0.2], [0.1, 0.2, 1.0]])
     ao_labels = [(0, "", "", ""), (0, "", "", ""), (1, "", "", "")]
@@ -60,7 +50,7 @@ def test_assign_rdm1s_mulliken():
     assert np.array_equal(weights[1], weights[0])
 
 
-# mulliken weights vs pyscf reference
+# mulliken weights must match pyscf for restricted reference
 def test_assign_rdm1s_h2o(mf_h2o_rhf):
     mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
     mo_occ = (np.ones(mo.shape[1]), np.ones(mo.shape[1]))
@@ -73,7 +63,7 @@ def test_assign_rdm1s_h2o(mf_h2o_rhf):
     assert np.allclose(weights[0].sum(axis=0) + weights[1].sum(axis=0), pop_ref)
 
 
-# iao weights and the partial charges derived from them
+# iao weights and the partial charges derived from them must be sensible for restricted reference
 def test_assign_rdm1s_h2o_iao(mf_h2o_rhf):
     mol = mf_h2o_rhf.mol
     mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
@@ -90,7 +80,7 @@ def test_assign_rdm1s_h2o_iao(mf_h2o_rhf):
     assert np.isclose(charge_atom[2], charge_atom[1])
 
 
-# oh radical (alpha != beta): mulliken weights vs pyscf reference
+# mulliken weights must match pyscf for unrestricted reference
 def test_assign_rdm1s_oh(mf_oh):
     alpha = np.where(mf_oh.mo_occ[0] > 0.0)[0]
     beta = np.where(mf_oh.mo_occ[1] > 0.0)[0]
@@ -116,7 +106,7 @@ def test_assign_rdm1s_oh(mf_oh):
     assert np.allclose(weights[1].sum(axis=0), beta_ref)
 
 
-# oh radical (alpha != beta): iao weights
+# iao weights and the partial charges derived from them must be sensible for unrestricted reference
 def test_assign_rdm1s_oh_iao(mf_oh):
     alpha = np.where(mf_oh.mo_occ[0] > 0.0)[0]
     beta = np.where(mf_oh.mo_occ[1] > 0.0)[0]
@@ -130,13 +120,13 @@ def test_assign_rdm1s_oh_iao(mf_oh):
     assert not np.allclose(weights[0].sum(axis=0), weights[1].sum(axis=0))
 
 
-# lowdin, meta_lowdin and becke weights, electron count must add up
+# lowdin, meta_lowdin and becke weights must each sum to the electron count
 @pytest.mark.parametrize(
     "pop_method,atol",
     [
         ("lowdin", 1e-10),
         ("meta_lowdin", 1e-10),
-        ("becke", 1e-6),  # numerical integration grid
+        ("becke", 1e-6),  
     ],
 )
 def test_assign_rdm1s_h2o_pop_methods(mf_h2o_rhf, pop_method, atol):
@@ -152,7 +142,7 @@ def test_assign_rdm1s_h2o_pop_methods(mf_h2o_rhf, pop_method, atol):
 
 
 # _population_mul
-# checking against hand-derived values
+# Mulliken populations must match hand-derived values
 def test_population_mul():
     natm = 4
     ao_labels = (
@@ -180,7 +170,7 @@ def test_population_mul():
 
 
 # _population_becke
-# checking against hand-derived values
+# Becke populations must match hand-derived values
 def test_population_becke():
     orbs = np.array([[1.0, 2.0], [3.0, 1.0]])
     charge_matrix = np.array([[[1.0, 0.5], [0.5, 2.0]], [[2.0, 0.0], [0.0, 1.0]]])

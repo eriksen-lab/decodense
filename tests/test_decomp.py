@@ -7,7 +7,7 @@ from decodense.decomp import DecompCls, sanity_check
 
 
 # DecompCls
-# checking part/part_method defaults
+# DecompCls must set the correct part/part_method defaults
 def test_decomp_cls_part_method_defaults():
     decomp_eda = DecompCls(part="eda")
     assert decomp_eda.part == "atoms"
@@ -19,7 +19,7 @@ def test_decomp_cls_part_method_defaults():
 
 
 # sanity_check
-# input validation
+# sanity check must reject invalid attributes
 @pytest.mark.parametrize(
     "attr,bad_value,exception,message",
     [
@@ -48,7 +48,7 @@ def test_sanity_check_rejects_invalid_attr(attr, bad_value, exception, message):
         sanity_check(None, None, decomp, np.zeros((2, 2)), None)
 
 
-# invalid gauge_origin
+# sanity check must reject an invalid gauge_origin
 @pytest.mark.parametrize(
     "bad_gauge_origin,exception",
     [
@@ -64,7 +64,7 @@ def test_sanity_check_gauge_origin_invalid(bad_gauge_origin, exception):
         sanity_check(None, None, decomp, np.zeros((2, 2)), None)
 
 
-# invalid mo_coeff
+# sanity check must reject an invalid mo coefficient
 @pytest.mark.parametrize(
     "mo_coeff,exception",
     [
@@ -79,7 +79,7 @@ def test_sanity_check_rejects_invalid_mo_coeff(mo_coeff, exception):
         sanity_check(None, None, decomp, mo_coeff, None)
 
 
-# invalid mo_occ
+# sanity check must reject an invalid mo occupation
 @pytest.mark.parametrize(
     "mo_occ,exception",
     [
@@ -95,7 +95,7 @@ def test_sanity_check_rejects_invalid_mo_occ(mo_occ, exception):
         sanity_check(None, None, decomp, mo_coeff, mo_occ)
 
 
-# write is only allowed for part="atoms", part_method="mo"
+# sanity check must reject write unless part="atoms" and part_method="mo"
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -109,7 +109,7 @@ def test_sanity_check_write_requires_atoms_mo(kwargs):
         sanity_check(None, None, decomp, np.zeros((2, 2)), None)
 
 
-# valid input
+# sanity check must accept valid input
 @pytest.mark.parametrize(
     "kwargs",
     [

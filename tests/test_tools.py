@@ -12,17 +12,6 @@ from decodense.tools import (
     res_add,
     res_sub,
 )
-from pyscf import gto, scf
-
-
-# mf fixtures
-@pytest.fixture
-def mf_h2o_rhf():
-    mol = gto.M(
-        verbose=0, output=None, basis="sto-3g", symmetry=True, atom="geom/h2o.xyz"
-    )
-    mf = scf.RHF(mol).run()
-    return mf
 
 
 # mock molecule
@@ -47,7 +36,7 @@ class MockMf:
 
 
 # dim
-# check against hand-derived values for molecular dimensions
+# molecular dimensions must match hand-derived values
 def test_dim():
     mo_occ = (np.array([1.0, 0.0, -0.5, 1.0]), np.array([0.0, 0.8, 0.0]))
     alpha, beta = dim(mo_occ)
@@ -56,7 +45,7 @@ def test_dim():
 
 
 # mf_info
-# check against hand-derived values (restricted closed shell)
+# mo coefficients and occupations must match hand-derived values for restricted closed-shell reference
 def test_mf_info_restricted():
     mo_coeff = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
     mo_occ = np.array([2.0, 2.0, 0.0])
@@ -67,7 +56,7 @@ def test_mf_info_restricted():
     assert np.array_equal(occ[1], [1.0, 1.0])
 
 
-# check against hand-derived values (restricted open shell)
+# mo coefficients and occupations must match hand-derived values for restricted open-shell reference
 def test_mf_info_restricted_open_shell():
     mo_coeff = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
     mo_occ = np.array([2.0, 1.0, 0.0])
@@ -78,7 +67,7 @@ def test_mf_info_restricted_open_shell():
     assert np.array_equal(occ[1], [1.0])
 
 
-# check against hand-derived values (unrestricted)
+# mo coefficients and occupations must match hand-derived values for unrestricted reference
 def test_mf_info_unrestricted():
     mo_coeff = np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]])
     mo_occ = np.array([[1.0, 1.0], [1.0, 0.0]])
@@ -90,13 +79,13 @@ def test_mf_info_unrestricted():
 
 
 # orbsym
-# check against pyscf's irrep labels for a symmetric molecule
+# orbital symmetry labels must match pyscf's irrep labels for a symmetric molecule
 def test_orbsym(mf_h2o_rhf):
     mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
     assert list(orbsym(mf_h2o_rhf.mol, mo)) == ["A1", "A1", "B2", "A1", "B1"]
 
 
-# without symmetry info every orbital falls back to "A"
+# orbsym must fall back to "A" for every orbital without symmetry info
 @pytest.mark.parametrize(
     "mo_coeff,expected",
     [
@@ -110,7 +99,7 @@ def test_orbsym_fallback(mo_coeff, expected):
 
 
 # make_rdm1
-# check against hand-derived value for rdm1
+# one-electron reduced density matrix must match hand-derived value
 def test_make_rdm1():
     mo = np.array([[1.0, 0.0], [1.0, 2.0]])
     occup = np.array([2.0, 1.0])
@@ -118,7 +107,7 @@ def test_make_rdm1():
     assert np.array_equal(rdm, [[2.0, 2.0], [2.0, 6.0]])
 
 
-# check against total number of electrons
+# trace of the one-electron reduced density matrix with the overlap matrix must equal the total number of electrons
 def test_make_rdm1_equal_electron_count(mf_h2o_rhf):
     mo = mf_h2o_rhf.mo_coeff[:, :5]
     occup = mf_h2o_rhf.mo_occ[:5]
@@ -128,7 +117,7 @@ def test_make_rdm1_equal_electron_count(mf_h2o_rhf):
 
 
 # make_natorb
-# check against hand-derived natural orbitals and occupations
+# natural orbitals and occupations must match hand-derived values
 def test_make_natorb():
     mol = MockMol(natm=1, ao_labels=[], ovlp=np.eye(2))
     mo_coeff = np.eye(2)
@@ -141,7 +130,7 @@ def test_make_natorb():
 
 
 # res_add
-# check against hand-derived values
+# adding two results with res_add must match hand-derived values
 def test_res_add():
     res_a = {"el": 1.0, "Symm.": ["A1", "B2"], "Occup.": [2.0], "struct": [1.0, 2.0]}
     res_b = {"el": 0.5, "Symm.": ["A1", "A1"], "Occup.": [1.0], "struct": [3.0, 4.0]}
@@ -154,7 +143,7 @@ def test_res_add():
 
 
 # res_sub
-# check against hand-derived values
+# subtracting two results with res_sub must match hand-derived values
 def test_res_sub():
     res_a = {"el": 1.0, "struct": [1.0, 2.0]}
     res_b = {"el": 0.5, "struct": [3.0, 4.0]}
@@ -163,7 +152,7 @@ def test_res_sub():
     assert res["struct"] == [-2.0, -2.0]
 
 
-# mismatched keys raise
+# combining results must raise ValueError for mismatched keys
 def test_res_combine_key_mismatch():
     with pytest.raises(ValueError):
         res_add({"el": 1.0}, {"struct": 1.0})

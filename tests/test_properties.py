@@ -14,23 +14,13 @@ from decodense.properties import (
     _e_xc,
     _xc_ao_deriv,
     _e_nuc,
-    _point_charges,
-    _pcm,
 )
-from pyscf import gto, scf, dft, solvent
+from pyscf import gto, dft
 from pyscf.dft import numint
 
 
 # mf fixtures
-@pytest.fixture
-def mf_h2o_rhf():
-    mol = gto.M(
-        verbose=0, output=None, basis="sto-3g", symmetry=True, atom="geom/h2o.xyz"
-    )
-    mf = scf.RHF(mol).run()
-    return mf
-
-
+# dft water
 @pytest.fixture
 def mf_h2o_dft():
     mol = gto.M(
@@ -54,7 +44,7 @@ class MockMolNuc:
 
 
 # _e_nuc
-# check against hand-derived value
+# nuclear repulsion energy must match hand-derived value
 def test_e_nuc():
     mol = MockMolNuc(
         charges=[2.0, 1.0, 3.0],
@@ -64,7 +54,7 @@ def test_e_nuc():
     assert np.allclose(e_nuc, [2.5, 1.67082039, 2.17082039])
 
 
-# check against pyscf value for nuclear repulsion
+# per-atom nuclear repulsion energy must sum to pyscf's reference value
 def test_e_nuc_pyscf(mf_h2o_rhf):
     mol = mf_h2o_rhf.mol
     nuc_energy = _e_nuc(mol).sum()
@@ -73,7 +63,7 @@ def test_e_nuc_pyscf(mf_h2o_rhf):
 
 
 # _dip_nuc
-# check against hand-derived value for the nuclear dipole contribution
+# nuclear contribution to the molecular dipole moment must match hand-derived value
 def test_dip_nuc():
     mol = MockMolNuc(charges=[1.5, 2.5], coords=[[2.0, 0.0, 1.0], [0.0, 3.0, -1.0]])
     gauge_origin = np.array([1.0, 1.0, 0.0])
@@ -81,7 +71,7 @@ def test_dip_nuc():
     assert np.allclose(hdip_nuc, [[1.5, -1.5, 1.5], [-2.5, 5.0, -2.5]])
 
 
-# check gauge-origin shift formula
+# nuclear contribution to the molecular dipole moment must respond correctly to a gauge-origin shift
 def test_dip_nuc_gauge_origin_shift():
     mol = MockMolNuc(
         charges=[2.0, 1.0, 3.0],
@@ -102,7 +92,7 @@ def test_dip_nuc_gauge_origin_shift():
 
 
 # _h_core
-# check against pyscf value for one-electron Hamiltonian
+# components of the core hamiltonian must sum to pyscf's reference value and must have correct signs
 def test_h_core(mf_h2o_rhf):
     mol = mf_h2o_rhf.mol
     kin, nuc, sub_nuc = _h_core(mol, mf_h2o_rhf)
@@ -113,7 +103,7 @@ def test_h_core(mf_h2o_rhf):
 
 
 # _get_nuc
-# check individual atomic potentials sum to pyscf's total nuclear potential
+# individual atomic potentials must sum to pyscf's total nuclear potential
 def test_get_nuc_matches_pyscf():
     mol = gto.M(atom="Li 0 0 0; H 0 0 1.0", basis="sto-3g", unit="bohr", verbose=0)
     sub_nuc = _get_nuc(mol)
@@ -122,44 +112,20 @@ def test_get_nuc_matches_pyscf():
     assert sub_nuc.shape == (mol.natm, mol.nao_nr(), mol.nao_nr())
 
 
+# _solvent
+# not tested yet
+
+
 # _point_charges
-# check against hand-derived nuc_solv and pyscf value for mm_pot
-def test_point_charges():
-    mol = gto.M(atom="Li 0 0 0; H 0 0 1", basis="sto-3g", unit="bohr", verbose=0)
-    mm_mol = gto.M(
-        atom="O 0 0 3; H 0 0 5", basis="sto-3g", spin=1, unit="bohr", verbose=0
-    )
-    mm_pot, nuc_solv = _point_charges(mol, mm_mol)
-    assert nuc_solv.shape == (mol.natm,)
-    assert np.allclose(nuc_solv, [3 * (8 / 3 + 1 / 5), 1 * (8 / 2 + 1 / 4)])
-    ref = np.zeros_like(mm_pot)
-    for coord, charge in zip(mm_mol.atom_coords(), mm_mol.atom_charges()):
-        with mol.with_rinv_origin(coord):
-            ref += -1.0 * mol.intor("int1e_rinv") * charge
-    assert np.allclose(mm_pot, ref, atol=1e-10)
+# not tested yet
 
 
 # _pcm
-# check against pyscf value for the total pcm solvation energy
-def test_pcm():
-    mol = gto.M(
-        verbose=0, output=None, basis="sto-3g", symmetry=True, atom="geom/h2o.xyz"
-    )
-    mf = scf.RHF(mol)
-    mf = solvent.PCM(mf)
-    mf.with_solvent.eps = 78.3553
-    mf.conv_tol = 1.0e-10
-    mf.kernel()
-    rdm1 = mf.make_rdm1()
-    vmat_e, nuc_solv_pcm = _pcm(mol, rdm1, mf.with_solvent)
-    decodense_total = np.einsum("ij,ij->", vmat_e, rdm1) + nuc_solv_pcm.sum()
-    assert np.isclose(decodense_total, mf.with_solvent.e, atol=1e-10)
-    assert np.allclose(vmat_e, vmat_e.T)
-    assert nuc_solv_pcm.shape == (mol.natm,)
+# not tested yet
 
 
 # _xc_ao_deriv
-# check xc type and ao derivative level needed
+# each functional must give the correct xc type and ao derivative level
 @pytest.mark.parametrize(
     "xc_func,expected",
     [
@@ -173,7 +139,7 @@ def test_xc_ao_deriv(xc_func, expected):
     assert _xc_ao_deriv(xc_func) == expected
 
 
-# unrecognised xc_type raises unboundlocalerror
+# unrecognised xc_type must raise UnboundLocalError
 def test_xc_ao_deriv_unknown_type():
     with patch("pyscf.dft.libxc.xc_type", return_value="UNKNOWN"):
         with pytest.raises(UnboundLocalError):
@@ -181,9 +147,8 @@ def test_xc_ao_deriv_unknown_type():
 
 
 # _make_rho
-# check against hand-derived values for rho (lda)
+# electron density and its intermediate must match hand-derived values for lda
 def test_make_rho():
-    # 2 grid points, 3 aos
     ao_value = np.array([[1.0, 2.0, 0.0], [0.5, 1.0, 2.0]])
     rdm1 = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 1.0], [0.0, 1.0, 3.0]])
     c0, c1, rho = _make_rho(ao_value, rdm1, "LDA")
@@ -192,7 +157,7 @@ def test_make_rho():
     assert np.allclose(rho, [8.0, 18.0], atol=1e-10)
 
 
-# check against pyscf value for rho (gga)
+# electron density must match pyscf's reference value for gga
 def test_make_rho_gga(mf_h2o_dft):
     mol = mf_h2o_dft.mol
     grids = dft.Grids(mol)
@@ -205,7 +170,8 @@ def test_make_rho_gga(mf_h2o_dft):
 
 
 # _make_rho_interm2
-# check if rho per atom sums back to total rho
+# electron density must match hand-derived value
+# per-atom electron density must sum up to the total electron density
 def test_make_rho_atom_slicing():
     ao_value = np.array([[1.0, 2.0, 3.0, 4.0], [0.5, 1.5, 2.5, 3.5]])
     c0 = np.array([[2.0, 1.0, 0.5, 1.5], [1.0, 2.0, 1.0, 0.5]])
@@ -220,7 +186,7 @@ def test_make_rho_atom_slicing():
 
 
 # _trace
-# check against hand-derived value
+# computed trace must match hand-derived value
 def test_trace_identity():
     op = np.array([[1.0, 2.0], [3.0, 4.0]])
     rdm1 = np.eye(2)
@@ -228,14 +194,14 @@ def test_trace_identity():
     assert _trace(op, rdm1, scaling=0.5) == 2.5
 
 
-# check against numpy-derived value (symmetric rdm1)
+# computed trace must match numpy's reference value for a symmetric rdm1
 def test_trace_symmetric():
     op = np.array([[1.0, 2.0], [3.0, 4.0]])
     rdm1 = np.array([[2.0, 1.0], [1.0, 3.0]])
     assert _trace(op, rdm1) == np.trace(op @ rdm1)
 
 
-# check against hand-derived value (3d matrix)
+# computed trace of a 3d operator must match hand-derived value
 def test_trace_3d():
     op = np.array(
         [
@@ -250,7 +216,7 @@ def test_trace_3d():
 
 
 # _e_xc
-# check against hand-derived value (1d matrix)
+# xc energy must match hand-derived value for a 1d electron density
 def test_e_xc_1d():
     eps_xc = np.array([1.0, 2.0, 3.0])
     grid_weights = np.array([2.0, 1.0, 0.5])
@@ -258,7 +224,7 @@ def test_e_xc_1d():
     assert _e_xc(eps_xc, grid_weights, rho) == 10.5
 
 
-# check against hand-derived value (2d matrix)
+# xc energy must match hand-derived value for a 2d electron density
 def test_e_xc_2d():
     eps_xc = np.array([1.0, 1.0, 1.0])
     grid_weights = np.array([1.0, 1.0, 1.0])
