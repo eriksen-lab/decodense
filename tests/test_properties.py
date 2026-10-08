@@ -112,18 +112,6 @@ def test_get_nuc_matches_pyscf():
     assert sub_nuc.shape == (mol.natm, mol.nao_nr(), mol.nao_nr())
 
 
-# _solvent
-# not tested yet
-
-
-# _point_charges
-# not tested yet
-
-
-# _pcm
-# not tested yet
-
-
 # _xc_ao_deriv
 # each functional must give the correct xc type and ao derivative level
 @pytest.mark.parametrize(
