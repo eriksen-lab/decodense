@@ -56,7 +56,7 @@ pip install pytest
   After installing both, add the extension's path to **`PYSCF_EXT_PATH`**:
   
     ```sh
-  export PYSCF_EXT_PATH=path/to/pyscf_opentrustregion
+  export PYSCF_EXT_PATH=path/to/pyscf_opentrustregion:$PYSCF_EXT_PATH
   ```
   
 ### Settings
