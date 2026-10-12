@@ -30,6 +30,18 @@ cd decodense
 pip install -e .
 ```
 
+The installation can be tested by running
+
+```sh
+pytest
+```
+
+in the `tests` folder. If pytest is not installed yet, install it via
+
+```sh
+pip install pytest
+```
+
 ### Prerequisites
 
 - Most examples in **`examples`** use the **`mf_to_otr`** function, which wraps 
