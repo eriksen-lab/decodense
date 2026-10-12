@@ -34,14 +34,14 @@ pip install -e .
 
 - Most examples in **`examples`** use the **`mf_to_otr`** function, which wraps 
   PySCF **`HF`** and **`KS`** objects into their OpenTrustRegion
-  counterparts, and the `PipekMezeyOTR` class for localization. Orbital
+  counterparts, and the **`PipekMezeyOTR`** class for localization. Orbital
   optimization and internal stability analysis are also performed using the
-  `kernel` and `stability_check` member functions, respectively. Running
+  **`kernel`** and **`stability_check`** member functions, respectively. Running
   these therefore also requires
   [OpenTrustRegion](https://github.com/eriksen-lab/opentrustregion) and its
   PySCF extension,
-  [`pyscf_opentrustregion`](https://github.com/eriksen-lab/pyscf_opentrustregion).
-  After installing both, add the extension's path to `PYSCF_EXT_PATH`:
+  [pyscf_opentrustregion](https://github.com/eriksen-lab/pyscf_opentrustregion).
+  After installing both, add the extension's path to **`PYSCF_EXT_PATH`**:
   
     ```sh
   export PYSCF_EXT_PATH=path/to/pyscf_opentrustregion
@@ -49,12 +49,12 @@ pip install -e .
   
 ### Settings
 
-Pass these keyword arguments to `DecompCls` to configure the decomposition:
+Pass these keyword arguments to **`DecompCls`** to configure the decomposition:
 
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | **`part`** | `str` | `"atoms"` | Partitioning target: `"atoms"`, `"orbitals"` |
-| **`part_method`** | `str` | `None` | Partitioning method for `part="atoms"`: `"mo"` (Eriksen's MO-based scheme) or `"ao"` (Nakai's AO-based energy density analysis). |
+| **`part_method`** | `str` | `None` | Partitioning method for `part="atoms"`: `"mo"` (the MO-based scheme of the 2020 JCP paper by Eriksen) or `"ao"` (Nakai's AO-based energy density analysis\*). |
 | **`pop_method`** | `str` | `"mulliken"` | Population scheme: `"mulliken"`, `"lowdin"`, `"meta_lowdin"`, `"becke"`, or `"iao"`. |
 | **`prop`** | `str` | `"energy"` | Property to decompose: `"energy"` or `"dipole"`. |
 | **`minao`** | `str` | `"MINAO"` | Reference basis for IAO population analysis: `"MINAO"` or `"ANO"`. |
@@ -63,3 +63,6 @@ Pass these keyword arguments to `DecompCls` to configure the decomposition:
 | **`ndo`** | `bool` | `False` | Natural Difference Orbitals (NDOs) decomposition. |
 | **`unit`** | `str` | `"au"` | Output unit: `"au"`, `"kcal_mol"`, `"ev"`, `"kj_mol"`, or `"debye"`. |
 
+\* H. Nakai, *Energy density analysis with Kohn–Sham orbitals*, Chem. Phys.
+Lett. **2002**, 363, 73–79. DOI:
+[10.1016/S0009-2614(02)01151-X](https://doi.org/10.1016/S0009-2614(02)01151-X).
