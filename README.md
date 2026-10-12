@@ -3,7 +3,7 @@
 
 # Decodense: A Decomposed Mean-Field Theory Code
 
-Decodense decompose mean-field (HF/KS-DFT) results in terms of either 
+Decodense decomposes mean-field (HF/KS-DFT) results in terms of either 
 atom- or orbital-wise contributions to a molecular ground state energy or dipole moment.
 
 The following papers document the theory and should be cited in any work
