@@ -3,8 +3,8 @@
 
 # Decodense: A Decomposed Mean-Field Theory Code
 
-Decodense decompose mean-field (HF/KS-DFT) results in terms of either 
-atom- or orbtial-wise contributions to a molecular ground state energy or dipole moment.
+Decodense decomposes mean-field (HF/KS-DFT) results in terms of either 
+atom- or orbital-wise contributions to a molecular ground state energy or dipole moment.
 
 The following papers document the theory and should be cited in any work
 using decodense:
@@ -66,7 +66,7 @@ Pass these keyword arguments to **`DecompCls`** to configure the decomposition:
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | **`part`** | `str` | `"atoms"` | Partitioning target: `"atoms"`, `"orbitals"` |
-| **`part_method`** | `str` | `None` | Partitioning method for `part="atoms"`: `"mo"` (the MO-based scheme of the 2020 JCP paper by Eriksen) or `"ao"` (Nakai's AO-based energy density analysis\*). |
+| **`part_method`** | `str` | `"mo"` if `part="atoms"`,  `None` otherwise | Partitioning method for `part="atoms"`: `"mo"` (the MO-based scheme of the 2020 JCP paper by Eriksen) or `"ao"` (Nakai's AO-based energy density analysis\*). |
 | **`pop_method`** | `str` | `"mulliken"` | Population scheme: `"mulliken"`, `"lowdin"`, `"meta_lowdin"`, `"becke"`, or `"iao"`. |
 | **`prop`** | `str` | `"energy"` | Property to decompose: `"energy"` or `"dipole"`. |
 | **`minao`** | `str` | `"MINAO"` | Reference basis for IAO population analysis: `"MINAO"` or `"ANO"`. |
