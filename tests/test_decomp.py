@@ -40,6 +40,30 @@ def test_decomp_cls_part_method_defaults():
         ("writename", 123, TypeError, "invalid write name argument"),
         ("verbose", "not_an_int", TypeError, "invalid verbosity"),
         ("unit", 123, TypeError, "invalid unit"),
+        (
+            "atom_ref",
+            123,
+            TypeError,
+            "invalid atomic reference energies",
+        ),  # atom_ref must be a dictionary
+        (
+            "atom_ref",
+            {"C": "not_real"},
+            TypeError,
+            "invalid atomic reference energies",
+        ),  # value must be int or real
+        (
+            "atom_ref",
+            {"C": True},
+            TypeError,
+            "invalid atomic reference energies",
+        ),  # value must be int or real
+        (
+            "atom_ref",
+            {123: 0.5},
+            TypeError,
+            "invalid atomic reference energies",
+        ),  # key must be a string
     ],
 )
 def test_sanity_check_rejects_invalid_attr(attr, bad_value, exception, message):

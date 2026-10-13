@@ -34,17 +34,34 @@ def mf_li_rohf():
     return mf
 
 
+# reference atomic energies
+REF_ATOM_E = {
+    "H": -0.46658184955727533,
+    "Li": -7.315525981281088,
+    "O": -73.80415023325594,
+}
+
+
+@pytest.fixture(params=[None, REF_ATOM_E], ids=["no_ref", "atom_ref"])
+def atom_ref(request):
+    return request.param
+
+
 # main
 # atomic partitioning must be invariant to permutation of atoms
 @pytest.mark.parametrize("part_method", ["mo", "ao"])
-def test_permute(mf_h2o_rhf, mf_h2o_permute, part_method):
+def test_permute(mf_h2o_rhf, mf_h2o_permute, part_method, atom_ref):
     mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
     mo_occ = (np.ones(mo.shape[1]), np.ones(mo.shape[1]))
-    decomp = DecompCls(pop_method="iao", part="atoms", part_method=part_method)
+    decomp = DecompCls(
+        pop_method="iao", part="atoms", part_method=part_method, atom_ref=atom_ref
+    )
     res = main(mf_h2o_rhf.mol, decomp, mf_h2o_rhf, (mo, mo), mo_occ)
     mo_perm = mf_h2o_permute.mo_coeff[:, mf_h2o_permute.mo_occ > 0.0]
     mo_occ_perm = (np.ones(mo_perm.shape[1]), np.ones(mo_perm.shape[1]))
-    decomp_perm = DecompCls(pop_method="iao", part="atoms", part_method=part_method)
+    decomp_perm = DecompCls(
+        pop_method="iao", part="atoms", part_method=part_method, atom_ref=atom_ref
+    )
     res_perm = main(
         mf_h2o_permute.mol, decomp_perm, mf_h2o_permute, (mo_perm, mo_perm), mo_occ_perm
     )
@@ -58,23 +75,25 @@ def test_permute(mf_h2o_rhf, mf_h2o_permute, part_method):
 
 # every contribution must match for symmetry-equivalent atoms
 @pytest.mark.parametrize("part_method", ["mo", "ao"])
-def test_symmetry_equivalent_atoms(mf_h2o_rhf, part_method):
+def test_symmetry_equivalent_atoms(mf_h2o_rhf, part_method, atom_ref):
     mol = mf_h2o_rhf.mol
     mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
     mo_occ = (np.ones(mo.shape[1]), np.ones(mo.shape[1]))
-    decomp = DecompCls(pop_method="iao", part="atoms", part_method=part_method)
+    decomp = DecompCls(
+        pop_method="iao", part="atoms", part_method=part_method, atom_ref=atom_ref
+    )
     res = main(mol, decomp, mf_h2o_rhf, (mo, mo), mo_occ)
     for val in res.res_dict.values():
         assert np.allclose(val[1], val[2], atol=1e-10)
 
 
 # pyscf arrays and mf_info's output must give the same result
-def test_main_rohf_mo_occ(mf_li_rohf):
+def test_main_rohf_mo_occ(mf_li_rohf, atom_ref):
     mol = mf_li_rohf.mol
     mo_coeff, mo_occ = mf_info(mf_li_rohf)
-    decomp = DecompCls(pop_method="iao", part="atoms")
+    decomp = DecompCls(pop_method="iao", part="atoms", atom_ref=atom_ref)
     res = main(mol, decomp, mf_li_rohf, mo_coeff, mo_occ)
-    decomp_raw = DecompCls(pop_method="iao", part="atoms")
+    decomp_raw = DecompCls(pop_method="iao", part="atoms", atom_ref=atom_ref)
     res_raw = main(mol, decomp_raw, mf_li_rohf, mf_li_rohf.mo_coeff, mf_li_rohf.mo_occ)
     for key, val in res.res_dict.items():
         assert np.allclose(val, res_raw.res_dict[key], atol=1e-10)

@@ -74,6 +74,7 @@ Pass these keyword arguments to **`DecompCls`** to configure the decomposition:
 | **`gauge_origin`** | `np.ndarray` | `[0, 0, 0]` | Gauge origin used for dipole-moment decomposition. |
 | **`ndo`** | `bool` | `False` | Natural Difference Orbitals (NDOs) decomposition. |
 | **`unit`** | `str` | `"au"` | Output unit: `"au"`, `"kcal_mol"`, `"ev"`, `"kj_mol"`, or `"debye"`. |
+| **`atom_ref`** | `dict` | `None` | Dictionary with reference atomic energies. If provided, an atom-wise decomposition will also calculate the difference between the atom-wise contributions and the reference energies. The expected format is `{ "atom_label" : atom_energy }`. |
 
 \* H. Nakai, *Energy density analysis with Kohn–Sham orbitals*, Chem. Phys.
 Lett. **2002**, 363, 73–79. DOI:
