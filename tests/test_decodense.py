@@ -34,15 +34,15 @@ def mf_li_rohf():
     return mf
 
 
-# reference atomic energies
-REF_ATOM_E = {
+# atomic reference energies
+ATOM_REF_E = {
     "H": -0.46658184955727533,
     "Li": -7.315525981281088,
     "O": -73.80415023325594,
 }
 
 
-@pytest.fixture(params=[None, REF_ATOM_E], ids=["no_ref", "atom_ref"])
+@pytest.fixture(params=[None, ATOM_REF_E], ids=["no_ref", "atom_ref"])
 def atom_ref(request):
     return request.param
 
