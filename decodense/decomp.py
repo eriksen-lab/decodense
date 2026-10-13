@@ -35,6 +35,7 @@ class CompKeys:
     orbitals = "Orbital"
     mo_occ = "Occup."
     orbsym = "Symm."
+    sum_row = "Sum"
 
 
 comp_key_dict = {
@@ -57,6 +58,7 @@ comp_key_dict = {
     "Orbital": "orbitals",
     "Occup.": "mo_occ",
     "Symm.": "orbsym",
+    "Sum": "sum_row",
 }
 
 
