@@ -448,7 +448,7 @@ def prop_tot(
             prop[CompKeys.struct] = prop_nuc_rep
         prop[CompKeys.tot] = prop[CompKeys.el] + prop[CompKeys.struct]
 
-        if atom_ref is not None:
+        if (prop_type == "energy") and (atom_ref is not None):
             atom_ref_e = atom_ref_energies(mol, atom_ref)
             prop[CompKeys.atom_ref] = atom_ref_e
             prop[CompKeys.tot_rel] = prop[CompKeys.tot] - atom_ref_e
