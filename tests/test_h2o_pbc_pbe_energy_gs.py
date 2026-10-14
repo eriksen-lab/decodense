@@ -53,7 +53,7 @@ supcell, mo_coeff, mo_occ, e_mo = (
     mf_scf.mo_energy,
 )
 j_int = to_supercell_ao_integrals(cell, kpts, kmf.get_j())
-mf = dft.RKS(supcell).density_fit().apply(mol_scf.addons.remove_linear_dep_)
+mf = dft.RKS(supcell).density_fit()
 mf.xc = "pbe,pbe"
 mf.with_df = df.df.DF(supcell)
 mf.with_df.auxbasis = "weigend"
