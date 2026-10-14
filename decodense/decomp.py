@@ -29,10 +29,13 @@ class CompKeys:
     struct = "Struct."
     el = "Elect."
     tot = "Total"
+    atom_ref = "E_ref"
+    tot_rel = "Tot (rel)"
     atoms = "Atom"
     orbitals = "Orbital"
     mo_occ = "Occup."
     orbsym = "Symm."
+    sum_row = "Sum"
 
 
 comp_key_dict = {
@@ -49,10 +52,13 @@ comp_key_dict = {
     "Struct.": "struct",
     "Elect.": "el",
     "Total": "tot",
+    "E_ref": "atom_ref",
+    "Tot (rel)": "tot_rel",
     "Atom": "atoms",
     "Orbital": "orbitals",
     "Occup.": "mo_occ",
     "Symm.": "orbsym",
+    "Sum": "sum_row",
 }
 
 
@@ -76,6 +82,7 @@ class DecompCls:
         "writename",
         "verbose",
         "unit",
+        "atom_ref",
         "res",
     )
 
@@ -95,6 +102,7 @@ class DecompCls:
         writename: str = "",
         verbose: int = 0,
         unit: str = "au",
+        atom_ref: Optional[dict] = None,
     ) -> None:
         """
         init molecule attributes
@@ -128,6 +136,7 @@ class DecompCls:
         self.writename = writename
         self.verbose = verbose
         self.unit = unit
+        self.atom_ref = atom_ref
         # set internal defaults
         self.res: dict[str, Union[np.ndarray, list[np.ndarray]]] = {}
 
@@ -169,12 +178,6 @@ def sanity_check(
         raise ValueError(
             "invalid localization exponent. valid choices: 2 (default) or 4"
         )
-    # partitioning and partitioning method
-    # if decomp.part not in ("atoms", "orbitals", "bonds"):
-    #     raise ValueError(
-    #         "invalid partitioning. valid choices: \"atoms\" (default), \"orbitals\", or "
-    #         "\"bonds\""
-    #     )
     if decomp.part == "orbitals":
         logger.warning(
             "Warning: This partitioning only computes electronic energy and does not "
@@ -272,6 +275,18 @@ def sanity_check(
             'invalid unit. valid choices: "au" (default), "kcal_mol", "ev", '
             '"kj_mol", or "debye"'
         )
+    # atomic reference values
+    if decomp.atom_ref is not None:
+        if not isinstance(decomp.atom_ref, dict) or not all(
+            isinstance(k, str)
+            and isinstance(v, (int, float, np.integer, np.floating))
+            and not isinstance(v, (bool, np.bool_))
+            for k, v in decomp.atom_ref.items()
+        ):
+            raise TypeError(
+                "invalid atomic reference energies. must be a dictionary of "
+                'real atomic energies formatted as { "atom_label" : atomic_energy }'
+            )
     # mo coefficients
     if not isinstance(mo_coeff, np.ndarray) and not isinstance(mo_coeff, tuple):
         raise TypeError(

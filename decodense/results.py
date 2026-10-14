@@ -38,14 +38,25 @@ class ResultsCls:
     def __str__(self):
         """
         build a string from a pandas dataframe built from the results
+        (with an extra last row containing the column sums)
         """
-        return str(self.to_dataframe())
+        return str(_with_sum(self.to_dataframe()))
 
     def to_dataframe(self) -> pd.DataFrame:
         """
         build a pandas dataframe from the results
         """
         return fmt(self.mol, self.res_dict, self.print_unit, self.ndo, self.part)
+
+
+def _with_sum(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    this function returns a copy of the dataframe with an extra last row,
+    containing the sums of all numeric columns (non-numeric columns are left empty)
+    """
+    df_sum = df.copy()
+    df_sum.loc[CompKeys.sum_row] = df.select_dtypes(include="number").sum()
+    return df_sum
 
 
 def info(decomp: DecompCls, mol: Optional[gto.Mole] = None, **kwargs: float) -> str:

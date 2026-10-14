@@ -12,24 +12,36 @@ from .properties import prop_tot
 from .tools import write_rdm1
 
 
-def _scheme_atoms_mo(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
+def _scheme_atoms(
+    mol,
+    mf,
+    mo_coeff,
+    mo_occ,
+    rdm1,
+    decomp,
+):
     """
-    This function takes care of MO-based atom-wise decompositions:
-    1. Compute atomic weights
+    This function takes care of atom-wise decompositions:
+    1. Compute atomic weights (only if part_method == "mo")
     2. Perform the decomposition
-    3. Writes the RDM1s if requested
+    3. Write the RDM1s if requested
     """
+
     # 1. Compute atomic weights
-    weights = assign_rdm1s(
-        mol,
-        mf,
-        mo_coeff,
-        mo_occ,
-        decomp.minao,
-        decomp.pop_method,
-        decomp.ndo,
-        decomp.verbose,
-    )
+    if decomp.part_method == "mo":
+        weights = assign_rdm1s(
+            mol,
+            mf,
+            mo_coeff,
+            mo_occ,
+            decomp.minao,
+            decomp.pop_method,
+            decomp.ndo,
+            decomp.verbose,
+        )
+    else:
+        weights = None
+
     # 2. Perform the decomposition
     res = prop_tot(
         mol,
@@ -44,8 +56,10 @@ def _scheme_atoms_mo(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
         decomp.ndo,
         decomp.gauge_origin,
         weights,
+        decomp.atom_ref,
     )
-    # 3. Writes the RDM1s if requested
+
+    # 3. Write the RDM1s if requested
     if decomp.write != "":
         write_rdm1(
             mol, decomp.part, mo_coeff, mo_occ, decomp.write, decomp.writename, weights
@@ -57,11 +71,9 @@ def _scheme_atoms_mo(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
 # end _scheme_atoms
 
 
-def _scheme_atoms_ao_orbitals(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
+def _scheme_orbitals(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
     """
-    This function takes care of AO-based atom-wise decompositions
-    and orbital-wise decompositions.
-    The difference between these two is indicated by decomp.part_method.
+    This function takes care of orbital-wise decompositions.
     """
     return prop_tot(
         mol,
@@ -72,7 +84,7 @@ def _scheme_atoms_ao_orbitals(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
         decomp.minao,
         decomp.pop_method,
         decomp.prop,
-        decomp.part_method,
+        None,  # decomp.part_method
         decomp.ndo,
         decomp.gauge_origin,
         weights=None,
@@ -130,9 +142,9 @@ def _scheme_bonds_aap2b(mol, mf, mo_coeff, mo_occ, rdm1, decomp):
 # end _scheme_bonds_aap2b
 
 SCHEMES = {
-    ("atoms", "mo"): _scheme_atoms_mo,
-    ("atoms", "ao"): _scheme_atoms_ao_orbitals,
-    ("orbitals", None): _scheme_atoms_ao_orbitals,
+    ("atoms", "mo"): _scheme_atoms,
+    ("atoms", "ao"): _scheme_atoms,
+    ("orbitals", None): _scheme_orbitals,
     ("bonds", "a2b"): _scheme_bonds_a2b,
     ("bonds", "aap2b"): _scheme_bonds_aap2b,
 }
