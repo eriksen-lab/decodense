@@ -123,6 +123,29 @@ def mf_info(
     return mo_coeff, mo_occ
 
 
+def atom_ref_energies(
+    mol: Union[gto.Mole, pbc_gto.Cell],
+    atom_ref: dict,
+) -> np.ndarray:
+    """
+    this function returns an array with the atomic reference energies
+    taken from the provided atom_ref dictionary
+    and ordered according to the atom order in the provided mol object
+    """
+
+    e_ref = np.zeros(mol.natm, dtype=np.float64)
+    for i in range(mol.natm):
+        a_symbol = mol.atom_symbol(i)
+        try:
+            e_ref[i] = atom_ref[a_symbol]
+        except KeyError as err:
+            raise KeyError(
+                f"atomic reference energy for atom {i} with symbol {a_symbol} not found in the provided atom_ref dictionary"
+            ) from err
+
+    return e_ref
+
+
 def orbsym(mol, mo_coeff):
     """
     this functions returns orbital symmetries

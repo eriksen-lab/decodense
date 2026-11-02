@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*
 
 """
-prop_tools module (helpers shared by the properties and aap_properties modules)
+prop_tools module
 """
 
 import numpy as np
-from pyscf import gto, scf, dft, lib
+from pyscf import gto, scf, dft, df, lib, solvent
 from pyscf.dft import numint
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import scf as pbc_scf
@@ -18,6 +18,9 @@ from .tools import dim, contract, logger
 
 # atom-wise (array) or orbital-wise (list of arrays per spin) xc energies
 XCPart = Union[np.ndarray, list[np.ndarray]]
+
+# block size in _point_charges()
+BLKSIZE = 200
 
 
 def _h_core(
@@ -49,6 +52,28 @@ def _h_core(
         # total nuclear potential and individual nuclear attraction energies
         nuc, e_nuc = _get_nuc(mol, rdm1)
     return kin, nuc, e_nuc
+
+
+def _e_nuc(mol: gto.Mole) -> np.ndarray:
+    """
+    this function returns the nuclear repulsion energy
+    """
+    # coordinates and charges of nuclei
+    charges = mol.atom_charges()
+    # internuclear distances (with self-repulsion removed)
+    dist = gto.inter_distance(mol)
+    dist[np.diag_indices_from(dist)] = 1e200
+    return contract("i,ij,j->i", charges, 1.0 / dist, charges) * 0.5
+
+
+def _dip_nuc(mol: gto.Mole, gauge_origin: np.ndarray) -> np.ndarray:
+    """
+    this function returns the nuclear contribution to the molecular dipole moment
+    """
+    # coordinates and formal/actual charges of nuclei
+    coords = mol.atom_coords()
+    form_charges = mol.atom_charges()
+    return contract("i,ix->ix", form_charges, coords - gauge_origin)
 
 
 def _get_nuc(mol: gto.Mole, rdm1: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -390,3 +415,141 @@ def _xc_energies(
             natm,
         )
     return e_xc, e_xc_nlc
+
+
+def _solvent(
+    mol: Union[gto.Mole, pbc_gto.Cell],
+    mf: Union[scf.hf.SCF, dft.rks.KohnShamDFT, pbc_scf.RHF],
+    rdm1: np.ndarray,
+) -> tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+    # initialize
+    pot_solv, nuc_solv, vdW_solv = None, None, None
+
+    # point charges
+    if hasattr(mf, "mm_mol"):
+        mm_mol = getattr(mf, "mm_mol", None)
+        pot_solv, nuc_solv = _point_charges(mol, mm_mol)
+    # pcm
+    elif hasattr(mf, "with_solvent"):
+        if not isinstance(mf.with_solvent, solvent.pcm.PCM):
+            raise NotImplementedError(
+                "decodense only supports PCM-type solvent models (C-PCM, IEF-PCM, "
+                f"SS(V)PE, COSMO, SMD), not {type(mf.with_solvent).__name__}"
+            )
+        pot_solv, nuc_solv = _pcm(mol, rdm1, mf.with_solvent)
+    # OpenMM polarizable embedding
+    elif hasattr(mf, "h1e_mmpol"):
+        # static contribution to one-electron Hamiltonian
+        pot_solv = getattr(mf, "h1e_mmpol").copy()
+
+        # static nuclear contribution
+        nuc_solv = np.array(
+            [
+                mf.V_mm_at_nucl[i] * mol.atom_charges()[i]
+                for i in range(len(mol.atom_charges()))
+            ]
+        )
+
+        # QM-MM vdW potential
+        vdW_solv = mf.ommp_qm_helper.vdw_energy_by_atom(mf.ommp_obj)
+
+        # polarization contributions
+        if hasattr(mf, "v_mmpol_d"):
+            # IPD contribution to the Fock Matrix
+            pot_solv += 0.5 * getattr(mf, "v_mmpol_d")
+
+            # polarization contribution from the potential of the IPDs at the nuclei
+            nuc_solv += 0.5 * np.array(
+                [
+                    mf.V_pol_at_nucl[i] * mol.atom_charges()[i]
+                    for i in range(len(mol.atom_charges()))
+                ]
+            )
+
+    return pot_solv, nuc_solv, vdW_solv
+
+
+def _point_charges(mol: gto.Mole, mm_mol: gto.Mole) -> tuple[np.ndarray, np.ndarray]:
+    """
+    this function returns the full mm potential and the nuclei interaction with the
+    point charges (adapted from: qmmm/itrf.py:get_hcore() in PySCF)
+    """
+    # settings
+    coords = mm_mol.atom_coords()
+    charges = mm_mol.atom_charges()
+    # integrals
+    intor = "int3c2e_cart" if mol.cart else "int3c2e_sph"
+    cintopt = gto.moleintor.make_cintopt(mol._atm, mol._bas, mol._env, intor)
+    # compute interaction potential
+    nao = mol.nao_nr()
+    mm_pot = np.zeros(nao * (nao + 1) // 2, dtype=np.float64)
+    for i0, i1 in lib.prange(0, charges.size, BLKSIZE):
+        fakemol = gto.fakemol_for_charges(coords[i0:i1])
+        j3c = df.incore.aux_e2(mol, fakemol, intor=intor, aosym="s2ij", cintopt=cintopt)
+        mm_pot += np.einsum("xk,k->x", j3c, -charges[i0:i1])
+    mm_pot = lib.unpack_tril(mm_pot)
+    # nuclei interaction with point charges
+    atom_charges = mol.atom_charges()
+    atom_coords = mol.atom_coords()
+    nuc_solv = np.zeros(mol.natm)
+    mm_atom_charges = mm_mol.atom_charges()
+    mm_atom_coords = mm_mol.atom_coords()
+    for j in range(mol.natm):
+        q2, r2 = atom_charges[j], atom_coords[j]
+        r = lib.norm(r2 - mm_atom_coords, axis=1)
+        nuc_solv[j] = q2 * np.sum(mm_atom_charges / r)
+    return mm_pot, nuc_solv
+
+
+def _pcm(
+    mol: gto.Mole, rdm1: np.ndarray, solvent_model: solvent.PCM
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    this function returns the pcm potential matrix and the nuclei interaction with the
+    solvent (adapted from: solvent/pcm.py:_get_vind() in PySCF)
+    """
+    surface = solvent_model.surface
+    nao = mol.nao_nr()
+    rdm1 = rdm1.reshape(-1, nao, nao)
+    if rdm1.shape[0] == 2:
+        rdm1 = (rdm1[0] + rdm1[1]).reshape(-1, nao, nao)
+    # get the electronic part of the potential
+    vmat_e = 0.5 * solvent_model._get_vind(np.sum(rdm1, axis=0))[1]
+    # calculate the cavity surface charges
+    K = solvent_model._intermediates["K"]
+    R = solvent_model._intermediates["R"]
+    v_grids_e = solvent_model._get_v(rdm1)
+    v_grids_n = solvent_model.v_grids_n
+    v_grids = v_grids_n - v_grids_e
+    b = np.dot(R, v_grids.T)
+    q = np.linalg.solve(K, b).T
+    vK_1 = np.linalg.solve(K.T, v_grids.T)
+    qt = np.dot(R.T, vK_1).T
+    q_sym = (q + qt) / 2.0
+    # get the nuclear part of the potential
+    nuc_solv_pcm = np.zeros(mol.natm)
+    for j in range(mol.natm):
+        q2, r2 = mol.atom_charges()[j], mol.atom_coords()[j]
+        r = lib.norm(r2 - surface["grid_coords"], axis=1)
+        nuc_solv_pcm[j] = 0.5 * q2 * np.sum(q_sym / r)
+    return vmat_e, nuc_solv_pcm
+
+
+def _trace(
+    op: np.ndarray, rdm1: np.ndarray, scaling: float = 1.0
+) -> Union[float, np.ndarray]:
+    """
+    this function returns the trace between an operator and an rdm1
+    """
+    if op.ndim == 2:
+        return contract("ij,ij", op, rdm1) * scaling
+    else:
+        return contract("xij,ij->x", op, rdm1) * scaling
+
+
+def _mo_diag(op: np.ndarray, c: np.ndarray) -> np.ndarray:
+    """
+    this function returns c_m^T op c_m for all columns c_m of c
+    (op: (nao, nao) -> shape (nmo,), op: (ncomp, nao, nao) -> shape (ncomp, nmo))
+    """
+    return np.sum((op @ c) * c, axis=-2)
