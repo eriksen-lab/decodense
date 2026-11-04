@@ -169,7 +169,7 @@ def prop_tot(
     if part_method == "ao":
         ao_atm = np.array([lbl[0] for lbl in mol.ao_labels(fmt=None)])
 
-    def energy_tail(res: dict[str, np.ndarray]) -> None:
+    def finalize_atom_e(res: dict[str, np.ndarray]) -> None:
         """
         this function adds the atom-wise energy terms that are computed outside the
         kernels (solvent nuclear and vdw terms, xc and nlc energies), and the sum of
