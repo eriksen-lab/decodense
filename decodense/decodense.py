@@ -15,7 +15,7 @@ from typing import Union, Optional
 from .decomp import DecompCls, sanity_check
 from .orbitals import assign_rdm1s
 from .properties import prop_tot
-from .tools import write_rdm1, logger_config
+from .tools import atom_ref_energies, write_rdm1, logger_config
 from .results import ResultsCls
 from .schemes import SCHEMES
 
@@ -62,6 +62,10 @@ def main(
                 mo_occ = 2 * (mo_occ / 2,)
         else:
             mo_occ = tuple(mo_occ)
+
+    # transform atomic reference energies from dictionary to list
+    if decomp.atom_ref is not None:
+        decomp.atom_ref = atom_ref_energies(mol, decomp.atom_ref)
 
     scheme = SCHEMES[(decomp.part, decomp.part_method)]
     decomp.res = scheme(mol, mf, mo_coeff, mo_occ, rdm1, decomp)
