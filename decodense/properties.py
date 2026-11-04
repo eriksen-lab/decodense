@@ -253,7 +253,7 @@ def prop_tot(
             res[CompKeys.nuc_att_glob] = e_nuc_att_glob
             if pot_solv is not None:
                 res[CompKeys.solvent] = tr_atom(pot_solv, rdm1_tot_sum)
-            energy_tail(res)
+            finalize_atom_e(res)
         elif prop_type == "dipole":
             res[CompKeys.el] = -tr_atom(ao_dip, rdm1_tot_sum).T
         return res
