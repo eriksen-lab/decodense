@@ -73,8 +73,18 @@ def test_prop_tot_energy(restrict, xc, part_method):
     mol = mf.mol
     mo_coeff, mo_occ, weights = _decomp_input(mf, restrict)
     res = prop_tot(
-        mol, mf, mo_coeff, mo_occ, None, "minao", "mulliken", "energy",
-        part_method, False, np.zeros(3), weights if part_method == "mo" else None,
+        mol,
+        mf,
+        mo_coeff,
+        mo_occ,
+        None,
+        "minao",
+        "mulliken",
+        "energy",
+        part_method,
+        False,
+        np.zeros(3),
+        weights if part_method == "mo" else None,
     )
     e_ref = mf.e_tot if part_method is not None else mf.e_tot - mol.energy_nuc()
     assert np.isclose(_total(res[CompKeys.tot]), e_ref, atol=1e-8)
@@ -96,8 +106,18 @@ def test_prop_tot_dipole(restrict, part_method):
     mol = mf.mol
     mo_coeff, mo_occ, weights = _decomp_input(mf, restrict)
     res = prop_tot(
-        mol, mf, mo_coeff, mo_occ, None, "minao", "mulliken", "dipole",
-        part_method, False, np.zeros(3), weights if part_method == "mo" else None,
+        mol,
+        mf,
+        mo_coeff,
+        mo_occ,
+        None,
+        "minao",
+        "mulliken",
+        "dipole",
+        part_method,
+        False,
+        np.zeros(3),
+        weights if part_method == "mo" else None,
     )
     assert res[CompKeys.tot].shape == (mol.natm, 3)
     dip_ref = mf.dip_moment(unit="au", verbose=0)
@@ -112,8 +132,19 @@ def test_prop_tot_atom_ref():
     mo_coeff, mo_occ, weights = _decomp_input(mf, True)
     atom_ref = np.array([-74.0, -0.5, -0.5])
     res = prop_tot(
-        mf.mol, mf, mo_coeff, mo_occ, None, "minao", "mulliken", "energy",
-        "mo", False, np.zeros(3), weights, atom_ref,
+        mf.mol,
+        mf,
+        mo_coeff,
+        mo_occ,
+        None,
+        "minao",
+        "mulliken",
+        "energy",
+        "mo",
+        False,
+        np.zeros(3),
+        weights,
+        atom_ref,
     )
     assert np.array_equal(res[CompKeys.atom_ref], atom_ref)
     assert np.allclose(res[CompKeys.tot_rel], res[CompKeys.tot] - atom_ref)
