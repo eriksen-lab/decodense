@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import scf
+from pyscf import scf, lo
 from pyscf.pbc import df, dft, gto
 from pyscf.pbc.tools.k2gamma import k2gamma, to_supercell_ao_integrals
-from pyscf.opentrustregion import PipekMezeyOTR
+from pyscf.opentrustregion import to_otr
 
 import decodense
 
@@ -56,9 +56,10 @@ mf.vj = j_int
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # pipek-mezey procedure with OTR
-loc = PipekMezeyOTR(supcell, mf.mo_coeff[:, occ_mo])
+loc = to_otr(lo.PipekMezey(supcell, mf.mo_coeff[:, occ_mo]))
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
+loc.line_search = True
 mo_coeff = loc.kernel()
 
 # verify optimum is a true minimum

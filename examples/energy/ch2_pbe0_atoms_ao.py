@@ -3,7 +3,7 @@
 
 import numpy as np
 from pyscf import gto, scf
-from pyscf.opentrustregion import mf_to_otr
+from pyscf.opentrustregion import to_otr
 
 import decodense
 
@@ -21,7 +21,7 @@ mol = gto.M(
 )
 
 # mf calc
-mf = mf_to_otr(scf.UKS(mol, xc="pbe0"))
+mf = to_otr(scf.UKS(mol, xc="pbe0"))
 mf.conv_tol = 1.0e-10
 mf.kernel()
 

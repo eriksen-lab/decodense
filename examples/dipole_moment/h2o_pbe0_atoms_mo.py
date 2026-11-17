@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf
-from pyscf.opentrustregion import PipekMezeyOTR, mf_to_otr
+from pyscf import gto, scf, lo
+from pyscf.opentrustregion import to_otr
 
 import decodense
 
@@ -20,7 +20,7 @@ mol = gto.M(
 )
 
 # mf calc
-mf = mf_to_otr(scf.RKS(mol, xc="pbe0"))
+mf = to_otr(scf.RKS(mol, xc="pbe0"))
 mf.conv_tol = 1.0e-10
 mf.kernel()
 
@@ -31,7 +31,7 @@ stable, direction = mf.stability_check()
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # pipek-mezey procedure with OTR
-loc = PipekMezeyOTR(mol, mf.mo_coeff[:, occ_mo])
+loc = to_otr(lo.PipekMezey(mol, mf.mo_coeff[:, occ_mo]))
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
 mo_coeff = loc.kernel()
