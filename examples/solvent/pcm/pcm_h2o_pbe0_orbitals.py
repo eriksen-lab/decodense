@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf, solvent
-from pyscf.opentrustregion import PipekMezeyOTR, mf_to_otr
+from pyscf import gto, scf, solvent, lo
+from pyscf.opentrustregion import to_otr
 
 import decodense
 
@@ -24,8 +24,8 @@ mf = scf.RKS(mol)
 mf.xc = "pbe0"
 mf.conv_tol = 1.0e-10
 
-# add pcm for water, then apply mf_to_otr
-mf = mf_to_otr(solvent.PCM(mf))
+# add pcm for water, then apply to_otr
+mf = to_otr(solvent.PCM(mf))
 mf.with_solvent.eps = 78.3553
 
 # run mf
@@ -38,9 +38,10 @@ stable, direction = mf.stability_check()
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # pipek-mezey procedure with OTR
-loc = PipekMezeyOTR(mol, mf.mo_coeff[:, occ_mo])
+loc = to_otr(lo.PipekMezey(mol, mf.mo_coeff[:, occ_mo]))
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
+loc.line_search = True
 mo_coeff = loc.kernel()
 
 # verify optimum is a true minimum

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf, qmmm
-from pyscf.opentrustregion import PipekMezeyOTR, mf_to_otr
+from pyscf import gto, scf, qmmm, lo
+from pyscf.opentrustregion import to_otr
 
 import decodense
 
@@ -24,11 +24,11 @@ mf = scf.RKS(mol)
 mf.xc = "pbe0"
 mf.conv_tol = 1.0e-10
 
-# randomly add point charges,then apply mf_to_otr
+# randomly add point charges,then apply to_otr
 np.random.seed(1)
 coords = np.random.random((5, 3)) * 10
 charges = (np.arange(5) + 1.0) * -0.1
-mf = mf_to_otr(qmmm.mm_charge(mf, coords, charges))
+mf = to_otr(qmmm.mm_charge(mf, coords, charges))
 
 # run mf
 mf.kernel()
@@ -40,9 +40,10 @@ stable, direction = mf.stability_check()
 occ_mo = np.where(mf.mo_occ == 2.0)[0]
 
 # pipek-mezey procedure with OTR
-loc = PipekMezeyOTR(mol, mf.mo_coeff[:, occ_mo])
+loc = to_otr(lo.PipekMezey(mol, mf.mo_coeff[:, occ_mo]))
 loc.pop_method = "iao"
 loc.conv_tol = 1e-10
+loc.line_search = True
 mo_coeff = loc.kernel()
 
 # verify optimum is a true minimum
