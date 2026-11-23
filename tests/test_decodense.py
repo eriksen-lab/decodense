@@ -159,3 +159,39 @@ def test_main_dipole(mf_h2o_rhf, part_method):
     assert np.allclose(
         res1.tot.sum(axis=0), mf_h2o_rhf.dip_moment(unit="au", verbose=0), atol=1e-10
     )
+
+
+# main must reject missing mo_occ if the number of mos does not match the number of electrons
+@pytest.mark.parametrize(
+    "mo_slice,message",
+    [
+        (slice(None), "more alpha MOs"),  # occupied and virtual mos
+        (slice(0, 4), "fewer alpha MOs"),  # too few mos
+    ],
+)
+def test_main_mo_occ_none_rejects_nelec_mismatch(mf_h2o_rhf, mo_slice, message):
+    mo = mf_h2o_rhf.mo_coeff[:, mo_slice]
+    decomp = DecompCls(pop_method="iao", part="atoms")
+    with pytest.raises(ValueError, match=message):
+        main(mf_h2o_rhf.mol, decomp, mf_h2o_rhf, mo)
+
+
+# main must reject missing mo_occ for restricted open-shell mos
+def test_main_mo_occ_none_rejects_rohf(mf_li_rohf):
+    mo = mf_li_rohf.mo_coeff[:, mf_li_rohf.mo_occ > 0.0]
+    decomp = DecompCls(pop_method="iao", part="atoms")
+    with pytest.raises(ValueError, match="more beta MOs"):
+        main(mf_li_rohf.mol, decomp, mf_li_rohf, mo)
+
+
+# missing mo_occ must give the same result as all-occupied mo_occ for occupied mos
+def test_main_mo_occ_none_occupied_mos(mf_h2o_rhf):
+    mol = mf_h2o_rhf.mol
+    mo = mf_h2o_rhf.mo_coeff[:, mf_h2o_rhf.mo_occ > 0.0]
+    mo_occ = (np.ones(mo.shape[1]), np.ones(mo.shape[1]))
+    decomp = DecompCls(pop_method="iao", part="atoms")
+    res = main(mol, decomp, mf_h2o_rhf, mo)
+    decomp_occ = DecompCls(pop_method="iao", part="atoms")
+    res_occ = main(mol, decomp_occ, mf_h2o_rhf, (mo, mo), mo_occ)
+    for key, val in res.res_dict.items():
+        assert np.allclose(val, res_occ.res_dict[key], atol=1e-10)

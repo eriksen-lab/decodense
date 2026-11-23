@@ -45,8 +45,21 @@ def main(
         else:
             mo_coeff = tuple(mo_coeff)
 
-    # assume occupation if not provided
+    # assume occupation if not provided: only valid if exactly the occupied MOs are passed
     if mo_occ is None:
+        for spin, label in enumerate(("alpha", "beta")):
+            nmo, nel = mo_coeff[spin].shape[1], mol.nelec[spin]
+            if nmo > nel:
+                raise ValueError(
+                    f"mo_occ not provided, but more {label} MOs ({nmo}) were passed than "
+                    f"there are {label} electrons ({nel}); decodense cannot tell occupied "
+                    "from virtual MOs. Either pass mo_occ or pass only the occupied MOs."
+                )
+            if nmo < nel:
+                raise ValueError(
+                    f"mo_occ not provided, but fewer {label} MOs ({nmo}) were passed than "
+                    f"there are {label} electrons ({nel})."
+                )
         mo_occ = (np.ones(mo_coeff[0].shape[1]), np.ones(mo_coeff[1].shape[1]))
     elif isinstance(mo_occ, np.ndarray):
         if mo_occ.ndim == 1:
