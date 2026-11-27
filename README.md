@@ -44,20 +44,15 @@ pip install pytest
 
 ### Prerequisites
 
-- Most examples in **`examples`** use the **`mf_to_otr`** function, which wraps 
-  PySCF **`HF`** and **`KS`** objects into their OpenTrustRegion
-  counterparts, and the **`PipekMezeyOTR`** class for localization. Orbital
+- Most examples in **`examples`** use the **`to_otr`** function, which converts
+  a PySCF object into its OpenTrustRegion counterpart. This wraps both **`HF`**
+  and **`KS`** objects as well as orbital localizers (e.g. Pipek-Mezey). Orbital
   optimization and internal stability analysis are also performed using the
   **`kernel`** and **`stability_check`** member functions, respectively. Running
   these therefore also requires
   [OpenTrustRegion](https://github.com/eriksen-lab/opentrustregion) and its
   PySCF extension,
   [pyscf_opentrustregion](https://github.com/eriksen-lab/pyscf_opentrustregion).
-  After installing both, add the extension's path to **`PYSCF_EXT_PATH`**:
-  
-    ```sh
-  export PYSCF_EXT_PATH=path/to/pyscf_opentrustregion:$PYSCF_EXT_PATH
-  ```
   
 ### Settings
 

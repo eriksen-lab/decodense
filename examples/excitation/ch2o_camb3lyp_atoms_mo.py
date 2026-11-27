@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*
 
 import numpy as np
-from pyscf import gto, scf
-from pyscf.opentrustregion import PipekMezeyOTR
+from pyscf import gto, scf, lo
+from pyscf.opentrustregion import to_otr
 
 import decodense
 
@@ -54,9 +54,10 @@ mo_coeff = []
 # loop over spins
 for i, spin_mo in enumerate((alpha, beta)):
     # pipek-mezey procedure with OTR
-    loc = PipekMezeyOTR(mol, mf_ex.mo_coeff[i][:, spin_mo])
+    loc = to_otr(lo.PipekMezey(mol, mf_ex.mo_coeff[i][:, spin_mo]))
     loc.pop_method = "iao"
     loc.conv_tol = 1e-10
+    loc.line_search = True
     mo_coeff.append(loc.kernel())
 
     # verify optimum is a true minimum
